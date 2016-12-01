@@ -19,17 +19,19 @@ package nodeup
 import (
 	"encoding/base64"
 	"fmt"
+	"text/template"
+
 	"github.com/golang/glog"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/secrets"
 	"k8s.io/kops/util/pkg/vfs"
-	"text/template"
+	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 const TagMaster = "_kubernetes_master"
 
-const DefaultProtokubeImage = "kope/protokube:1.4"
+const DefaultProtokubeImage = "b.gcr.io/kops-images/protokube:1.4.1"
 
 // templateFunctions is a simple helper-class for the functions accessible to templates
 type templateFunctions struct {
@@ -45,14 +47,14 @@ type templateFunctions struct {
 	// secretStore is populated with a SecretStore, if SecretStore is set
 	secretStore fi.SecretStore
 
-	tags map[string]struct{}
+	tags sets.String
 
 	// kubeletConfig is the kubelet config for the current node
 	kubeletConfig *api.KubeletConfigSpec
 }
 
 // newTemplateFunctions is the constructor for templateFunctions
-func newTemplateFunctions(nodeupConfig *NodeUpConfig, cluster *api.Cluster, instanceGroup *api.InstanceGroup, tags map[string]struct{}) (*templateFunctions, error) {
+func newTemplateFunctions(nodeupConfig *NodeUpConfig, cluster *api.Cluster, instanceGroup *api.InstanceGroup, tags sets.String) (*templateFunctions, error) {
 	t := &templateFunctions{
 		nodeupConfig:  nodeupConfig,
 		cluster:       cluster,
