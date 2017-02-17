@@ -207,7 +207,11 @@ func (_ *Subnet) RenderTerraform(t *terraform.TerraformTarget, a, e, changes *Su
 		Tags:             cloud.BuildTags(e.Name),
 	}
 
-	return t.RenderResource("aws_subnet", *e.Name, tf)
+	if err := t.RenderResource("aws_subnet", *e.Name, tf); err != nil {
+		return err
+	}
+
+	return t.AddOutputVariableArray("subnet_ids", e.TerraformLink())
 }
 
 func (e *Subnet) TerraformLink() *terraform.Literal {

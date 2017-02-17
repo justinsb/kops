@@ -28,6 +28,7 @@ import (
 	"k8s.io/kops/pkg/apis/kops/util"
 	"k8s.io/kops/pkg/model/components"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awstasks"
+	"net"
 )
 
 type KopsModelContext struct {
