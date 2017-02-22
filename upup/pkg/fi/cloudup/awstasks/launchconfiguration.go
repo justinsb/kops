@@ -32,6 +32,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/sets"
 	"sort"
 	"time"
+	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 //go:generate fitask -type=LaunchConfiguration
