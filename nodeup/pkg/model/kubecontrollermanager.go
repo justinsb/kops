@@ -25,6 +25,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/v1"
 	metav1 "k8s.io/kubernetes/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/util/intstr"
+	"path/filepath"
 	"strings"
 )
 
@@ -63,7 +64,12 @@ func (b *KubeControllerManagerBuilder) Build(c *fi.ModelBuilderContext) error {
 }
 
 func (b *KubeControllerManagerBuilder) buildPod() (*v1.Pod, error) {
-	flags, err := flagbuilder.BuildFlags(b.Cluster.Spec.KubeControllerManager)
+	kcm := b.Cluster.Spec.KubeControllerManager
+
+	kcm.RootCAFile = filepath.Join(b.PathSrvKubernetes(), "ca.crt")
+	kcm.ServiceAccountPrivateKeyFile = filepath.Join(b.PathSrvKubernetes(), "server.key")
+
+	flags, err := flagbuilder.BuildFlags(kcm)
 	if err != nil {
 		return nil, fmt.Errorf("error building kube-controller-manager flags: %v", err)
 	}
@@ -127,8 +133,9 @@ func (b *KubeControllerManagerBuilder) buildPod() (*v1.Pod, error) {
 		addHostPathMapping(pod, container, "cloudconfig", CloudConfigFilePath, true)
 	}
 
-	if b.Cluster.Spec.KubeControllerManager.PathSrvKubernetes != "" {
-		addHostPathMapping(pod, container, "srvkube", b.Cluster.Spec.KubeControllerManager.PathSrvKubernetes, true)
+	pathSrvKubernetes := b.PathSrvKubernetes()
+	if pathSrvKubernetes != "" {
+		addHostPathMapping(pod, container, "srvkube", pathSrvKubernetes, true)
 	}
 
 	addHostPathMapping(pod, container, "logfile", "/var/log/kube-controller-manager.log", false)
