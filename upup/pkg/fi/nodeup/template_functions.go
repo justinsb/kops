@@ -92,11 +92,9 @@ func (t *templateFunctions) populate(dest template.FuncMap) {
 		return runtime.GOARCH
 	}
 
-	dest["CACertificatePool"] = t.CACertificatePool
 	dest["CACertificate"] = t.CACertificate
 	dest["PrivateKey"] = t.PrivateKey
 	dest["Certificate"] = t.Certificate
-	dest["AllTokens"] = t.AllTokens
 	dest["GetToken"] = t.GetToken
 
 	dest["BuildFlags"] = flagbuilder.BuildFlags
@@ -122,31 +120,6 @@ func (t *templateFunctions) populate(dest template.FuncMap) {
 	dest["ClusterName"] = func() string {
 		return t.cluster.ObjectMeta.Name
 	}
-
-	dest["ProtokubeImageName"] = t.ProtokubeImageName
-	dest["ProtokubeImagePullCommand"] = t.ProtokubeImagePullCommand
-
-	dest["ProtokubeFlags"] = t.ProtokubeFlags
-}
-
-// CACertificatePool returns the set of valid CA certificates for the cluster
-func (t *templateFunctions) CACertificatePool() (*fi.CertificatePool, error) {
-	if t.keyStore != nil {
-		return t.keyStore.CertificatePool(fi.CertificateId_CA)
-	}
-
-	// Fallback to direct properties
-	glog.Infof("Falling back to direct configuration for keystore")
-	cert, err := t.CACertificate()
-	if err != nil {
-		return nil, err
-	}
-	if cert == nil {
-		return nil, fmt.Errorf("CA certificate not found (with fallback)")
-	}
-	pool := &fi.CertificatePool{}
-	pool.Primary = cert
-	return pool, nil
 }
 
 // CACertificate returns the primary CA certificate for the cluster
@@ -162,23 +135,6 @@ func (t *templateFunctions) PrivateKey(id string) (*fi.PrivateKey, error) {
 // Certificate returns the specified private key
 func (t *templateFunctions) Certificate(id string) (*fi.Certificate, error) {
 	return t.keyStore.Cert(id)
-}
-
-// AllTokens returns a map of all tokens
-func (t *templateFunctions) AllTokens() (map[string]string, error) {
-	tokens := make(map[string]string)
-	ids, err := t.secretStore.ListSecrets()
-	if err != nil {
-		return nil, err
-	}
-	for _, id := range ids {
-		token, err := t.secretStore.FindSecret(id)
-		if err != nil {
-			return nil, err
-		}
-		tokens[id] = string(token.Data)
-	}
-	return tokens, nil
 }
 
 // GetToken returns the specified token

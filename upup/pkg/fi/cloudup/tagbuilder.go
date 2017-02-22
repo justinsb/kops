@@ -131,12 +131,6 @@ func buildNodeupTags(role api.InstanceGroupRole, cluster *api.Cluster, clusterTa
 		return nil, fmt.Errorf("Unrecognized role: %v", role)
 	}
 
-	// TODO: Replace with list of CNI plugins ?
-	if usesCNI(cluster) {
-		tags.Insert("_cni_bridge", "_cni_host_local", "_cni_loopback", "_cni_ptp", "_cni_flannel")
-		//tags.Insert("_cni_tuning")
-	}
-
 	switch fi.StringValue(cluster.Spec.UpdatePolicy) {
 	case "": // default
 		tags.Insert("_automatic_upgrades")

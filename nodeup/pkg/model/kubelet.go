@@ -71,6 +71,8 @@ func (b *KubeletBuilder) Build(c *fi.ModelBuilderContext) error {
 			flags += " --cloud-config=" + CloudConfigFilePath
 		}
 
+		flags += " --network-plugin-dir=" + b.NetworkPluginDir()
+
 		sysconfig := "DAEMON_ARGS=\"" + flags + "\"\n"
 
 		t := &nodetasks.File{
@@ -140,6 +142,9 @@ func (b *KubeletBuilder) kubeletPath() string {
 	if b.Distribution == distros.DistributionCoreOS {
 		kubeletCommand = "/opt/kubernetes/bin/kubelet"
 	}
+	if b.Distribution == distros.DistributionContainerOS {
+		kubeletCommand = "/home/kubernetes/bin/kubelet"
+	}
 	return kubeletCommand
 }
 
@@ -152,7 +157,7 @@ func (b *KubeletBuilder) buildSystemdService() *nodetasks.Service {
 	manifest.Set("Unit", "After", "docker.service")
 
 	if b.Distribution == distros.DistributionCoreOS {
-		// We add /opt/kubernetes/bin for our utilities
+		// We add /opt/kubernetes/bin for our utilities (socat)
 		manifest.Set("Service", "Environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/kubernetes/bin")
 	}
 
@@ -164,7 +169,7 @@ func (b *KubeletBuilder) buildSystemdService() *nodetasks.Service {
 	manifest.Set("Service", "KillMode", "process")
 
 	manifestString := manifest.Render()
-	glog.V(8).Infof("Built service manifest %q\n%s", "docker", manifestString)
+	glog.V(8).Infof("Built service manifest %q\n%s", "kubelet", manifestString)
 
 	service := &nodetasks.Service{
 		Name:       "kubelet.service",
