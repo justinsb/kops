@@ -48,10 +48,17 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		// But I think we can always add more permissions in this case later, but we can't easily take them away
 		glog.V(2).Infof("bastion is in use; won't configure SSH access to master / node instances")
 	} else {
-		// TODO: What about opening the nodes?
 		c.AddTask(&gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("ssh-external-to-master")),
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
+			Allowed:      []string{"tcp:22"},
+			SourceRanges: b.Cluster.Spec.SSHAccess,
+			Network:      b.LinkToNetwork(),
+		})
+
+		c.AddTask(&gcetasks.FirewallRule{
+			Name:         s(b.SafeObjectName("ssh-external-to-node")),
+			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
 			Allowed:      []string{"tcp:22"},
 			SourceRanges: b.Cluster.Spec.SSHAccess,
 			Network:      b.LinkToNetwork(),
