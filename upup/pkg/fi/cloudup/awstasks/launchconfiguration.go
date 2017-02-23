@@ -17,11 +17,8 @@ limitations under the License.
 package awstasks
 
 import (
-	"fmt"
-
 	"encoding/base64"
-	"strings"
-
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/golang/glog"
@@ -31,8 +28,8 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 	"k8s.io/kubernetes/pkg/util/sets"
 	"sort"
+	"strings"
 	"time"
-	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 //go:generate fitask -type=LaunchConfiguration
