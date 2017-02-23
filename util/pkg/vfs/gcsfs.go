@@ -128,7 +128,7 @@ func (p *GCSPath) ReadFile() ([]byte, error) {
 		return nil, fmt.Errorf("error reading %s: %v", p, err)
 	}
 	if response == nil {
-		return nil, fmt.Errorf("no response returned from: %v", p, err)
+		return nil, fmt.Errorf("no response returned from: %v", p)
 	}
 	defer response.Body.Close()
 
