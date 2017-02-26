@@ -26,12 +26,16 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/upup/pkg/kutil"
+	"k8s.io/client-go/util/jsonpath"
+	"bytes"
 )
 
 type ToolboxDumpOptions struct {
-	Output string
+	Output      string
 
 	ClusterName string
+
+	Query       string
 }
 
 func (o *ToolboxDumpOptions) InitDefaults() {
@@ -62,6 +66,8 @@ func NewCmdToolboxDump(f *util.Factory, out io.Writer) *cobra.Command {
 	// TODO: Push up to top-level command?
 	// Yes please! (@kris-nova)
 	cmd.Flags().StringVarP(&options.Output, "output", "o", options.Output, "output format.  One of: yaml, json")
+
+	cmd.Flags().StringVarP(&options.Query, "query", "q", options.Query, "query")
 
 	return cmd
 }
@@ -116,8 +122,37 @@ func RunToolboxDump(f *util.Factory, out io.Writer, options *ToolboxDumpOptions)
 		if o != nil {
 			dumpedResources = append(dumpedResources, o)
 		}
+		switch (r.Type) {
+		case "instance":
+			var instances []interface{}
+			if data["instances"] != nil {
+				instances = data["instances"].([]interface{})
+			}
+			data["instances"] = append(instances, o)
+			break
+		}
 	}
 	data["resources"] = dumpedResources
+
+	if options.Query != "" {
+		j := jsonpath.New("out")
+		if err := j.Parse(options.Query); err != nil {
+			return fmt.Errorf("error parsing query: %v", err)
+		}
+		var b bytes.Buffer
+
+		if err := j.Execute(&b, data); err != nil {
+			//fmt.Fprintf(w, "Error executing template: %v. Printing more information for debugging the template:\n", err)
+			//fmt.Fprintf(w, "\ttemplate was:\n\t\t%v\n", j.rawTemplate)
+			//fmt.Fprintf(w, "\tobject given to jsonpath engine was:\n\t\t%#v\n\n", queryObj)
+			return fmt.Errorf("error executing jsonpath %q: %v\n", options.Query, err)
+		}
+		_, err = b.WriteTo(out)
+		if err != nil {
+			return fmt.Errorf("error writing to stdout: %v", err)
+		}
+		return nil
+	}
 
 	switch options.Output {
 	case OutputYaml:
