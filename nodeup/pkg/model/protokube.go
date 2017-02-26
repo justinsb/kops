@@ -134,6 +134,8 @@ type ProtokubeFlags struct {
 	Cloud             *string `json:"cloud,omitempty" flag:"cloud"`
 
 	ApplyTaints *bool `json:"applyTaints,omitempty" flag:"apply-taints"`
+
+	PopulateExternalIP *bool `json:"populateExternalIP,omitempty" flag:"populate-external-ip"`
 }
 
 // ProtokubeFlags returns the flags object for protokube
@@ -173,8 +175,12 @@ func (t *ProtokubeBuilder) ProtokubeFlags(k8sVersion semver.Version) *ProtokubeF
 			f.DNSProvider = fi.String("aws-route53")
 		case fi.CloudProviderGCE:
 			f.DNSProvider = fi.String("google-clouddns")
+		case fi.CloudProviderBareMetal:
+			f.PopulateExternalIP = fi.Bool(true)
+			// TODO: Make configurable
+			f.DNSProvider = fi.String("aws-route53")
 		default:
-			glog.Warningf("Unknown cloudprovider %q; won't set DNS provider")
+			glog.Warningf("Unknown cloudprovider %q; won't set DNS provider", t.Cluster.Spec.CloudProvider)
 		}
 	}
 

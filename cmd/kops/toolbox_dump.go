@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/golang/glog"
@@ -26,16 +27,15 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/upup/pkg/kutil"
-	"k8s.io/client-go/util/jsonpath"
-	"bytes"
+	"k8s.io/kubernetes/pkg/util/jsonpath"
 )
 
 type ToolboxDumpOptions struct {
-	Output      string
+	Output string
 
 	ClusterName string
 
-	Query       string
+	Query string
 }
 
 func (o *ToolboxDumpOptions) InitDefaults() {
@@ -122,7 +122,7 @@ func RunToolboxDump(f *util.Factory, out io.Writer, options *ToolboxDumpOptions)
 		if o != nil {
 			dumpedResources = append(dumpedResources, o)
 		}
-		switch (r.Type) {
+		switch r.Type {
 		case "instance":
 			var instances []interface{}
 			if data["instances"] != nil {

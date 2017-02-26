@@ -23,4 +23,6 @@ COPY /.build/artifacts/kubectl /usr/bin/kubectl
 COPY /.build/artifacts/protokube /usr/bin/protokube
 COPY /.build/artifacts/channels /usr/bin/channels
 
+RUN mkdir -p /root/ && ln -s /rootfs/home/kops/.aws /root/.aws
+
 CMD /usr/bin/protokube

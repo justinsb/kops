@@ -54,7 +54,7 @@ type VolumeInfo struct {
 	Description string
 	//MasterID    int
 	// TODO: Maybe the events cluster can just be a PetSet - do we need it for boot?
-	EtcdClusters []*EtcdClusterSpec
+	EtcdClusters []*EtcdClusterSpec `json:"etcdClusters,omitempty"`
 }
 
 func (v *VolumeInfo) String() string {

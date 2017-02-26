@@ -33,7 +33,6 @@ import (
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/model/components"
-	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kubernetes/pkg/util/sets"
 	"strings"
@@ -93,8 +92,6 @@ func (tf *TemplateFunctions) AddTo(dest template.FuncMap) {
 		return tf.cluster.Spec.KubeDNS
 	}
 
-	dest["DnsControllerArgv"] = tf.DnsControllerArgv
-
 	// TODO: Only for GCE?
 	dest["EncodeGCELabel"] = gce.EncodeGCELabel
 
@@ -124,40 +121,4 @@ func (tf *TemplateFunctions) GetInstanceGroup(name string) (*api.InstanceGroup, 
 		}
 	}
 	return nil, fmt.Errorf("InstanceGroup %q not found", name)
-}
-
-func (tf *TemplateFunctions) DnsControllerArgv() ([]string, error) {
-	var argv []string
-
-	argv = append(argv, "/usr/bin/dns-controller")
-
-	argv = append(argv, "--watch-ingress=false")
-
-	switch fi.CloudProviderID(tf.cluster.Spec.CloudProvider) {
-	case fi.CloudProviderAWS:
-		argv = append(argv, "--dns=aws-route53")
-	case fi.CloudProviderGCE:
-		argv = append(argv, "--dns=google-clouddns")
-
-	default:
-		return nil, fmt.Errorf("unhandled cloudprovider %q", tf.cluster.Spec.CloudProvider)
-	}
-
-	zone := tf.cluster.Spec.DNSZone
-	if zone != "" {
-		if strings.Contains(zone, ".") {
-			// match by name
-			argv = append(argv, "--zone="+zone)
-		} else {
-			// match by id
-			argv = append(argv, "--zone=*/"+zone)
-		}
-	}
-	// permit wildcard updates
-	argv = append(argv, "--zone=*/*")
-
-	// Verbose, but not crazy logging
-	argv = append(argv, "-v=2")
-
-	return argv, nil
 }

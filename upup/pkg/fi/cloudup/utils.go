@@ -22,8 +22,10 @@ import (
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/baremetal"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	k8sroute53 "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/aws/route53"
 	"strings"
 )
 
@@ -33,8 +35,8 @@ func BuildCloud(cluster *api.Cluster) (fi.Cloud, error) {
 	region := ""
 	project := ""
 
-	switch cluster.Spec.CloudProvider {
-	case "gce":
+	switch fi.CloudProviderID(cluster.Spec.CloudProvider) {
+	case fi.CloudProviderGCE:
 		{
 			nodeZones := make(map[string]bool)
 			for _, subnet := range cluster.Spec.Subnets {
@@ -67,7 +69,7 @@ func BuildCloud(cluster *api.Cluster) (fi.Cloud, error) {
 			cloud = gceCloud
 		}
 
-	case "aws":
+	case fi.CloudProviderAWS:
 		{
 			region, err := awsup.FindRegion(cluster)
 			if err != nil {
@@ -95,6 +97,22 @@ func BuildCloud(cluster *api.Cluster) (fi.Cloud, error) {
 				return nil, err
 			}
 			cloud = awsCloud
+		}
+
+	case fi.CloudProviderBareMetal:
+		{
+			// TODO: Allow dns provider to be specified
+			dns, err := dnsprovider.GetDnsProvider(k8sroute53.ProviderName, nil)
+			if err != nil {
+				return nil, fmt.Errorf("Error building (k8s) DNS provider: %v", err)
+			}
+
+			baremetalCloud, err := baremetal.NewCloud(dns)
+			if err != nil {
+				return nil, err
+			}
+
+			cloud = baremetalCloud
 		}
 
 	default:

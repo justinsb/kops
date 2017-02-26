@@ -19,9 +19,12 @@ package protokube
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"io/ioutil"
 	"k8s.io/kops/dns-controller/pkg/dns"
 	"net"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -29,6 +32,7 @@ type KubeBoot struct {
 	Master            bool
 	InternalDNSSuffix string
 	InternalIP        net.IP
+	ExternalIPs       []net.IP
 	//MasterID          int
 	//EtcdClusters      []*EtcdClusterSpec
 
@@ -46,6 +50,9 @@ type KubeBoot struct {
 	Channels []string
 
 	Kubernetes *KubernetesContext
+
+	// PopulateExternalIP controls whether we set the external IP on this node
+	PopulateExternalIP bool
 }
 
 func (k *KubeBoot) Init(volumesProvider Volumes) {
@@ -128,6 +135,26 @@ func (k *KubeBoot) syncOnce() error {
 	// etcd/apiserver retry too many times and go into backoff.
 	if err := enableKubelet(); err != nil {
 		glog.Warningf("error ensuring kubelet started: %v", err)
+	}
+
+	if k.PopulateExternalIP {
+		nodeName := os.Getenv("K8S_NODE_NAME")
+		//machineIDBytes, err := ioutil.ReadFile(PathFor("/etc/machine-id"))
+		if nodeName == "" {
+			hostname, err := ioutil.ReadFile(PathFor("/etc/hostname"))
+			if err != nil {
+				glog.Warningf("cannot read /etc/hostname: %v", err)
+			} else {
+				nodeName = strings.TrimSpace(string(hostname))
+			}
+		}
+
+		if nodeName != "" {
+			err := PopulateExternalIP(k.Kubernetes, nodeName, k.ExternalIPs)
+			if err != nil {
+				glog.Warningf("error populating external IP for nodeName %q: %v", nodeName, err)
+			}
+		}
 	}
 
 	for _, channel := range k.Channels {

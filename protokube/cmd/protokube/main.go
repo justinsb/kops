@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	// Load DNS plugins
+	"k8s.io/kops/protokube/pkg/protokube/baremetal"
 	_ "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/aws/route53"
 	_ "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/google/clouddns"
 )
@@ -68,7 +69,10 @@ func run() error {
 	flag.BoolVar(&containerized, "containerized", containerized, "Set if we are running containerized.")
 
 	cloud := "aws"
-	flag.StringVar(&cloud, "cloud", cloud, "CloudProvider we are using (aws,gce)")
+	flag.StringVar(&cloud, "cloud", cloud, "CloudProvider we are using (aws,gce,baremetal)")
+
+	populateExternalIP := false
+	flag.BoolVar(&populateExternalIP, "populate-external-ip", populateExternalIP, "If set, will populate the external IP when starting up")
 
 	dnsInternalSuffix := ""
 	flag.StringVar(&dnsInternalSuffix, "dns-internal-suffix", dnsInternalSuffix, "DNS suffix for internal domain names")
@@ -88,8 +92,15 @@ func run() error {
 
 	flags.Parse(os.Args)
 
+	rootfs := "/"
+	if containerized {
+		rootfs = "/rootfs/"
+	}
+	protokube.RootFS = rootfs
+
 	var volumes protokube.Volumes
 	var internalIP net.IP
+	var externalIPs []net.IP
 
 	if cloud == "aws" {
 		awsVolumes, err := protokube.NewAWSVolumes()
@@ -123,17 +134,32 @@ func run() error {
 		if internalIP == nil {
 			internalIP = gceVolumes.InternalIP()
 		}
+	} else if cloud == "baremetal" {
+		basedir := protokube.PathFor("/volumes")
+		baremetalVolumes, err := baremetal.NewVolumes(basedir)
+		if err != nil {
+			glog.Errorf("Error initializing baremetal: %q", err)
+			os.Exit(1)
+		}
+
+		volumes = baremetalVolumes
+
+		externalIPs, err = protokube.FindExternalIPs()
+		if err != nil {
+			glog.Errorf("Error finding external IP: %q", err)
+			os.Exit(1)
+		} else {
+			glog.Infof("Found external IPs %s", externalIPs)
+		}
 	} else {
 		glog.Errorf("Unknown cloud %q", cloud)
 		os.Exit(1)
 	}
 
-	if clusterID == "" {
-		if clusterID == "" {
-			return fmt.Errorf("cluster-id is required (cannot be determined from cloud)")
-		} else {
-			glog.Infof("Setting cluster-id from cloud: %s", clusterID)
-		}
+	internalIP, err := protokube.FindInternalIP()
+	if err != nil {
+		glog.Errorf("Error finding internal IP: %q", err)
+		os.Exit(1)
 	}
 
 	if internalIP == nil {
@@ -141,7 +167,20 @@ func run() error {
 		os.Exit(1)
 	}
 
+	if populateExternalIP && len(externalIPs) == 0 {
+		glog.Errorf("Cannot determine external IPs")
+		os.Exit(1)
+	}
+
 	if dnsInternalSuffix == "" {
+		if clusterID == "" {
+			if clusterID == "" {
+				return fmt.Errorf("cluster-id is required (cannot be determined from cloud)")
+			} else {
+				glog.Infof("Setting cluster-id from cloud: %s", clusterID)
+			}
+		}
+
 		// TODO: Maybe only master needs DNS?
 		dnsInternalSuffix = ".internal." + clusterID
 		glog.Infof("Setting dns-internal-suffix to %q", dnsInternalSuffix)
@@ -190,11 +229,6 @@ func run() error {
 		dnsScope.MarkReady()
 	}
 
-	rootfs := "/"
-	if containerized {
-		rootfs = "/rootfs/"
-	}
-	protokube.RootFS = rootfs
 	protokube.Containerized = containerized
 
 	modelDir := "model/etcd"
@@ -209,6 +243,7 @@ func run() error {
 		ApplyTaints:       applyTaints,
 		InternalDNSSuffix: dnsInternalSuffix,
 		InternalIP:        internalIP,
+		ExternalIPs:       externalIPs,
 		//MasterID          : fromVolume
 		//EtcdClusters   : fromVolume
 
@@ -218,6 +253,8 @@ func run() error {
 		Channels: channels,
 
 		Kubernetes: protokube.NewKubernetesContext(),
+
+		PopulateExternalIP: populateExternalIP,
 	}
 	k.Init(volumes)
 
@@ -226,67 +263,4 @@ func run() error {
 	k.RunSyncLoop()
 
 	return fmt.Errorf("Unexpected exit")
-}
-
-// TODO: run with --net=host ??
-func findInternalIP() (net.IP, error) {
-	var ips []net.IP
-
-	networkInterfaces, err := net.Interfaces()
-	if err != nil {
-		return nil, fmt.Errorf("error querying interfaces to determine internal ip: %v", err)
-	}
-
-	for i := range networkInterfaces {
-		networkInterface := &networkInterfaces[i]
-		flags := networkInterface.Flags
-		name := networkInterface.Name
-
-		if (flags & net.FlagLoopback) != 0 {
-			glog.V(2).Infof("Ignoring interface %s - loopback", name)
-			continue
-		}
-
-		// Not a lot else to go on...
-		if !strings.HasPrefix(name, "eth") {
-			glog.V(2).Infof("Ignoring interface %s - name does not look like ethernet device", name)
-			continue
-		}
-
-		addrs, err := networkInterface.Addrs()
-		if err != nil {
-			return nil, fmt.Errorf("error querying network interface %s for IP adddresses: %v", name, err)
-		}
-
-		for _, addr := range addrs {
-			ip, _, err := net.ParseCIDR(addr.String())
-			if err != nil {
-				return nil, fmt.Errorf("error parsing address %s on network interface %s: %v", addr.String(), name, err)
-			}
-
-			if ip.IsLoopback() {
-				glog.V(2).Infof("Ignoring address %s (loopback)", ip)
-				continue
-			}
-
-			if ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
-				glog.V(2).Infof("Ignoring address %s (link-local)", ip)
-				continue
-			}
-
-			ips = append(ips, ip)
-		}
-	}
-
-	if len(ips) == 0 {
-		return nil, fmt.Errorf("unable to determine internal ip (no adddresses found)")
-	}
-
-	if len(ips) != 1 {
-		glog.Warningf("Found multiple internal IPs; making arbitrary choice")
-		for _, ip := range ips {
-			glog.Warningf("\tip: %s", ip.String())
-		}
-	}
-	return ips[0], nil
 }

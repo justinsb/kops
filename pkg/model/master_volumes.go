@@ -88,6 +88,8 @@ func (b *MasterVolumeBuilder) Build(c *fi.ModelBuilderContext) error {
 				b.addAWSVolume(c, name, volumeSize, subnet, etcd, m, allMembers)
 			case fi.CloudProviderGCE:
 				b.addGCEVolume(c, name, volumeSize, subnet, etcd, m, allMembers)
+			case fi.CloudProviderBareMetal:
+				// TODO: We want this information somewhere
 			default:
 				return fmt.Errorf("unknown cloudprovider %q", b.Cluster.Spec.CloudProvider)
 			}

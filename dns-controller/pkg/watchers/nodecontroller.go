@@ -27,6 +27,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/v1"
 	client "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/typed/core/v1"
 	"k8s.io/kubernetes/pkg/watch"
+	"strings"
 )
 
 // NodeController watches for nodes
@@ -200,16 +201,31 @@ func (c *NodeController) updateNodeRecords(node *v1.Node) {
 	}
 
 	// node/<name>/external -> ExternalIP
-	for _, a := range node.Status.Addresses {
-		if a.Type != v1.NodeExternalIP {
-			continue
+	{
+		var externalIPs []string
+
+		// If the external ip annotation is explicitly set, use that
+		if node.Annotations[AnnotationNameExternalIP] != "" {
+			externalIPs = strings.Split(node.Annotations[AnnotationNameExternalIP], ",")
+		} else {
+			for _, a := range node.Status.Addresses {
+				if a.Type != v1.NodeExternalIP {
+					continue
+				}
+				externalIPs = append(externalIPs, a.Address)
+			}
 		}
-		records = append(records, dns.Record{
-			RecordType:  dns.RecordTypeA,
-			FQDN:        "node/" + node.Name + "/external",
-			Value:       a.Address,
-			AliasTarget: true,
-		})
+
+		glog.V(4).Infof("Node %s has external ips: %s", node.Name, externalIPs)
+
+		for _, externalIP := range externalIPs {
+			records = append(records, dns.Record{
+				RecordType:  dns.RecordTypeA,
+				FQDN:        "node/" + node.Name + "/external",
+				Value:       externalIP,
+				AliasTarget: true,
+			})
+		}
 	}
 
 	// node/role=<role>/external -> ExternalIP

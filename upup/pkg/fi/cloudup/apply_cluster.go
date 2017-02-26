@@ -39,6 +39,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awstasks"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/baremetal"
 	"k8s.io/kops/upup/pkg/fi/cloudup/cloudformation"
 	"k8s.io/kops/upup/pkg/fi/cloudup/dnstasks"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
@@ -301,6 +302,10 @@ func (c *ApplyClusterCmd) Run() error {
 			})
 		}
 
+	case fi.CloudProviderBareMetal:
+		{
+		}
+
 	case fi.CloudProviderAWS:
 		{
 			awsCloud := cloud.(awsup.AWSCloud)
@@ -437,6 +442,14 @@ func (c *ApplyClusterCmd) Run() error {
 					//&model.SSHKeyModelBuilder{KopsModelContext: modelContext},
 				)
 
+			case fi.CloudProviderBareMetal:
+				{
+					l.Builders = append(l.Builders,
+						&model.PKIModelBuilder{KopsModelContext: modelContext},
+						&model.MasterVolumeBuilder{KopsModelContext: modelContext},
+					)
+				}
+
 			default:
 				return fmt.Errorf("unknown cloudprovider %q", cluster.Spec.CloudProvider)
 			}
@@ -561,6 +574,10 @@ func (c *ApplyClusterCmd) Run() error {
 			})
 		}
 
+	case fi.CloudProviderBareMetal:
+		{
+		}
+
 	default:
 		return fmt.Errorf("unknown cloudprovider %q", cluster.Spec.CloudProvider)
 	}
@@ -583,6 +600,28 @@ func (c *ApplyClusterCmd) Run() error {
 	//	}
 	//	return count, nil
 	//}
+
+	nodeUpConfigs := make(map[string]string)
+	for _, ig := range c.InstanceGroups {
+		nodeUpConfig, err := renderNodeUpConfig(ig)
+		if err != nil {
+			return fmt.Errorf("error building nodeup config for ig %q: %v", ig.ObjectMeta.Name, err)
+		}
+		nodeUpConfigBytes, err := api.ToRawYaml(nodeUpConfig)
+		if err != nil {
+			return err
+		}
+
+		nodeUpConfigs[ig.ObjectMeta.Name] = string(nodeUpConfigBytes)
+	}
+	l.TemplateFunctions["RenderNodeUpConfig"] = func(ig *api.InstanceGroup) (string, error) {
+		c, found := nodeUpConfigs[ig.ObjectMeta.Name]
+		if !found {
+			return "", fmt.Errorf("config not found for ig %q", ig.ObjectMeta.Name)
+		}
+		return c, nil
+	}
+
 	l.TemplateFunctions["Region"] = func() string {
 		return region
 	}
@@ -601,11 +640,13 @@ func (c *ApplyClusterCmd) Run() error {
 
 	switch c.TargetName {
 	case TargetDirect:
-		switch cluster.Spec.CloudProvider {
-		case "gce":
+		switch fi.CloudProviderID(cluster.Spec.CloudProvider) {
+		case fi.CloudProviderGCE:
 			target = gce.NewGCEAPITarget(cloud.(*gce.GCECloud))
-		case "aws":
+		case fi.CloudProviderAWS:
 			target = awsup.NewAWSAPITarget(cloud.(awsup.AWSCloud))
+		case fi.CloudProviderBareMetal:
+			target = baremetal.NewTarget(cloud.(*baremetal.Cloud))
 		default:
 			return fmt.Errorf("direct configuration not supported with CloudProvider:%q", cluster.Spec.CloudProvider)
 		}
@@ -665,6 +706,16 @@ func (c *ApplyClusterCmd) Run() error {
 			_, err := c.Clientset.InstanceGroups(c.Cluster.ObjectMeta.Name).Update(g)
 			if err != nil {
 				return fmt.Errorf("error writing InstanceGroup %q to registry: %v", g.ObjectMeta.Name, err)
+			}
+
+			nodeUpConfig, found := nodeUpConfigs[g.ObjectMeta.Name]
+			if !found {
+				return fmt.Errorf("instancegroup not found %q", g.ObjectMeta.Name)
+			}
+			configPath := configBase.Join("instancegroup", g.ObjectMeta.Name, registry.PathNodeUpConfig)
+			err = configPath.WriteFile([]byte(nodeUpConfig))
+			if err != nil {
+				return fmt.Errorf("error writing completed nodeup config: %v", err)
 			}
 		}
 	}

@@ -131,6 +131,8 @@ func defaultNodeMachineType(cluster *api.Cluster) string {
 		return defaultNodeMachineTypeAWS
 	case fi.CloudProviderGCE:
 		return defaultNodeMachineTypeGCE
+	case fi.CloudProviderBareMetal:
+		return ""
 	default:
 		glog.V(2).Infof("Cannot set default MachineType for CloudProvider=%q", cluster.Spec.CloudProvider)
 		return ""
@@ -183,6 +185,8 @@ func defaultMasterMachineType(cluster *api.Cluster) string {
 		return defaultMasterMachineTypeAWS
 	case fi.CloudProviderGCE:
 		return defaultMasterMachineTypeGCE
+	case fi.CloudProviderBareMetal:
+		return ""
 	default:
 		glog.V(2).Infof("Cannot set default MachineType for CloudProvider=%q", cluster.Spec.CloudProvider)
 		return ""
@@ -196,6 +200,8 @@ func defaultBastionMachineType(cluster *api.Cluster) string {
 		return defaultBastionMachineTypeAWS
 	case fi.CloudProviderGCE:
 		return defaultBastionMachineTypeGCE
+	case fi.CloudProviderBareMetal:
+		return ""
 	default:
 		glog.V(2).Infof("Cannot set default MachineType for CloudProvider=%q", cluster.Spec.CloudProvider)
 		return ""

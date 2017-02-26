@@ -121,7 +121,7 @@ func main() {
 			}
 			err = cmd.Run(os.Stdout)
 			if err == nil {
-				fmt.Printf("success")
+				fmt.Printf("\nsuccess\n\n")
 				os.Exit(0)
 			}
 		}
