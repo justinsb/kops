@@ -24,6 +24,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kubernetes/pkg/api/v1"
 	k8s_clientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	"github.com/golang/glog"
 )
 
 // A cluster to validate
@@ -163,34 +164,33 @@ func validateTheNodes(clusterName string, validationCluster *ValidationCluster) 
 			if ready {
 				validationCluster.MastersReadyArray = append(validationCluster.MastersReadyArray, n)
 			} else {
+				glog.V(2).Infof("Master %q not ready", node.Name)
 				validationCluster.MastersNotReadyArray = append(validationCluster.MastersNotReadyArray, n)
 			}
 		} else if n.Role == kops.RoleNodeLabelValue {
 			if ready {
 				validationCluster.NodesReadyArray = append(validationCluster.NodesReadyArray, n)
 			} else {
+				glog.V(2).Infof("Node %q not ready", node.Name)
 				validationCluster.NodesNotReadyArray = append(validationCluster.NodesNotReadyArray, n)
 			}
 
 		}
 	}
 
-	validationCluster.MastersReady = true
-	if len(validationCluster.MastersNotReadyArray) != 0 || validationCluster.MastersCount != len(validationCluster.MastersReadyArray) {
-		validationCluster.MastersReady = false
+	validationCluster.MastersReady = len(validationCluster.MastersNotReadyArray) == 0 && validationCluster.MastersCount == len(validationCluster.MastersReadyArray)
+	validationCluster.NodesReady = len(validationCluster.NodesNotReadyArray) == 0 && validationCluster.NodesCount == len(validationCluster.NodesReadyArray)
+
+	if len(validationCluster.MastersNotReadyArray) != 0 {
+		return validationCluster, fmt.Errorf("not all master nodes were ready")
+	} else if validationCluster.MastersCount != len(validationCluster.MastersReadyArray) {
+		return validationCluster, fmt.Errorf("more master nodes were specified in instance groups than were found running")
 	}
 
-	validationCluster.NodesReady = true
-	if len(validationCluster.NodesNotReadyArray) != 0 || validationCluster.NodesCount != len(validationCluster.NodesReadyArray) {
-		validationCluster.NodesReady = false
-	}
-
-	if !validationCluster.MastersReady {
-		return validationCluster, fmt.Errorf("your masters are NOT ready %s", clusterName)
-	}
-
-	if !validationCluster.NodesReady {
-		return validationCluster, fmt.Errorf("your nodes are NOT ready %s", clusterName)
+	if len(validationCluster.NodesNotReadyArray) != 0 {
+		return validationCluster, fmt.Errorf("not all nodes were ready")
+	} else if validationCluster.NodesCount != len(validationCluster.NodesReadyArray) {
+		return validationCluster, fmt.Errorf("more nodes were specified in instance groups than were found running")
 	}
 
 	if len(validationCluster.ComponentFailures) != 0 {
