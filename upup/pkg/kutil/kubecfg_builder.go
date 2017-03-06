@@ -26,8 +26,8 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/client-go/rest"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // KubeconfigBuilder builds a kubecfg file
