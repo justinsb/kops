@@ -23,13 +23,14 @@ package app
 import (
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	metav1 "k8s.io/kubernetes/pkg/apis/meta/v1"
-	"k8s.io/kubernetes/pkg/client/typed/discovery"
-	"k8s.io/kubernetes/pkg/client/typed/dynamic"
 	"k8s.io/kubernetes/pkg/controller"
 	endpointcontroller "k8s.io/kubernetes/pkg/controller/endpoint"
 	"k8s.io/kubernetes/pkg/controller/garbagecollector"
@@ -39,14 +40,14 @@ import (
 	replicationcontroller "k8s.io/kubernetes/pkg/controller/replication"
 	resourcequotacontroller "k8s.io/kubernetes/pkg/controller/resourcequota"
 	serviceaccountcontroller "k8s.io/kubernetes/pkg/controller/serviceaccount"
+	ttlcontroller "k8s.io/kubernetes/pkg/controller/ttl"
 	quotainstall "k8s.io/kubernetes/pkg/quota/install"
-	"k8s.io/kubernetes/pkg/runtime/schema"
-	"k8s.io/kubernetes/pkg/runtime/serializer"
 )
 
 func startEndpointController(ctx ControllerContext) (bool, error) {
 	go endpointcontroller.NewEndpointController(
-		ctx.InformerFactory.Pods().Informer(),
+		ctx.NewInformerFactory.Core().V1().Pods(),
+		ctx.NewInformerFactory.Core().V1().Services(),
 		ctx.ClientBuilder.ClientOrDie("endpoint-controller"),
 	).Run(int(ctx.Options.ConcurrentEndpointSyncs), ctx.Stop)
 	return true, nil
@@ -54,9 +55,9 @@ func startEndpointController(ctx ControllerContext) (bool, error) {
 
 func startReplicationController(ctx ControllerContext) (bool, error) {
 	go replicationcontroller.NewReplicationManager(
-		ctx.InformerFactory.Pods().Informer(),
+		ctx.NewInformerFactory.Core().V1().Pods(),
+		ctx.NewInformerFactory.Core().V1().ReplicationControllers(),
 		ctx.ClientBuilder.ClientOrDie("replication-controller"),
-		ResyncPeriod(&ctx.Options),
 		replicationcontroller.BurstReplicas,
 		int(ctx.Options.LookupCacheSizeForRC),
 		ctx.Options.EnableGarbageCollector,
@@ -67,7 +68,7 @@ func startReplicationController(ctx ControllerContext) (bool, error) {
 func startPodGCController(ctx ControllerContext) (bool, error) {
 	go podgc.NewPodGC(
 		ctx.ClientBuilder.ClientOrDie("pod-garbage-collector"),
-		ctx.InformerFactory.Pods().Informer(),
+		ctx.NewInformerFactory.Core().V1().Pods(),
 		int(ctx.Options.TerminatedPodGCThreshold),
 	).Run(ctx.Stop)
 	return true, nil
@@ -100,7 +101,7 @@ func startResourceQuotaController(ctx ControllerContext) (bool, error) {
 
 func startNamespaceController(ctx ControllerContext) (bool, error) {
 	// TODO: should use a dynamic RESTMapper built from the discovery results.
-	restMapper := registered.RESTMapper()
+	restMapper := api.Registry.RESTMapper()
 
 	// Find the list of namespaced resources via discovery that the namespace controller must manage
 	namespaceKubeClient := ctx.ClientBuilder.ClientOrDie("namespace-controller")
@@ -115,7 +116,7 @@ func startNamespaceController(ctx ControllerContext) (bool, error) {
 		return true, fmt.Errorf("failed to parse preferred server resources: %v", err)
 	}
 	discoverResourcesFn := namespaceKubeClient.Discovery().ServerPreferredNamespacedResources
-	if _, found := gvrs[extensions.SchemeGroupVersion.WithResource("thirdpartyresource")]; found {
+	if _, found := gvrs[extensions.SchemeGroupVersion.WithResource("thirdpartyresource")]; !found {
 		// make discovery static
 		snapshot, err := discoverResourcesFn()
 		if err != nil {
@@ -142,13 +143,21 @@ func startServiceAccountController(ctx ControllerContext) (bool, error) {
 	return true, nil
 }
 
+func startTTLController(ctx ControllerContext) (bool, error) {
+	go ttlcontroller.NewTTLController(
+		ctx.NewInformerFactory.Core().V1().Nodes(),
+		ctx.ClientBuilder.ClientOrDie("ttl-controller"),
+	).Run(5, ctx.Stop)
+	return true, nil
+}
+
 func startGarbageCollectorController(ctx ControllerContext) (bool, error) {
 	if !ctx.Options.EnableGarbageCollector {
 		return false, nil
 	}
 
 	// TODO: should use a dynamic RESTMapper built from the discovery results.
-	restMapper := registered.RESTMapper()
+	restMapper := api.Registry.RESTMapper()
 
 	gcClientset := ctx.ClientBuilder.ClientOrDie("generic-garbage-collector")
 	preferredResources, err := gcClientset.Discovery().ServerPreferredResources()

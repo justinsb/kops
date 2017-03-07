@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/golang/glog"
+	"k8s.io/kops"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
 	"k8s.io/kops/pkg/client/simple"
@@ -86,8 +87,11 @@ func (x *ConvertKubeupCluster) Upgrade() error {
 	}
 
 	// Set KubernetesVersion from channel
-	if x.Channel != nil && x.Channel.Spec.Cluster != nil && x.Channel.Spec.Cluster.KubernetesVersion != "" {
-		cluster.Spec.KubernetesVersion = x.Channel.Spec.Cluster.KubernetesVersion
+	if x.Channel != nil {
+		kubernetesVersion := api.RecommendedKubernetesVersion(x.Channel, kops.Version)
+		if kubernetesVersion != nil {
+			cluster.Spec.KubernetesVersion = kubernetesVersion.String()
+		}
 	}
 
 	err = cloudup.PerformAssignments(cluster)

@@ -29,9 +29,27 @@ GOVERSION=1.7.4
 MAKEDIR:=$(strip $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))"))
 
 # Keep in sync with upup/models/cloudup/resources/addons/dns-controller/
-DNS_CONTROLLER_TAG=1.4.1
+DNS_CONTROLLER_TAG=1.5.1
 
-VERSION?=1.5.0-alpha1
+GITSHA := $(shell cd ${GOPATH_1ST}/src/k8s.io/kops; git describe --always)
+
+ifndef VERSION
+  # To keep both CI and end-users building from source happy,
+  # we expect that CI sets CI=1.
+  #
+  # For end users, they need only build kops, and they can use the last
+  # released version of nodeup/protokube.
+  # For CI, we continue to build a synthetic version from the git SHA, so
+  # we never cross versions.
+  #
+  # We expect that if you are uploading nodeup/protokube, you will set
+  # VERSION (along with S3_BUCKET), either directly or by setting CI=1
+  ifndef CI
+    VERSION=1.5.1
+  else
+    VERSION := git-${GITSHA}
+  endif
+endif
 
 
 # Go exports:
@@ -46,8 +64,14 @@ ifdef STATIC_BUILD
   EXTRA_LDFLAGS=-s
 endif
 
+SHASUMCMD := $(shell sha1sum --help 2> /dev/null)
+
+ifndef SHASUMCMD
+  $(error "sha1sum command is not available")
+endif
+
 kops: kops-gobindata
-	go install ${EXTRA_BUILDFLAGS} -ldflags "-X k8s.io/kops.Version=${VERSION} ${EXTRA_LDFLAGS}" k8s.io/kops/cmd/kops/...
+	go install ${EXTRA_BUILDFLAGS} -ldflags "-X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA} ${EXTRA_LDFLAGS}" k8s.io/kops/cmd/kops/...
 
 gobindata-tool:
 	go build ${EXTRA_BUILDFLAGS} -ldflags "${EXTRA_LDFLAGS}" -o ${GOPATH_1ST}/bin/go-bindata k8s.io/kops/vendor/github.com/jteeuwen/go-bindata/go-bindata
@@ -79,10 +103,12 @@ test:
 	go test k8s.io/kops/protokube/... -args -v=1 -logtostderr
 	go test k8s.io/kops/dns-controller/pkg/... -args -v=1 -logtostderr
 	go test k8s.io/kops/cmd/... -args -v=1 -logtostderr
+	go test k8s.io/kops/tests/... -args -v=1 -logtostderr
+	go test k8s.io/kops/util/... -args -v=1 -logtostderr
 
 crossbuild-nodeup:
 	mkdir -p .build/dist/
-	GOOS=linux GOARCH=amd64 go build -a ${EXTRA_BUILDFLAGS} -o .build/dist/linux/amd64/nodeup -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION}" k8s.io/kops/cmd/nodeup
+	GOOS=linux GOARCH=amd64 go build -a ${EXTRA_BUILDFLAGS} -o .build/dist/linux/amd64/nodeup -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/nodeup
 
 crossbuild-nodeup-in-docker:
 	docker pull golang:${GOVERSION} # Keep golang image up to date
@@ -91,8 +117,10 @@ crossbuild-nodeup-in-docker:
 
 crossbuild:
 	mkdir -p .build/dist/
-	GOOS=darwin GOARCH=amd64 go build -a ${EXTRA_BUILDFLAGS} -o .build/dist/darwin/amd64/kops -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION}" k8s.io/kops/cmd/kops
-	GOOS=linux GOARCH=amd64 go build -a ${EXTRA_BUILDFLAGS} -o .build/dist/linux/amd64/kops -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION}" k8s.io/kops/cmd/kops
+	GOOS=darwin GOARCH=amd64 go build -a ${EXTRA_BUILDFLAGS} -o .build/dist/darwin/amd64/kops -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/kops
+	GOOS=linux GOARCH=amd64 go build -a ${EXTRA_BUILDFLAGS} -o .build/dist/linux/amd64/kops -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/kops
+
+
 
 crossbuild-in-docker:
 	docker pull golang:${GOVERSION} # Keep golang image up to date
@@ -122,17 +150,17 @@ upload: kops version-dist
 	aws s3 sync --acl public-read .build/upload/ ${S3_BUCKET}
 
 gcs-upload: version-dist
-	@echo "== Logging gcloud info =="
-	@gcloud info
 	@echo "== Uploading kops =="
 	gsutil -h "Cache-Control:private, max-age=0, no-transform" -m cp -n -r .build/upload/kops/* ${GCS_LOCATION}
 
+# In CI testing, always upload the CI version.
+gcs-publish-ci: VERSION := git-$(shell git describe --always)
 gcs-publish-ci: gcs-upload
 	echo "${GCS_URL}/${VERSION}" > .build/upload/${LATEST_FILE}
 	gsutil -h "Cache-Control:private, max-age=0, no-transform" cp .build/upload/${LATEST_FILE} ${GCS_LOCATION}
 
 gen-cli-docs:
-	@kops genhelpdocs --out docs/cli
+	KOPS_STATE_STORE= kops genhelpdocs --out docs/cli
 
 # Will always push a linux-based build up to the server
 push: crossbuild-nodeup
@@ -178,7 +206,7 @@ protokube-push: protokube-image
 nodeup: nodeup-dist
 
 nodeup-gocode: kops-gobindata
-	go install ${EXTRA_BUILDFLAGS} -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION}" k8s.io/kops/cmd/nodeup
+	go install ${EXTRA_BUILDFLAGS} -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/nodeup
 
 nodeup-dist:
 	docker pull golang:${GOVERSION} # Keep golang image up to date
@@ -222,6 +250,7 @@ gofmt:
 	gofmt -w -s tests/
 	gofmt -w -s protokube/cmd
 	gofmt -w -s protokube/pkg
+	gofmt -w -s protokube/tests
 	gofmt -w -s dns-controller/cmd
 	gofmt -w -s dns-controller/pkg
 
@@ -254,7 +283,7 @@ verify-gofmt:
 verify-packages:
 	hack/verify-packages.sh
 
-ci: kops nodeup-gocode examples test govet verify-boilerplate verify-gofmt verify-packages
+ci: govet verify-gofmt kops nodeup-gocode examples test verify-boilerplate verify-packages
 	echo "Done!"
 
 # --------------------------------------------------
@@ -275,9 +304,8 @@ examples:
 # api machinery regenerate
 
 apimachinery:
-	# conversion: go install ./cmd/libs/go2idl/conversion-gen
+	./hack/make-apimachinery.sh
 	${GOPATH}/bin/conversion-gen --skip-unsafe=true --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha1 --v=8  --output-file-base=zz_generated.conversion
-	# defaulters: go install ./cmd/libs/go2idl/defaulter-gen
 	${GOPATH}/bin/defaulter-gen --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha1 --v=8  --output-file-base=zz_generated.defaults
 	${GOPATH}/bin/defaulter-gen --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha2 --v=8  --output-file-base=zz_generated.defaults
 	#go install github.com/ugorji/go/codec/codecgen
@@ -285,3 +313,16 @@ apimachinery:
 	#cd pkg/apis/kops/v1alpha2/ && ~/k8s/bin/codecgen -d 1234 -o types.generated.go instancegroup.go cluster.go federation.go
 	#cd pkg/apis/kops/v1alpha1/ && ~/k8s/bin/codecgen -d 1234 -o types.generated.go instancegroup.go cluster.go federation.go
 	#cd pkg/apis/kops/ && ~/k8s/bin/codecgen -d 1234 -o types.generated.go instancegroup.go cluster.go federation.go
+
+
+uas-docker-compile:
+	GOOS=linux GOARCH=amd64 go build -a ${EXTRA_BUILDFLAGS} -o .build/dist/linux/amd64/kops-server -ldflags "${EXTRA_LDFLAGS} -X k8s.io/kops-server.Version=${VERSION} -X k8s.io/kops-server.GitVersion=${GITSHA}" k8s.io/kops/cmd/kops-server
+
+
+uas-build:
+	# Compile the API binary in linux, and copy to local filesystem
+	docker pull golang:${GOVERSION}
+	docker run --name=kops-api-build-${UNIQUE} -e STATIC_BUILD=yes -e VERSION=${VERSION} -v ${GOPATH}/src:/go/src -v ${MAKEDIR}:/go/src/k8s.io/kops golang:${GOVERSION} make -f /go/src/k8s.io/kops/Makefile uas-docker-compile
+	docker cp kops-api-build-${UNIQUE}:/go/.build .
+	docker build -t krisnova/kops:latest .
+	docker push krisnova/kops:latest

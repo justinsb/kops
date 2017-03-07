@@ -47,6 +47,15 @@ func (e *SecurityGroup) CompareWithID() *string {
 	return e.ID
 }
 
+// OrderSecurityGroupsById implements sort.Interface for []SecurityGroup, based on ID
+type OrderSecurityGroupsById []*SecurityGroup
+
+func (a OrderSecurityGroupsById) Len() int      { return len(a) }
+func (a OrderSecurityGroupsById) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a OrderSecurityGroupsById) Less(i, j int) bool {
+	return fi.StringValue(a[i].ID) < fi.StringValue(a[j].ID)
+}
+
 func (e *SecurityGroup) Find(c *fi.Context) (*SecurityGroup, error) {
 	sg, err := e.findEc2(c)
 	if err != nil {
@@ -327,6 +336,12 @@ func (e *SecurityGroup) FindDeletions(c *fi.Context) ([]fi.Deletion, error) {
 			if !ok {
 				continue
 			}
+
+			if er.SourceGroup != nil && er.SourceGroup.ID == nil {
+				glog.V(4).Infof("Deletion skipping find of SecurityGroupRule %s, because SourceGroup was not found", fi.StringValue(er.Name))
+				return nil, nil
+			}
+
 			if er.matches(permission) {
 				found = true
 			}

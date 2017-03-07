@@ -29,26 +29,25 @@ import (
 	"github.com/emicklei/go-restful/swagger"
 	"github.com/spf13/cobra"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/kubernetes/federation/apis/federation"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/api/validation"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
+	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/batch"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	metav1 "k8s.io/kubernetes/pkg/apis/meta/v1"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/typed/discovery"
-	"k8s.io/kubernetes/pkg/client/typed/dynamic"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/kubectl"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/registry/extensions/thirdpartyresourcedata"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/runtime/schema"
 )
 
 type ring1Factory struct {
@@ -64,13 +63,13 @@ func NewObjectMappingFactory(clientAccessFactory ClientAccessFactory) ObjectMapp
 }
 
 func (f *ring1Factory) Object() (meta.RESTMapper, runtime.ObjectTyper) {
-	mapper := registered.RESTMapper()
+	mapper := api.Registry.RESTMapper()
 	discoveryClient, err := f.clientAccessFactory.DiscoveryClient()
 	if err == nil {
 		mapper = meta.FirstHitRESTMapper{
 			MultiRESTMapper: meta.MultiRESTMapper{
-				discovery.NewDeferredDiscoveryRESTMapper(discoveryClient, registered.InterfacesFor),
-				registered.RESTMapper(), // hardcoded fall back
+				discovery.NewDeferredDiscoveryRESTMapper(discoveryClient, api.Registry.InterfacesFor),
+				api.Registry.RESTMapper(), // hardcoded fall back
 			},
 		}
 	}
@@ -128,9 +127,6 @@ func (f *ring1Factory) ClientForMapping(mapping *meta.RESTMapping) (resource.RES
 	}
 	gv := gvk.GroupVersion()
 	cfg.GroupVersion = &gv
-	if registered.IsThirdPartyAPIGroupVersion(gvk.GroupVersion()) {
-		cfg.NegotiatedSerializer = thirdpartyresourcedata.NewNegotiatedSerializer(api.Codecs, gvk.Kind, gv, gv)
-	}
 	return restclient.RESTClientFor(cfg)
 }
 
@@ -163,14 +159,55 @@ func (f *ring1Factory) Describer(mapping *meta.RESTMapping) (kubectl.Describer, 
 			return &kubectl.ClusterDescriber{Interface: fedClientSet}, nil
 		}
 	}
+
 	clientset, err := f.clientAccessFactory.ClientSetForVersion(&mappingVersion)
 	if err != nil {
+		// if we can't make a client for this group/version, go generic if possible
+		if genericDescriber, genericErr := genericDescriber(f.clientAccessFactory, mapping); genericErr == nil {
+			return genericDescriber, nil
+		}
+		// otherwise return the original error
 		return nil, err
 	}
+
+	// try to get a describer
 	if describer, ok := kubectl.DescriberFor(mapping.GroupVersionKind.GroupKind(), clientset); ok {
 		return describer, nil
 	}
-	return nil, fmt.Errorf("no description has been implemented for %q", mapping.GroupVersionKind.Kind)
+	// if this is a kind we don't have a describer for yet, go generic if possible
+	if genericDescriber, genericErr := genericDescriber(f.clientAccessFactory, mapping); genericErr == nil {
+		return genericDescriber, nil
+	}
+	// otherwise return an unregistered error
+	return nil, fmt.Errorf("no description has been implemented for %s", mapping.GroupVersionKind.String())
+}
+
+// helper function to make a generic describer, or return an error
+func genericDescriber(clientAccessFactory ClientAccessFactory, mapping *meta.RESTMapping) (kubectl.Describer, error) {
+	clientConfig, err := clientAccessFactory.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	clientConfigCopy := *clientConfig
+	clientConfigCopy.APIPath = dynamic.LegacyAPIPathResolverFunc(mapping.GroupVersionKind)
+	gv := mapping.GroupVersionKind.GroupVersion()
+	clientConfigCopy.GroupVersion = &gv
+
+	// used to fetch the resource
+	dynamicClient, err := dynamic.NewClient(&clientConfigCopy)
+	if err != nil {
+		return nil, err
+	}
+
+	// used to get events for the resource
+	clientSet, err := clientAccessFactory.ClientSet()
+	if err != nil {
+		return nil, err
+	}
+	eventsClient := clientSet.Core()
+
+	return kubectl.GenericDescriberFor(mapping, dynamicClient, eventsClient), nil
 }
 
 func (f *ring1Factory) LogsForObject(object, options runtime.Object) (*restclient.Request, error) {
@@ -288,28 +325,33 @@ func (f *ring1Factory) AttachablePodForObject(object runtime.Object) (*api.Pod, 
 	if err != nil {
 		return nil, err
 	}
+	var selector labels.Selector
+	var namespace string
 	switch t := object.(type) {
+	case *extensions.ReplicaSet:
+		namespace = t.Namespace
+		selector = labels.SelectorFromSet(t.Spec.Selector.MatchLabels)
 	case *api.ReplicationController:
-		selector := labels.SelectorFromSet(t.Spec.Selector)
-		sortBy := func(pods []*v1.Pod) sort.Interface { return sort.Reverse(controller.ActivePods(pods)) }
-		pod, _, err := GetFirstPod(clientset.Core(), t.Namespace, selector, 1*time.Minute, sortBy)
-		return pod, err
+		namespace = t.Namespace
+		selector = labels.SelectorFromSet(t.Spec.Selector)
+	case *apps.StatefulSet:
+		namespace = t.Namespace
+		selector, err = metav1.LabelSelectorAsSelector(t.Spec.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("invalid label selector: %v", err)
+		}
 	case *extensions.Deployment:
-		selector, err := metav1.LabelSelectorAsSelector(t.Spec.Selector)
+		namespace = t.Namespace
+		selector, err = metav1.LabelSelectorAsSelector(t.Spec.Selector)
 		if err != nil {
 			return nil, fmt.Errorf("invalid label selector: %v", err)
 		}
-		sortBy := func(pods []*v1.Pod) sort.Interface { return sort.Reverse(controller.ActivePods(pods)) }
-		pod, _, err := GetFirstPod(clientset.Core(), t.Namespace, selector, 1*time.Minute, sortBy)
-		return pod, err
 	case *batch.Job:
-		selector, err := metav1.LabelSelectorAsSelector(t.Spec.Selector)
+		namespace = t.Namespace
+		selector, err = metav1.LabelSelectorAsSelector(t.Spec.Selector)
 		if err != nil {
 			return nil, fmt.Errorf("invalid label selector: %v", err)
 		}
-		sortBy := func(pods []*v1.Pod) sort.Interface { return sort.Reverse(controller.ActivePods(pods)) }
-		pod, _, err := GetFirstPod(clientset.Core(), t.Namespace, selector, 1*time.Minute, sortBy)
-		return pod, err
 	case *api.Pod:
 		return t, nil
 	default:
@@ -319,6 +361,9 @@ func (f *ring1Factory) AttachablePodForObject(object runtime.Object) (*api.Pod, 
 		}
 		return nil, fmt.Errorf("cannot attach to %v: not implemented", gvks[0])
 	}
+	sortBy := func(pods []*v1.Pod) sort.Interface { return sort.Reverse(controller.ActivePods(pods)) }
+	pod, _, err := GetFirstPod(clientset.Core(), namespace, selector, 1*time.Minute, sortBy)
+	return pod, err
 }
 
 func (f *ring1Factory) PrinterForMapping(cmd *cobra.Command, mapping *meta.RESTMapping, withNamespace bool) (kubectl.ResourcePrinter, error) {

@@ -19,20 +19,19 @@ package kops
 import (
 	"fmt"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Cluster struct {
-	v1.TypeMeta `json:",inline"`
-	ObjectMeta  api.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	ObjectMeta      metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec ClusterSpec `json:"spec,omitempty"`
 }
 
 type ClusterList struct {
-	v1.TypeMeta `json:",inline"`
-	v1.ListMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 
 	Items []Cluster `json:"items"`
 }
@@ -112,12 +111,10 @@ type ClusterSpec struct {
 	// It cannot overlap ServiceClusterIPRange
 	NonMasqueradeCIDR string `json:"nonMasqueradeCIDR,omitempty"`
 
-	// SSHAccess determines the permitted access to SSH
-	// Currently only a single CIDR is supported (though a richer grammar could be added in future)
+	// SSHAccess is a list of the CIDRs that can access SSH.
 	SSHAccess []string `json:"sshAccess,omitempty"`
 
-	// KubernetesAPIAccess determines the permitted access to the Kubernetes API endpoints (master HTTPS)
-	// Currently only a single CIDR is supported (though a richer grammar could be added in future)
+	// KubernetesAPIAccess is a list of the CIDRs that can access the Kubernetes API endpoint (master HTTPS)
 	KubernetesAPIAccess []string `json:"kubernetesApiAccess,omitempty"`
 
 	// IsolatesMasters determines whether we should lock down masters so that they are not on the pod network.
@@ -134,6 +131,9 @@ type ClusterSpec struct {
 	//   'external' do not apply updates automatically - they are applied manually or by an external system
 	//   missing: default policy (currently OS security upgrades that do not require a reboot)
 	UpdatePolicy *string `json:"updatePolicy,omitempty"`
+
+	// Additional policies to add for roles
+	AdditionalPolicies *map[string]string `json:"additionalPolicies,omitempty"`
 
 	//HairpinMode                   string `json:",omitempty"`
 	//
@@ -295,7 +295,7 @@ type EtcdMemberSpec struct {
 	InstanceGroup *string `json:"instanceGroup,omitempty"`
 
 	VolumeType      *string `json:"volumeType,omitempty"`
-	VolumeSize      *int    `json:"volumeSize,omitempty"`
+	VolumeSize      *int32  `json:"volumeSize,omitempty"`
 	KmsKeyId        *string `json:"kmsKeyId,omitempty"`
 	EncryptedVolume *bool   `json:"encryptedVolume,omitempty"`
 }
@@ -319,6 +319,8 @@ type ClusterSubnetSpec struct {
 	// ProviderID is the cloud provider id for the objects associated with the zone (the subnet on AWS)
 	ProviderID string `json:"id,omitempty"`
 
+	Egress string `json:"egress,omitempty"`
+
 	Type SubnetType `json:"type,omitempty"`
 }
 
@@ -336,18 +338,10 @@ type ClusterSubnetSpec struct {
 // This is different from PerformAssignments, because these values are changeable, and thus we don't need to
 // store them (i.e. we don't need to 'lock them')
 func (c *Cluster) FillDefaults() error {
-	// TODO: Move elsewhere
-	if len(c.Spec.SSHAccess) == 0 {
-		c.Spec.SSHAccess = append(c.Spec.SSHAccess, "0.0.0.0/0")
-	}
-
 	// Topology support
 	if c.Spec.Topology == nil {
 		c.Spec.Topology = &TopologySpec{Masters: TopologyPublic, Nodes: TopologyPublic}
-	}
-
-	if len(c.Spec.KubernetesAPIAccess) == 0 {
-		c.Spec.KubernetesAPIAccess = append(c.Spec.KubernetesAPIAccess, "0.0.0.0/0")
+		c.Spec.Topology.DNS = &DNSSpec{Type: DNSTypePublic}
 	}
 
 	if c.Spec.Networking == nil {
@@ -368,6 +362,8 @@ func (c *Cluster) FillDefaults() error {
 	} else if c.Spec.Networking.Weave != nil {
 		// OK
 	} else if c.Spec.Networking.Calico != nil {
+		// OK
+	} else if c.Spec.Networking.Canal != nil {
 		// OK
 	} else {
 		// No networking model selected; choose Kubenet

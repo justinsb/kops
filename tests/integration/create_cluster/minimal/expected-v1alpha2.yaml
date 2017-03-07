@@ -12,24 +12,30 @@ spec:
   etcdClusters:
   - etcdMembers:
     - instanceGroup: master-us-test-1a
-      name: us-test-1a
+      name: a
     name: main
   - etcdMembers:
     - instanceGroup: master-us-test-1a
-      name: us-test-1a
+      name: a
     name: events
-  kubernetesVersion: v1.4.7
+  kubernetesApiAccess:
+  - 0.0.0.0/0
+  kubernetesVersion: v1.4.8
   masterPublicName: api.minimal.example.com
   networkCIDR: 172.20.0.0/16
   networking:
     kubenet: {}
   nonMasqueradeCIDR: 100.64.0.0/10
+  sshAccess:
+  - 0.0.0.0/0
   subnets:
   - cidr: 172.20.32.0/19
     name: us-test-1a
     type: Public
     zone: us-test-1a
   topology:
+    dns:
+      type: Public
     masters: public
     nodes: public
 
@@ -39,9 +45,10 @@ apiVersion: kops/v1alpha2
 kind: InstanceGroup
 metadata:
   creationTimestamp: "2017-01-01T00:00:00Z"
+  labels:
+    kops.k8s.io/cluster: minimal.example.com
   name: master-us-test-1a
 spec:
-  associatePublicIp: true
   image: kope.io/k8s-1.4-debian-jessie-amd64-hvm-ebs-2016-10-21
   machineType: m3.medium
   maxSize: 1
@@ -56,9 +63,10 @@ apiVersion: kops/v1alpha2
 kind: InstanceGroup
 metadata:
   creationTimestamp: "2017-01-01T00:00:00Z"
+  labels:
+    kops.k8s.io/cluster: minimal.example.com
   name: nodes
 spec:
-  associatePublicIp: true
   image: kope.io/k8s-1.4-debian-jessie-amd64-hvm-ebs-2016-10-21
   machineType: t2.medium
   maxSize: 2

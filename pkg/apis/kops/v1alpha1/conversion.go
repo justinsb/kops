@@ -18,8 +18,8 @@ package v1alpha1
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/kops/pkg/apis/kops"
-	"k8s.io/kubernetes/pkg/conversion"
 	"reflect"
 	"sort"
 	"strings"
@@ -64,15 +64,17 @@ func Convert_v1alpha1_ClusterSpec_To_kops_ClusterSpec(in *ClusterSpec, out *kops
 						ProviderID: z.ProviderID,
 						Zone:       z.Name,
 						Type:       kops.SubnetTypePrivate,
+						Egress:     z.Egress,
 					})
 				}
 
 				if z.CIDR != "" {
 					out.Subnets = append(out.Subnets, kops.ClusterSubnetSpec{
-						Name: "utility-" + z.Name,
-						CIDR: z.CIDR,
-						Zone: z.Name,
-						Type: kops.SubnetTypeUtility,
+						Name:   "utility-" + z.Name,
+						CIDR:   z.CIDR,
+						Zone:   z.Name,
+						Type:   kops.SubnetTypeUtility,
+						Egress: z.Egress,
 					})
 				}
 			} else {
@@ -82,6 +84,7 @@ func Convert_v1alpha1_ClusterSpec_To_kops_ClusterSpec(in *ClusterSpec, out *kops
 					ProviderID: z.ProviderID,
 					Zone:       z.Name,
 					Type:       kops.SubnetTypePublic,
+					Egress:     z.Egress,
 				})
 			}
 		}
@@ -89,8 +92,13 @@ func Convert_v1alpha1_ClusterSpec_To_kops_ClusterSpec(in *ClusterSpec, out *kops
 		out.Subnets = nil
 	}
 
-	out.SSHAccess = in.AdminAccess
-	out.KubernetesAPIAccess = in.AdminAccess
+	adminAccess := in.AdminAccess
+	if len(adminAccess) == 0 {
+		// The default in v1alpha1 was 0.0.0.0/0
+		adminAccess = []string{"0.0.0.0/0"}
+	}
+	out.SSHAccess = adminAccess
+	out.KubernetesAPIAccess = adminAccess
 
 	return autoConvert_v1alpha1_ClusterSpec_To_kops_ClusterSpec(in, out, s)
 }
@@ -148,6 +156,7 @@ func Convert_kops_ClusterSpec_To_v1alpha1_ClusterSpec(in *kops.ClusterSpec, out 
 						return fmt.Errorf("cannot convert to v1alpha1: duplicate zone: %v", zone)
 					}
 					zone.PrivateCIDR = s.CIDR
+					zone.Egress = s.Egress
 					zone.ProviderID = s.ProviderID
 
 				case kops.SubnetTypeUtility:
@@ -172,6 +181,7 @@ func Convert_kops_ClusterSpec_To_v1alpha1_ClusterSpec(in *kops.ClusterSpec, out 
 					return fmt.Errorf("cannot convert to v1alpha1: duplicate zone: %v", zone)
 				}
 				zone.CIDR = s.CIDR
+				zone.Egress = s.Egress
 				zone.ProviderID = s.ProviderID
 			}
 		}
@@ -217,7 +227,6 @@ func Convert_kops_EtcdMemberSpec_To_v1alpha1_EtcdMemberSpec(in *kops.EtcdMemberS
 		}
 		zone = strings.TrimPrefix(zone, "master-")
 		out.Zone = &zone
-		out.Name = zone
 	} else {
 		out.Zone = nil
 	}
@@ -248,6 +257,14 @@ func Convert_v1alpha1_TopologySpec_To_kops_TopologySpec(in *TopologySpec, out *k
 	} else {
 		out.Bastion = nil
 	}
+	if in.DNS != nil {
+		out.DNS = new(kops.DNSSpec)
+		if err := Convert_v1alpha1_DNSSpec_To_kops_DNSSpec(in.DNS, out.DNS, s); err != nil {
+			return err
+		}
+	} else {
+		out.DNS = nil
+	}
 	return nil
 }
 
@@ -261,6 +278,14 @@ func Convert_kops_TopologySpec_To_v1alpha1_TopologySpec(in *kops.TopologySpec, o
 		}
 	} else {
 		out.Bastion = nil
+	}
+	if in.DNS != nil {
+		out.DNS = new(DNSSpec)
+		if err := Convert_kops_DNSSpec_To_v1alpha1_DNSSpec(in.DNS, out.DNS, s); err != nil {
+			return err
+		}
+	} else {
+		out.DNS = nil
 	}
 	return nil
 }

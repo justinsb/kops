@@ -18,71 +18,76 @@ package main
 
 import (
 	"fmt"
+
+	"io"
+
 	"github.com/spf13/cobra"
+	"k8s.io/kops/cmd/kops/util"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
-	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/kutil"
 	"k8s.io/kops/util/pkg/tables"
 	"k8s.io/kops/util/pkg/vfs"
-	"os"
 )
 
-type DeleteClusterCmd struct {
-	Yes        bool
-	Region     string
-	External   bool
-	Unregister bool
+type DeleteClusterOptions struct {
+	Yes         bool
+	Region      string
+	External    bool
+	Unregister  bool
+	ClusterName string
 }
 
-var deleteCluster DeleteClusterCmd
+func NewCmdDeleteCluster(f *util.Factory, out io.Writer) *cobra.Command {
+	options := &DeleteClusterOptions{}
 
-func init() {
 	cmd := &cobra.Command{
 		Use:   "cluster CLUSTERNAME [--yes]",
 		Short: "Delete cluster",
 		Long:  `Deletes a k8s cluster.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := deleteCluster.Run(args)
+			err := rootCommand.ProcessArgs(args)
+			if err != nil {
+				exitWithError(err)
+			}
+
+			// Note _not_ ClusterName(); we only want the --name flag
+			options.ClusterName = rootCommand.clusterName
+
+			err = RunDeleteCluster(f, out, options)
 			if err != nil {
 				exitWithError(err)
 			}
 		},
 	}
 
-	deleteCmd.AddCommand(cmd)
+	cmd.Flags().BoolVarP(&options.Yes, "yes", "y", options.Yes, "Specify --yes to delete the cluster")
+	cmd.Flags().BoolVar(&options.Unregister, "unregister", options.Unregister, "Don't delete cloud resources, just unregister the cluster")
+	cmd.Flags().BoolVar(&options.External, "external", options.External, "Delete an external cluster")
 
-	cmd.Flags().BoolVar(&deleteCluster.Yes, "yes", false, "Delete without confirmation")
-	cmd.Flags().BoolVar(&deleteCluster.Unregister, "unregister", false, "Don't delete cloud resources, just unregister the cluster")
-	cmd.Flags().BoolVar(&deleteCluster.External, "external", false, "Delete an external cluster")
-
-	cmd.Flags().StringVar(&deleteCluster.Region, "region", "", "region")
+	cmd.Flags().StringVar(&options.Region, "region", options.Region, "region")
+	return cmd
 }
 
 type getter func(o interface{}) interface{}
 
-func (c *DeleteClusterCmd) Run(args []string) error {
+func RunDeleteCluster(f *util.Factory, out io.Writer, options *DeleteClusterOptions) error {
 	var configBase vfs.Path
-	var clientset simple.Clientset
 
-	err := rootCommand.ProcessArgs(args)
-	if err != nil {
-		return err
-	}
-
-	clusterName := rootCommand.clusterName
+	clusterName := options.ClusterName
 	if clusterName == "" {
 		return fmt.Errorf("--name is required (for safety)")
 	}
 
 	var cloud fi.Cloud
 	var cluster *api.Cluster
+	var err error
 
-	if c.External {
-		region := c.Region
+	if options.External {
+		region := options.Region
 		if region == "" {
 			return fmt.Errorf("--region is required (when --external)")
 		}
@@ -93,22 +98,9 @@ func (c *DeleteClusterCmd) Run(args []string) error {
 			return fmt.Errorf("error initializing AWS client: %v", err)
 		}
 	} else {
-		clientset, err = rootCommand.Clientset()
+		cluster, err = GetCluster(f, clusterName)
 		if err != nil {
 			return err
-		}
-
-		cluster, err = clientset.Clusters().Get(clusterName)
-		if err != nil {
-			return err
-		}
-
-		if cluster == nil {
-			return fmt.Errorf("cluster %q not found", clusterName)
-		}
-
-		if clusterName != cluster.ObjectMeta.Name {
-			return fmt.Errorf("sanity check failed: cluster name mismatch")
 		}
 
 		configBase, err = registry.ConfigBase(cluster)
@@ -119,7 +111,7 @@ func (c *DeleteClusterCmd) Run(args []string) error {
 
 	wouldDeleteCloudResources := false
 
-	if !c.Unregister {
+	if !options.Unregister {
 		if cloud == nil {
 			cloud, err = cloudup.BuildCloud(cluster)
 			if err != nil {
@@ -127,7 +119,8 @@ func (c *DeleteClusterCmd) Run(args []string) error {
 			}
 		}
 
-		d := &kutil.DeleteCluster{}
+		// Todo lets make this smart enough to detect the cloud and switch on the ClusterResources interface
+		d := &kutil.AwsCluster{}
 		d.ClusterName = clusterName
 		d.Cloud = cloud
 
@@ -137,7 +130,7 @@ func (c *DeleteClusterCmd) Run(args []string) error {
 		}
 
 		if len(resources) == 0 {
-			fmt.Printf("No cloud resources to delete\n")
+			fmt.Fprintf(out, "No cloud resources to delete\n")
 		} else {
 			wouldDeleteCloudResources = true
 
@@ -156,16 +149,16 @@ func (c *DeleteClusterCmd) Run(args []string) error {
 				l = append(l, v)
 			}
 
-			err := t.Render(l, os.Stdout, "TYPE", "NAME", "ID")
+			err := t.Render(l, out, "TYPE", "NAME", "ID")
 			if err != nil {
 				return err
 			}
 
-			if !c.Yes {
+			if !options.Yes {
 				return fmt.Errorf("Must specify --yes to delete")
 			}
 
-			fmt.Fprintf(os.Stdout, "\n")
+			fmt.Fprintf(out, "\n")
 
 			err = d.DeleteResources(resources)
 			if err != nil {
@@ -174,12 +167,12 @@ func (c *DeleteClusterCmd) Run(args []string) error {
 		}
 	}
 
-	if !c.External {
-		if !c.Yes {
+	if !options.External {
+		if !options.Yes {
 			if wouldDeleteCloudResources {
-				fmt.Printf("\nMust specify --yes to delete cloud resources & unregister cluster\n")
+				fmt.Fprintf(out, "\nMust specify --yes to delete cloud resources & unregister cluster\n")
 			} else {
-				fmt.Printf("\nMust specify --yes to unregister the cluster\n")
+				fmt.Fprintf(out, "\nMust specify --yes to unregister the cluster\n")
 			}
 			return nil
 		}
@@ -189,10 +182,11 @@ func (c *DeleteClusterCmd) Run(args []string) error {
 		}
 	}
 
-	b := kutil.NewKubeconfigBuilder()
-	b.Context = cluster.ObjectMeta.Name
-	b.DeleteKubeConfig()
+	err = kutil.DeleteConfig(clusterName)
+	if err != nil {
+		return fmt.Errorf("error deleting kube config: %v", err)
+	}
 
-	fmt.Printf("\nCluster deleted\n")
+	fmt.Fprintf(out, "\nCluster deleted\n")
 	return nil
 }

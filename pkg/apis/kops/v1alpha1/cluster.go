@@ -17,8 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/api/v1"
-	meta_v1 "k8s.io/kubernetes/pkg/apis/meta/v1"
 )
 
 type Cluster struct {
@@ -133,6 +133,9 @@ type ClusterSpec struct {
 	//   'external' do not apply updates automatically - they are applied manually or by an external system
 	//   missing: default policy (currently OS security upgrades that do not require a reboot)
 	UpdatePolicy *string `json:"updatePolicy,omitempty"`
+
+	// Additional policies to add for roles
+	AdditionalPolicies *map[string]string `json:"additionalPolicies,omitempty"`
 
 	//HairpinMode                   string `json:",omitempty"`
 	//
@@ -289,7 +292,7 @@ type EtcdMemberSpec struct {
 	Zone *string `json:"zone,omitempty"`
 
 	VolumeType      *string `json:"volumeType,omitempty"`
-	VolumeSize      *int    `json:"volumeSize,omitempty"`
+	VolumeSize      *int32  `json:"volumeSize,omitempty"`
 	KmsKeyId        *string `json:"kmsKeyId,omitempty"`
 	EncryptedVolume *bool   `json:"encryptedVolume,omitempty"`
 }
@@ -307,4 +310,6 @@ type ClusterZoneSpec struct {
 
 	// ProviderID is the cloud provider id for the objects associated with the zone (the subnet on AWS)
 	ProviderID string `json:"id,omitempty"`
+
+	Egress string `json:"egress,omitempty"`
 }

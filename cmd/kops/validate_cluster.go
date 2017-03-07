@@ -24,14 +24,14 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kops/cmd/kops/util"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/validation"
 	"k8s.io/kops/util/pkg/tables"
-	k8sapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
-	k8s_clientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 )
 
 type ValidateClusterOptions struct {
@@ -73,7 +73,7 @@ func RunValidateCluster(f *util.Factory, cmd *cobra.Command, args []string, out 
 		return err
 	}
 
-	list, err := clientSet.InstanceGroups(cluster.ObjectMeta.Name).List(k8sapi.ListOptions{})
+	list, err := clientSet.InstanceGroups(cluster.ObjectMeta.Name).List(metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("cannot get InstanceGroups for %q: %v", cluster.ObjectMeta.Name, err)
 	}
@@ -99,7 +99,7 @@ func RunValidateCluster(f *util.Factory, cmd *cobra.Command, args []string, out 
 		return fmt.Errorf("Cannot load kubecfg settings for %q: %v\n", contextName, err)
 	}
 
-	k8sClient, err := k8s_clientset.NewForConfig(config)
+	k8sClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("Cannot build kube api client for %q: %v\n", contextName, err)
 	}
@@ -125,10 +125,10 @@ func RunValidateCluster(f *util.Factory, cmd *cobra.Command, args []string, out 
 		return strings.Join(c.Spec.Subnets, ",")
 	})
 	t.AddColumn("MIN", func(c api.InstanceGroup) string {
-		return intPointerToString(c.Spec.MinSize)
+		return int32PointerToString(c.Spec.MinSize)
 	})
 	t.AddColumn("MAX", func(c api.InstanceGroup) string {
-		return intPointerToString(c.Spec.MaxSize)
+		return int32PointerToString(c.Spec.MaxSize)
 	})
 
 	fmt.Fprintln(out, "INSTANCE GROUPS")
@@ -165,6 +165,24 @@ func RunValidateCluster(f *util.Factory, cmd *cobra.Command, args []string, out 
 		return fmt.Errorf("cannot render nodes for %q: %v", cluster.ObjectMeta.Name, err)
 	}
 
+	if len(validationCluster.ComponentFailures) != 0 {
+		fmt.Fprintln(out, "\nComponent Failures")
+		err = t.Render(validationCluster.ComponentFailures, out, "NAME")
+
+		if err != nil {
+			return fmt.Errorf("cannot render components for %q: %v", cluster.ObjectMeta.Name, err)
+		}
+	}
+
+	if len(validationCluster.PodFailures) != 0 {
+		fmt.Fprintln(out, "\nPod Failures in kube-system")
+		err = t.Render(validationCluster.PodFailures, out, "NAME")
+
+		if err != nil {
+			return fmt.Errorf("cannot render pods for %q: %v", cluster.ObjectMeta.Name, err)
+		}
+	}
+
 	if validationFailed == nil {
 		fmt.Fprintf(out, "\nYour cluster %s is ready\n", cluster.ObjectMeta.Name)
 		return nil
@@ -172,8 +190,8 @@ func RunValidateCluster(f *util.Factory, cmd *cobra.Command, args []string, out 
 		// do we need to print which instance group is not ready?
 		// nodes are going to be a pain
 		fmt.Fprint(out, "\nValidation Failed\n")
-		fmt.Fprintf(out, "Master(s) Not Ready %d out of %d.\n", len(validationCluster.MastersNotReadyArray), validationCluster.MastersCount)
-		fmt.Fprintf(out, "Node(s) Not Ready   %d out of %d.\n", len(validationCluster.NodesNotReadyArray), validationCluster.NodesCount)
-		return fmt.Errorf("Your cluster %s is NOT ready.\n", cluster.ObjectMeta.Name)
+		fmt.Fprintf(out, "Ready Master(s) %d out of %d.\n", len(validationCluster.MastersReadyArray), validationCluster.MastersCount)
+		fmt.Fprintf(out, "Ready Node(s) %d out of %d.\n", len(validationCluster.NodesReadyArray), validationCluster.NodesCount)
+		return validationFailed
 	}
 }

@@ -23,20 +23,17 @@ import (
 	"bytes"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kops/cmd/kops/util"
 	kopsapi "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/v1alpha1"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/util/pkg/vfs"
 	k8sapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/runtime/schema"
 )
-
-// TODO: Move to field on instancegroup?
-const ClusterNameLabel = "kops.k8s.io/cluster"
 
 type CreateOptions struct {
 	resource.FilenameOptions
@@ -131,9 +128,9 @@ func RunCreate(f *util.Factory, out io.Writer, c *CreateOptions) error {
 				}
 
 			case *kopsapi.InstanceGroup:
-				clusterName := v.ObjectMeta.Labels[ClusterNameLabel]
+				clusterName := v.ObjectMeta.Labels[kopsapi.LabelClusterName]
 				if clusterName == "" {
-					return fmt.Errorf("must specify %q label with cluster name to create instanceGroup", ClusterNameLabel)
+					return fmt.Errorf("must specify %q label with cluster name to create instanceGroup", kopsapi.LabelClusterName)
 				}
 				_, err = clientset.InstanceGroups(clusterName).Create(v)
 				if err != nil {

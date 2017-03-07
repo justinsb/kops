@@ -17,6 +17,7 @@ limitations under the License.
 package dockertools
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -36,11 +37,19 @@ import (
 	"github.com/golang/mock/gomock"
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/kubernetes/pkg/api"
+	"github.com/stretchr/testify/require"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubetypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/clock"
+	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/kubernetes/pkg/api/testapi"
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
-	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
 	"k8s.io/kubernetes/pkg/kubelet/images"
@@ -49,14 +58,23 @@ import (
 	nettest "k8s.io/kubernetes/pkg/kubelet/network/testing"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
 	"k8s.io/kubernetes/pkg/kubelet/types"
-	"k8s.io/kubernetes/pkg/runtime"
-	kubetypes "k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util/clock"
 	uexec "k8s.io/kubernetes/pkg/util/exec"
-	"k8s.io/kubernetes/pkg/util/flowcontrol"
-	"k8s.io/kubernetes/pkg/util/intstr"
-	"k8s.io/kubernetes/pkg/util/sets"
 )
+
+var testTempDir string
+
+func TestMain(m *testing.M) {
+	dir, err := ioutil.TempDir("", "dockertools")
+	if err != nil {
+		panic(err)
+	}
+	testTempDir = dir
+
+	flag.Parse()
+	status := m.Run()
+	os.RemoveAll(testTempDir)
+	os.Exit(status)
+}
 
 type fakeHTTP struct {
 	url string
@@ -80,7 +98,7 @@ func (f *fakeRuntimeHelper) GenerateRunContainerOptions(pod *v1.Pod, container *
 	var opts kubecontainer.RunContainerOptions
 	var err error
 	if len(container.TerminationMessagePath) != 0 {
-		testPodContainerDir, err = ioutil.TempDir("", "fooPodContainerDir")
+		testPodContainerDir, err = ioutil.TempDir(testTempDir, "fooPodContainerDir")
 		if err != nil {
 			return nil, err
 		}
@@ -112,8 +130,8 @@ func newFakeImageManager() images.ImageManager {
 	return &fakeImageManager{}
 }
 
-func (m *fakeImageManager) EnsureImageExists(pod *v1.Pod, container *v1.Container, pullSecrets []v1.Secret) (error, string) {
-	return nil, ""
+func (m *fakeImageManager) EnsureImageExists(pod *v1.Pod, container *v1.Container, pullSecrets []v1.Secret) (string, string, error) {
+	return container.Image, "", nil
 }
 
 func createTestDockerManager(fakeHTTPClient *fakeHTTP, fakeDocker *FakeDockerClient) (*DockerManager, *FakeDockerClient) {
@@ -164,7 +182,7 @@ func newTestDockerManagerWithHTTPClient(fakeHTTPClient *fakeHTTP) (*DockerManage
 }
 
 func newTestDockerManagerWithVersion(version, apiVersion string) (*DockerManager, *FakeDockerClient) {
-	fakeDocker := NewFakeDockerClientWithVersion(version, apiVersion)
+	fakeDocker := NewFakeDockerClient().WithVersion(version, apiVersion)
 	return createTestDockerManagerWithFakeImageManager(nil, fakeDocker)
 }
 
@@ -310,10 +328,10 @@ func TestSetEntrypointAndCommand(t *testing.T) {
 		}
 		setEntrypointAndCommand(tc.container, opts, actualOpts)
 
-		if e, a := tc.expected.Config.Entrypoint, actualOpts.Config.Entrypoint; !api.Semantic.DeepEqual(e, a) {
+		if e, a := tc.expected.Config.Entrypoint, actualOpts.Config.Entrypoint; !apiequality.Semantic.DeepEqual(e, a) {
 			t.Errorf("%v: unexpected entrypoint: expected %v, got %v", tc.name, e, a)
 		}
-		if e, a := tc.expected.Config.Cmd, actualOpts.Config.Cmd; !api.Semantic.DeepEqual(e, a) {
+		if e, a := tc.expected.Config.Cmd, actualOpts.Config.Cmd; !apiequality.Semantic.DeepEqual(e, a) {
 			t.Errorf("%v: unexpected command: expected %v, got %v", tc.name, e, a)
 		}
 	}
@@ -568,7 +586,7 @@ func generatePodInfraContainerHash(pod *v1.Pod) uint64 {
 		Ports:           ports,
 		ImagePullPolicy: podInfraContainerImagePullPolicy,
 	}
-	return kubecontainer.HashContainer(container)
+	return kubecontainer.HashContainerLegacy(container)
 }
 
 // runSyncPod is a helper function to retrieve the running pods from the fake
@@ -647,9 +665,9 @@ func TestSyncPodCreatesNetAndContainerPullsImage(t *testing.T) {
 
 	verifyCalls(t, fakeDocker, []string{
 		// Create pod infra container.
-		"create", "start", "inspect_container", "inspect_container",
+		"inspect_image", "create", "start", "inspect_container", "inspect_container",
 		// Create container.
-		"create", "start", "inspect_container",
+		"inspect_image", "create", "start", "inspect_container",
 	})
 
 	fakeDocker.Lock()
@@ -838,7 +856,7 @@ func TestSyncPodsDoesNothing(t *testing.T) {
 	fakeDocker.SetFakeRunningContainers([]*FakeContainer{
 		{
 			ID:   "1234",
-			Name: "/k8s_bar." + strconv.FormatUint(kubecontainer.HashContainer(&container), 16) + "_foo_new_12345678_0",
+			Name: "/k8s_bar." + strconv.FormatUint(kubecontainer.HashContainerLegacy(&container), 16) + "_foo_new_12345678_0",
 		},
 		{
 			ID:   "9876",
@@ -868,14 +886,14 @@ func TestSyncPodWithRestartPolicy(t *testing.T) {
 		},
 		{
 			ID:         "1234",
-			Name:       "/k8s_succeeded." + strconv.FormatUint(kubecontainer.HashContainer(&containers[0]), 16) + "_foo_new_12345678_0",
+			Name:       "/k8s_succeeded." + strconv.FormatUint(kubecontainer.HashContainerLegacy(&containers[0]), 16) + "_foo_new_12345678_0",
 			ExitCode:   0,
 			StartedAt:  time.Now(),
 			FinishedAt: time.Now(),
 		},
 		{
 			ID:         "5678",
-			Name:       "/k8s_failed." + strconv.FormatUint(kubecontainer.HashContainer(&containers[1]), 16) + "_foo_new_12345678_0",
+			Name:       "/k8s_failed." + strconv.FormatUint(kubecontainer.HashContainerLegacy(&containers[1]), 16) + "_foo_new_12345678_0",
 			ExitCode:   42,
 			StartedAt:  time.Now(),
 			FinishedAt: time.Now(),
@@ -947,7 +965,7 @@ func TestSyncPodBackoff(t *testing.T) {
 		Containers: containers,
 	})
 
-	stableId := "k8s_bad." + strconv.FormatUint(kubecontainer.HashContainer(&containers[1]), 16) + "_podfoo_new_12345678"
+	stableId := "k8s_bad." + strconv.FormatUint(kubecontainer.HashContainerLegacy(&containers[1]), 16) + "_podfoo_new_12345678"
 	dockerContainers := []*FakeContainer{
 		{
 			ID:        "9876",
@@ -957,13 +975,13 @@ func TestSyncPodBackoff(t *testing.T) {
 		},
 		{
 			ID:        "1234",
-			Name:      "/k8s_good." + strconv.FormatUint(kubecontainer.HashContainer(&containers[0]), 16) + "_podfoo_new_12345678_0",
+			Name:      "/k8s_good." + strconv.FormatUint(kubecontainer.HashContainerLegacy(&containers[0]), 16) + "_podfoo_new_12345678_0",
 			StartedAt: startTime,
 			Running:   true,
 		},
 		{
 			ID:         "5678",
-			Name:       "/k8s_bad." + strconv.FormatUint(kubecontainer.HashContainer(&containers[1]), 16) + "_podfoo_new_12345678_0",
+			Name:       "/k8s_bad." + strconv.FormatUint(kubecontainer.HashContainerLegacy(&containers[1]), 16) + "_podfoo_new_12345678_0",
 			ExitCode:   42,
 			StartedAt:  startTime,
 			FinishedAt: fakeClock.Now(),
@@ -1627,27 +1645,29 @@ func verifySyncResults(t *testing.T, expectedResults []*kubecontainer.SyncResult
 		}
 	}
 }
-
-func TestSecurityOptsOperator(t *testing.T) {
+func TestGetDockerOptSeparator(t *testing.T) {
 	dm110, _ := newTestDockerManagerWithVersion("1.10.1", "1.22")
 	dm111, _ := newTestDockerManagerWithVersion("1.11.0", "1.23")
 
-	secOpts := []dockerOpt{{"seccomp", "unconfined", ""}}
-	opts, err := dm110.fmtDockerOpts(secOpts)
-	if err != nil {
-		t.Fatalf("error getting security opts for Docker 1.10: %v", err)
-	}
-	if expected := []string{"seccomp:unconfined"}; len(opts) != 1 || opts[0] != expected[0] {
-		t.Fatalf("security opts for Docker 1.10: expected %v, got: %v", expected, opts)
-	}
+	sep, err := dm110.getDockerOptSeparator()
+	require.NoError(t, err, "error getting docker opt separator for 1.10.1")
+	assert.Equal(t, SecurityOptSeparatorOld, sep, "security opt separator for docker 1.10")
 
-	opts, err = dm111.fmtDockerOpts(secOpts)
-	if err != nil {
-		t.Fatalf("error getting security opts for Docker 1.11: %v", err)
-	}
-	if expected := []string{"seccomp=unconfined"}; len(opts) != 1 || opts[0] != expected[0] {
-		t.Fatalf("security opts for Docker 1.11: expected %v, got: %v", expected, opts)
-	}
+	sep, err = dm111.getDockerOptSeparator()
+	require.NoError(t, err, "error getting docker opt separator for 1.11.1")
+	assert.Equal(t, SecurityOptSeparatorNew, sep, "security opt separator for docker 1.11")
+}
+
+func TestFmtDockerOpts(t *testing.T) {
+	secOpts := []dockerOpt{{"seccomp", "unconfined", ""}}
+
+	opts := FmtDockerOpts(secOpts, ':')
+	assert.Len(t, opts, 1)
+	assert.Contains(t, opts, "seccomp:unconfined", "Docker 1.10")
+
+	opts = FmtDockerOpts(secOpts, '=')
+	assert.Len(t, opts, 1)
+	assert.Contains(t, opts, "seccomp=unconfined", "Docker 1.11")
 }
 
 func TestCheckVersionCompatibility(t *testing.T) {
@@ -1803,7 +1823,7 @@ func TestGetPodStatusNoSuchContainer(t *testing.T) {
 			Running:    false,
 		},
 	})
-	fakeDocker.InjectErrors(map[string]error{"inspect_container": containerNotFoundError{}})
+	fakeDocker.InjectErrors(map[string]error{"inspect_container": fmt.Errorf("Error: No such container: %s", noSuchContainerID)})
 	runSyncPod(t, dm, fakeDocker, pod, nil, false)
 
 	// Verify that we will try to start new contrainers even if the inspections
@@ -1918,7 +1938,7 @@ func makePod(name string, spec *v1.PodSpec) *v1.Pod {
 		spec = &v1.PodSpec{Containers: []v1.Container{{Name: "foo"}, {Name: "bar"}}}
 	}
 	pod := &v1.Pod{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			UID:       "12345678",
 			Name:      name,
 			Namespace: "new",

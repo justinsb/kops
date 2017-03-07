@@ -64,6 +64,9 @@ func (x *ImportCluster) ImportAWSCluster() error {
 
 	cluster.Spec.Channel = api.DefaultChannel
 
+	cluster.Spec.KubernetesAPIAccess = []string{"0.0.0.0/0"}
+	cluster.Spec.SSHAccess = []string{"0.0.0.0/0"}
+
 	configBase, err := x.Clientset.Clusters().(*vfsclientset.ClusterVFS).ConfigBase(clusterName)
 	if err != nil {
 		return fmt.Errorf("error building ConfigBase for cluster: %v", err)
@@ -134,8 +137,8 @@ func (x *ImportCluster) ImportAWSCluster() error {
 
 	masterGroup := &api.InstanceGroup{}
 	masterGroup.Spec.Role = api.InstanceGroupRoleMaster
-	masterGroup.Spec.MinSize = fi.Int(1)
-	masterGroup.Spec.MaxSize = fi.Int(1)
+	masterGroup.Spec.MinSize = fi.Int32(1)
+	masterGroup.Spec.MaxSize = fi.Int32(1)
 
 	masterGroup.Spec.MachineType = aws.StringValue(masterInstance.InstanceType)
 
@@ -294,17 +297,17 @@ func (x *ImportCluster) ImportAWSCluster() error {
 		if len(groups) == 1 {
 			glog.Warningf("Multiple Autoscaling groups found")
 		}
-		minSize := 0
-		maxSize := 0
+		minSize := int32(0)
+		maxSize := int32(0)
 		for _, group := range groups {
-			minSize += int(aws.Int64Value(group.MinSize))
-			maxSize += int(aws.Int64Value(group.MaxSize))
+			minSize += int32(aws.Int64Value(group.MinSize))
+			maxSize += int32(aws.Int64Value(group.MaxSize))
 		}
 		if minSize != 0 {
-			nodeGroup.Spec.MinSize = fi.Int(minSize)
+			nodeGroup.Spec.MinSize = fi.Int32(minSize)
 		}
 		if maxSize != 0 {
-			nodeGroup.Spec.MaxSize = fi.Int(maxSize)
+			nodeGroup.Spec.MaxSize = fi.Int32(maxSize)
 		}
 
 		// Determine the machine type
@@ -354,10 +357,17 @@ func (x *ImportCluster) ImportAWSCluster() error {
 		}
 
 		for _, ig := range masterInstanceGroups {
-			etcdCluster.Members = append(etcdCluster.Members, &api.EtcdMemberSpec{
-				Name:          ig.ObjectMeta.Name,
+			member := &api.EtcdMemberSpec{
 				InstanceGroup: fi.String(ig.ObjectMeta.Name),
-			})
+			}
+
+			name := ig.ObjectMeta.Name
+			// We expect the IG to have a `master-` prefix, but this is both superfluous
+			// and not how we named things previously
+			name = strings.TrimPrefix(name, "master-")
+			member.Name = name
+
+			etcdCluster.Members = append(etcdCluster.Members, member)
 		}
 
 		cluster.Spec.EtcdClusters = append(cluster.Spec.EtcdClusters, etcdCluster)
@@ -698,20 +708,6 @@ func (u *UserDataConfiguration) ParseBool(key string) *bool {
 		return fi.Bool(true)
 	}
 	return fi.Bool(false)
-}
-
-func (u *UserDataConfiguration) ParseInt(key string) (*int, error) {
-	s := u.Settings[key]
-	if s == "" {
-		return nil, nil
-	}
-
-	n, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing key %q=%q", key, s)
-	}
-
-	return fi.Int(int(n)), nil
 }
 
 func (u *UserDataConfiguration) ParseCert(key string) (*fi.Certificate, error) {

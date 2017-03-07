@@ -21,8 +21,8 @@ limitations under the License.
 package app
 
 import (
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kubernetes/pkg/controller/disruption"
-	"k8s.io/kubernetes/pkg/runtime/schema"
 )
 
 func startDisruptionController(ctx ControllerContext) (bool, error) {
@@ -30,7 +30,12 @@ func startDisruptionController(ctx ControllerContext) (bool, error) {
 		return false, nil
 	}
 	go disruption.NewDisruptionController(
-		ctx.InformerFactory.Pods().Informer(),
+		ctx.NewInformerFactory.Core().V1().Pods(),
+		ctx.NewInformerFactory.Policy().V1beta1().PodDisruptionBudgets(),
+		ctx.NewInformerFactory.Core().V1().ReplicationControllers(),
+		ctx.NewInformerFactory.Extensions().V1beta1().ReplicaSets(),
+		ctx.NewInformerFactory.Extensions().V1beta1().Deployments(),
+		ctx.NewInformerFactory.Apps().V1beta1().StatefulSets(),
 		ctx.ClientBuilder.ClientOrDie("disruption-controller"),
 	).Run(ctx.Stop)
 	return true, nil

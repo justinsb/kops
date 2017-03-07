@@ -17,8 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/api/v1"
-	meta_v1 "k8s.io/kubernetes/pkg/apis/meta/v1"
 )
 
 // InstanceGroup represents a group of instances (either nodes or masters) with the same configuration
@@ -49,15 +49,15 @@ type InstanceGroupSpec struct {
 	Role InstanceGroupRole `json:"role,omitempty"`
 
 	Image   string `json:"image,omitempty"`
-	MinSize *int   `json:"minSize,omitempty"`
-	MaxSize *int   `json:"maxSize,omitempty"`
+	MinSize *int32 `json:"minSize,omitempty"`
+	MaxSize *int32 `json:"maxSize,omitempty"`
 	//NodeInstancePrefix string `json:",omitempty"`
 	//NodeLabels         string `json:",omitempty"`
 	MachineType string `json:"machineType,omitempty"`
 	//NodeTag            string `json:",omitempty"`
 
 	// RootVolumeSize is the size of the EBS root volume to use, in GB
-	RootVolumeSize *int `json:"rootVolumeSize,omitempty"`
+	RootVolumeSize *int32 `json:"rootVolumeSize,omitempty"`
 	// RootVolumeType is the type of the EBS root volume to use (e.g. gp2)
 	RootVolumeType *string `json:"rootVolumeType,omitempty"`
 
@@ -68,6 +68,9 @@ type InstanceGroupSpec struct {
 
 	// AssociatePublicIP is true if we want instances to have a public IP
 	AssociatePublicIP *bool `json:"associatePublicIp,omitempty"`
+
+	// AdditionalSecurityGroups attaches additional security groups (e.g. i-123456)
+	AdditionalSecurityGroups []string `json:"additionalSecurityGroups,omitempty"`
 
 	// CloudLabels indicates the labels for instances in this group, at the AWS level
 	CloudLabels map[string]string `json:"cloudLabels,omitempty"`

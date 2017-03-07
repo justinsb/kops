@@ -22,13 +22,38 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/util/pkg/vfs"
 	"strings"
+
+	kopsversion "k8s.io/kops"
 )
 
 // PerformAssignments populates values that are required and immutable
 // For example, it assigns stable Keys to InstanceGroups & Masters, and
 // it assigns CIDRs to subnets
 // We also assign KubernetesVersion, because we want it to be explicit
+//
+// PerformAssignments is called on create, as well as an update. In fact
+// any time Run() is called in apply_cluster.go we will reach this function.
+// Please do all after-market logic here.
+//
 func PerformAssignments(c *kops.Cluster) error {
+	cloud, err := BuildCloud(c)
+	if err != nil {
+		return err
+	}
+
+	if c.SharedVPC() && c.Spec.NetworkCIDR == "" {
+		vpcInfo, err := cloud.FindVPCInfo(c.Spec.NetworkID)
+		if err != nil {
+			return err
+		}
+		if vpcInfo == nil {
+			return fmt.Errorf("unable to find VPC ID %q", c.Spec.NetworkID)
+		}
+		c.Spec.NetworkCIDR = vpcInfo.CIDR
+		if c.Spec.NetworkCIDR == "" {
+			return fmt.Errorf("Unable to infer NetworkCIDR from VPC ID, please specify --network-cidr")
+		}
+	}
 
 	// Topology support
 	// TODO Kris: Unsure if this needs to be here, or if the API conversion code will handle it
@@ -37,7 +62,7 @@ func PerformAssignments(c *kops.Cluster) error {
 	}
 
 	if c.Spec.NetworkCIDR == "" && !c.SharedVPC() {
-		// TODO: Choose non-overlapping networking CIDRs for VPCs?
+		// TODO: Choose non-overlapping networking CIDRs for VPCs, using vpcInfo
 		c.Spec.NetworkCIDR = "172.20.0.0/16"
 	}
 
@@ -50,7 +75,8 @@ func PerformAssignments(c *kops.Cluster) error {
 		c.Spec.MasterPublicName = "api." + c.ObjectMeta.Name
 	}
 
-	err := assignCIDRsToSubnets(c)
+	// TODO: Use vpcInfo
+	err = assignCIDRsToSubnets(c)
 	if err != nil {
 		return err
 	}
@@ -67,9 +93,15 @@ func ensureKubernetesVersion(c *kops.Cluster) error {
 			if err != nil {
 				return err
 			}
-			if channel.Spec.Cluster.KubernetesVersion != "" {
-				c.Spec.KubernetesVersion = channel.Spec.Cluster.KubernetesVersion
+			kubernetesVersion := kops.RecommendedKubernetesVersion(channel, kopsversion.Version)
+			if kubernetesVersion != nil {
+				c.Spec.KubernetesVersion = kubernetesVersion.String()
+				glog.Infof("Using KubernetesVersion %q from channel %q", c.Spec.KubernetesVersion, c.Spec.Channel)
+			} else {
+				glog.Warningf("Cannot determine recommended kubernetes version from channel %q", c.Spec.Channel)
 			}
+		} else {
+			glog.Warningf("Channel is not set; cannot determine KubernetesVersion from channel")
 		}
 	}
 

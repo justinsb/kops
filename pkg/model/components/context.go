@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/blang/semver"
 	"k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/apis/kops/util"
 )
 
 // OptionsContext is the context object for options builders
@@ -35,7 +36,7 @@ func (c *OptionsContext) KubernetesVersion() (*semver.Version, error) {
 		return nil, fmt.Errorf("KubernetesVersion is required")
 	}
 
-	sv, err := kops.ParseKubernetesVersion(kubernetesVersion)
+	sv, err := util.ParseKubernetesVersion(kubernetesVersion)
 	if err != nil {
 		return nil, fmt.Errorf("unable to determine kubernetes version from %q", kubernetesVersion)
 	}
@@ -53,7 +54,7 @@ func (c *OptionsContext) UsesKubenet() (bool, error) {
 	} else if networking.External != nil {
 		// external is based on kubenet
 		return true, nil
-	} else if networking.CNI != nil || networking.Weave != nil || networking.Calico != nil {
+	} else if networking.CNI != nil || networking.Weave != nil || networking.Calico != nil || networking.Canal != nil {
 		return false, nil
 	} else if networking.Kopeio != nil {
 		// Kopeio is based on kubenet / external

@@ -22,10 +22,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/golang/glog"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kops"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
+	"k8s.io/kops/pkg/apis/kops/util"
+	"k8s.io/kops/pkg/apis/kops/validation"
 	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/upup/pkg/fi"
@@ -38,10 +42,11 @@ import (
 	"k8s.io/kops/upup/pkg/fi/nodeup"
 	"k8s.io/kops/util/pkg/hashing"
 	"k8s.io/kops/util/pkg/vfs"
-	k8sapi "k8s.io/kubernetes/pkg/api"
 )
 
 const DefaultMaxTaskDuration = 10 * time.Minute
+
+const starline = "*********************************************************************************\n"
 
 var CloudupModels = []string{"config", "proto", "cloudup"}
 
@@ -77,6 +82,9 @@ type ApplyClusterCmd struct {
 	DryRun bool
 
 	MaxTaskDuration time.Duration
+
+	// The channel we are using
+	channel *api.Channel
 }
 
 func (c *ApplyClusterCmd) Run() error {
@@ -85,7 +93,7 @@ func (c *ApplyClusterCmd) Run() error {
 	}
 
 	if c.InstanceGroups == nil {
-		list, err := c.Clientset.InstanceGroups(c.Cluster.ObjectMeta.Name).List(k8sapi.ListOptions{})
+		list, err := c.Clientset.InstanceGroups(c.Cluster.ObjectMeta.Name).List(metav1.ListOptions{})
 		if err != nil {
 			return err
 		}
@@ -105,12 +113,28 @@ func (c *ApplyClusterCmd) Run() error {
 		return err
 	}
 
+	channel, err := ChannelForCluster(c.Cluster)
+	if err != nil {
+		return err
+	}
+	c.channel = channel
+
 	err = c.upgradeSpecs()
 	if err != nil {
 		return err
 	}
 
-	err = api.DeepValidate(c.Cluster, c.InstanceGroups, true)
+	err = c.validateKopsVersion()
+	if err != nil {
+		return err
+	}
+
+	err = c.validateKubernetesVersion()
+	if err != nil {
+		return err
+	}
+
+	err = validation.DeepValidate(c.Cluster, c.InstanceGroups, true)
 	if err != nil {
 		return err
 	}
@@ -580,11 +604,6 @@ func (c *ApplyClusterCmd) upgradeSpecs() error {
 	//	return fmt.Errorf("error populating configuration: %v", err)
 	//}
 
-	channel, err := ChannelForCluster(c.Cluster)
-	if err != nil {
-		return err
-	}
-
 	fullCluster, err := PopulateClusterSpec(c.Cluster)
 	if err != nil {
 		return err
@@ -592,7 +611,7 @@ func (c *ApplyClusterCmd) upgradeSpecs() error {
 	c.Cluster = fullCluster
 
 	for i, g := range c.InstanceGroups {
-		fullGroup, err := PopulateInstanceGroupSpec(fullCluster, g, channel)
+		fullGroup, err := PopulateInstanceGroupSpec(fullCluster, g, c.channel)
 		if err != nil {
 			return err
 		}
@@ -600,6 +619,144 @@ func (c *ApplyClusterCmd) upgradeSpecs() error {
 	}
 
 	return nil
+}
+
+// validateKopsVersion ensures that kops meet the version requirements / recommendations in the channel
+func (c *ApplyClusterCmd) validateKopsVersion() error {
+	kopsVersion, err := semver.ParseTolerant(kops.Version)
+	if err != nil {
+		glog.Warningf("unable to parse kops version %q", kops.Version)
+		// Not a hard-error
+		return nil
+	}
+
+	versionInfo := api.FindKopsVersionSpec(c.channel.Spec.KopsVersions, kopsVersion)
+	if versionInfo == nil {
+		glog.Warningf("unable to find version information for kops version %q in channel", kopsVersion)
+		// Not a hard-error
+		return nil
+	}
+
+	recommended, err := versionInfo.FindRecommendedUpgrade(kopsVersion)
+	if err != nil {
+		glog.Warningf("unable to parse version recommendation for kops version %q in channel", kopsVersion)
+	}
+
+	required, err := versionInfo.IsUpgradeRequired(kopsVersion)
+	if err != nil {
+		glog.Warningf("unable to parse version requirement for kops version %q in channel", kopsVersion)
+	}
+
+	if recommended != nil && !required {
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+		fmt.Printf("A new kops version is available: %s\n", recommended)
+		fmt.Printf("\n")
+		fmt.Printf("Upgrading is recommended\n")
+		fmt.Printf("More information: %s\n", buildPermalink("upgrade_kops", recommended.String()))
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+	} else if required {
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+		if recommended != nil {
+			fmt.Printf("A new kops version is available: %s\n", recommended)
+		}
+		fmt.Printf("\n")
+		fmt.Printf("This version of kops is no longer supported; upgrading is required\n")
+		fmt.Printf("(you can bypass this check by exporting KOPS_RUN_OBSOLETE_VERSION)\n")
+		fmt.Printf("\n")
+		fmt.Printf("More information: %s\n", buildPermalink("upgrade_kops", recommended.String()))
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+	}
+
+	if required {
+		if os.Getenv("KOPS_RUN_OBSOLETE_VERSION") == "" {
+			return fmt.Errorf("kops upgrade is required")
+		}
+	}
+
+	return nil
+}
+
+// validateKubernetesVersion ensures that kubernetes meet the version requirements / recommendations in the channel
+func (c *ApplyClusterCmd) validateKubernetesVersion() error {
+	parsed, err := util.ParseKubernetesVersion(c.Cluster.Spec.KubernetesVersion)
+	if err != nil {
+		glog.Warningf("unable to parse kubernetes version %q", c.Cluster.Spec.KubernetesVersion)
+		// Not a hard-error
+		return nil
+	}
+
+	// TODO: make util.ParseKubernetesVersion not return a pointer
+	kubernetesVersion := *parsed
+
+	versionInfo := api.FindKubernetesVersionSpec(c.channel.Spec.KubernetesVersions, kubernetesVersion)
+	if versionInfo == nil {
+		glog.Warningf("unable to find version information for kubernetes version %q in channel", kubernetesVersion)
+		// Not a hard-error
+		return nil
+	}
+
+	recommended, err := versionInfo.FindRecommendedUpgrade(kubernetesVersion)
+	if err != nil {
+		glog.Warningf("unable to parse version recommendation for kubernetes version %q in channel", kubernetesVersion)
+	}
+
+	required, err := versionInfo.IsUpgradeRequired(kubernetesVersion)
+	if err != nil {
+		glog.Warningf("unable to parse version requirement for kubernetes version %q in channel", kubernetesVersion)
+	}
+
+	if recommended != nil && !required {
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+		fmt.Printf("A new kubernetes version is available: %s\n", recommended)
+		fmt.Printf("Upgrading is recommended (try kops upgrade cluster)\n")
+		fmt.Printf("\n")
+		fmt.Printf("More information: %s\n", buildPermalink("upgrade_k8s", recommended.String()))
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+	} else if required {
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+		if recommended != nil {
+			fmt.Printf("A new kubernetes version is available: %s\n", recommended)
+		}
+		fmt.Printf("\n")
+		fmt.Printf("This version of kubernetes is no longer supported; upgrading is required\n")
+		fmt.Printf("(you can bypass this check by exporting KOPS_RUN_OBSOLETE_VERSION)\n")
+		fmt.Printf("\n")
+		fmt.Printf("More information: %s\n", buildPermalink("upgrade_k8s", recommended.String()))
+		fmt.Printf("\n")
+		fmt.Printf(starline)
+		fmt.Printf("\n")
+	}
+
+	if required {
+		if os.Getenv("KOPS_RUN_OBSOLETE_VERSION") == "" {
+			return fmt.Errorf("kubernetes upgrade is required")
+		}
+	}
+
+	return nil
+}
+
+// buildPermalink returns a link to our "permalink docs", to further explain an error message
+func buildPermalink(key, anchor string) string {
+	url := "https://github.com/kubernetes/kops/blob/master/permalinks/" + key + ".md"
+	if anchor != "" {
+		url += "#" + anchor
+	}
+	return url
 }
 
 func ChannelForCluster(c *api.Cluster) (*api.Channel, error) {

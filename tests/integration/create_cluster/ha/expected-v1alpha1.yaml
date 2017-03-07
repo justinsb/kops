@@ -4,6 +4,8 @@ metadata:
   creationTimestamp: "2017-01-01T00:00:00Z"
   name: ha.example.com
 spec:
+  adminAccess:
+  - 0.0.0.0/0
   api:
     dns: {}
   channel: stable
@@ -11,28 +13,30 @@ spec:
   configBase: memfs://tests/ha.example.com
   etcdClusters:
   - etcdMembers:
-    - name: us-test-1a
+    - name: a
       zone: us-test-1a
-    - name: us-test-1b
+    - name: b
       zone: us-test-1b
-    - name: us-test-1c
+    - name: c
       zone: us-test-1c
     name: main
   - etcdMembers:
-    - name: us-test-1a
+    - name: a
       zone: us-test-1a
-    - name: us-test-1b
+    - name: b
       zone: us-test-1b
-    - name: us-test-1c
+    - name: c
       zone: us-test-1c
     name: events
-  kubernetesVersion: v1.4.7
+  kubernetesVersion: v1.4.8
   masterPublicName: api.ha.example.com
   networkCIDR: 172.20.0.0/16
   networking:
     kubenet: {}
   nonMasqueradeCIDR: 100.64.0.0/10
   topology:
+    dns:
+      type: Public
     masters: public
     nodes: public
   zones:
@@ -49,9 +53,10 @@ apiVersion: kops/v1alpha1
 kind: InstanceGroup
 metadata:
   creationTimestamp: "2017-01-01T00:00:00Z"
+  labels:
+    kops.k8s.io/cluster: ha.example.com
   name: master-us-test-1a
 spec:
-  associatePublicIp: true
   image: kope.io/k8s-1.4-debian-jessie-amd64-hvm-ebs-2016-10-21
   machineType: m3.medium
   maxSize: 1
@@ -66,9 +71,10 @@ apiVersion: kops/v1alpha1
 kind: InstanceGroup
 metadata:
   creationTimestamp: "2017-01-01T00:00:00Z"
+  labels:
+    kops.k8s.io/cluster: ha.example.com
   name: master-us-test-1b
 spec:
-  associatePublicIp: true
   image: kope.io/k8s-1.4-debian-jessie-amd64-hvm-ebs-2016-10-21
   machineType: m3.medium
   maxSize: 1
@@ -83,9 +89,10 @@ apiVersion: kops/v1alpha1
 kind: InstanceGroup
 metadata:
   creationTimestamp: "2017-01-01T00:00:00Z"
+  labels:
+    kops.k8s.io/cluster: ha.example.com
   name: master-us-test-1c
 spec:
-  associatePublicIp: true
   image: kope.io/k8s-1.4-debian-jessie-amd64-hvm-ebs-2016-10-21
   machineType: m3.medium
   maxSize: 1
@@ -100,9 +107,10 @@ apiVersion: kops/v1alpha1
 kind: InstanceGroup
 metadata:
   creationTimestamp: "2017-01-01T00:00:00Z"
+  labels:
+    kops.k8s.io/cluster: ha.example.com
   name: nodes
 spec:
-  associatePublicIp: true
   image: kope.io/k8s-1.4-debian-jessie-amd64-hvm-ebs-2016-10-21
   machineType: t2.medium
   maxSize: 2

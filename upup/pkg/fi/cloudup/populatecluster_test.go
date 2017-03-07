@@ -35,6 +35,10 @@ func buildMinimalCluster() *api.Cluster {
 		{Name: "subnet-us-mock-1b", Zone: "us-mock-1b", CIDR: "172.20.2.0/24"},
 		{Name: "subnet-us-mock-1c", Zone: "us-mock-1c", CIDR: "172.20.3.0/24"},
 	}
+
+	c.Spec.KubernetesAPIAccess = []string{"0.0.0.0/0"}
+	c.Spec.SSHAccess = []string{"0.0.0.0/0"}
+
 	// Default to public topology
 	c.Spec.Topology = &api.TopologySpec{
 		Masters: api.TopologyPublic,
@@ -92,7 +96,7 @@ func TestPopulateCluster_Default_NoError(t *testing.T) {
 func TestPopulateCluster_Docker_Spec(t *testing.T) {
 	c := buildMinimalCluster()
 	c.Spec.Docker = &api.DockerConfig{
-		MTU:              fi.Int(5678),
+		MTU:              fi.Int32(5678),
 		InsecureRegistry: fi.String("myregistry.com:1234"),
 	}
 
@@ -108,7 +112,7 @@ func TestPopulateCluster_Docker_Spec(t *testing.T) {
 		t.Fatalf("Unexpected error from PopulateCluster: %v", err)
 	}
 
-	if fi.IntValue(full.Spec.Docker.MTU) != 5678 {
+	if fi.Int32Value(full.Spec.Docker.MTU) != 5678 {
 		t.Fatalf("Unexpected Docker MTU: %v", full.Spec.Docker.MTU)
 	}
 
@@ -322,13 +326,13 @@ func TestPopulateCluster_TopologyInvalidValue_Required(t *testing.T) {
 	expectErrorFromPopulateCluster(t, c, "Topology")
 }
 
-func TestPopulateCluster_TopologyInvalidMatchingValues_Required(t *testing.T) {
-	// We can't have a bastion with public masters / nodes
-	c := buildMinimalCluster()
-	c.Spec.Topology.Masters = api.TopologyPublic
-	c.Spec.Topology.Nodes = api.TopologyPrivate
-	expectErrorFromPopulateCluster(t, c, "Topology")
-}
+//func TestPopulateCluster_TopologyInvalidMatchingValues_Required(t *testing.T) {
+//	// We can't have a bastion with public masters / nodes
+//	c := buildMinimalCluster()
+//	c.Spec.Topology.Masters = api.TopologyPublic
+//	c.Spec.Topology.Nodes = api.TopologyPrivate
+//	expectErrorFromPopulateCluster(t, c, "Topology")
+//}
 
 func TestPopulateCluster_BastionInvalidMatchingValues_Required(t *testing.T) {
 	// We can't have a bastion with public masters / nodes
@@ -370,8 +374,8 @@ func TestPopulateCluster_APIServerCount(t *testing.T) {
 		t.Fatalf("error during build: %v", err)
 	}
 
-	if fi.IntValue(full.Spec.KubeAPIServer.APIServerCount) != 3 {
-		t.Fatalf("Unexpected APIServerCount: %v", fi.IntValue(full.Spec.KubeAPIServer.APIServerCount))
+	if fi.Int32Value(full.Spec.KubeAPIServer.APIServerCount) != 3 {
+		t.Fatalf("Unexpected APIServerCount: %v", fi.Int32Value(full.Spec.KubeAPIServer.APIServerCount))
 	}
 }
 
@@ -448,5 +452,48 @@ func TestPopulateCluster_DockerVersion(t *testing.T) {
 		if fi.StringValue(full.Spec.Docker.Version) != test.DockerVersion {
 			t.Fatalf("Unexpected DockerVersion: %v", fi.StringValue(full.Spec.Docker.Version))
 		}
+	}
+}
+
+func TestPopulateCluster_KubeController_High_Enough_Version(t *testing.T) {
+	c := buildMinimalCluster()
+	c.Spec.KubernetesVersion = "v1.5.2"
+
+	err := PerformAssignments(c)
+	if err != nil {
+		t.Fatalf("error from PerformAssignments: %v", err)
+	}
+
+	addEtcdClusters(c)
+
+	full, err := PopulateClusterSpec(c)
+	if err != nil {
+		t.Fatalf("Unexpected error from PopulateCluster: %v", err)
+	}
+
+	if full.Spec.KubeControllerManager.AttachDetachReconcileSyncPeriod == nil {
+		t.Fatalf("AttachDetachReconcileSyncPeriod not set correctly")
+	}
+
+}
+
+func TestPopulateCluster_KubeController_Fail(t *testing.T) {
+	c := buildMinimalCluster()
+	c.Spec.KubernetesVersion = "1.4.7"
+
+	err := PerformAssignments(c)
+	if err != nil {
+		t.Fatalf("error from PerformAssignments: %v", err)
+	}
+
+	addEtcdClusters(c)
+
+	full, err := PopulateClusterSpec(c)
+	if err != nil {
+		t.Fatalf("Unexpected error from PopulateCluster: %v", err)
+	}
+
+	if full.Spec.KubeControllerManager.AttachDetachReconcileSyncPeriod != nil {
+		t.Fatalf("AttachDetachReconcileSyncPeriodh is not supported in 1.4.7")
 	}
 }

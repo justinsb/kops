@@ -43,7 +43,7 @@ type S3Path struct {
 var _ Path = &S3Path{}
 var _ HasHash = &S3Path{}
 
-func NewS3Path(s3Context *S3Context, bucket string, key string) *S3Path {
+func newS3Path(s3Context *S3Context, bucket string, key string) *S3Path {
 	bucket = strings.TrimSuffix(bucket, "/")
 	key = strings.TrimPrefix(key, "/")
 
@@ -115,6 +115,11 @@ func (p *S3Path) WriteFile(data []byte) error {
 	request.Key = aws.String(p.key)
 	request.ServerSideEncryption = aws.String("AES256")
 
+	acl := os.Getenv("KOPS_STATE_S3_ACL")
+	if acl != "" {
+		request.ACL = aws.String(acl)
+	}
+
 	// We don't need Content-MD5: https://github.com/aws/aws-sdk-go/issues/208
 
 	_, err = client.PutObject(request)
@@ -183,7 +188,7 @@ func (p *S3Path) ReadDir() ([]Path, error) {
 	}
 
 	prefix := p.key
-	if !strings.HasSuffix(prefix, "/") {
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 	request := &s3.ListObjectsInput{}
@@ -229,7 +234,11 @@ func (p *S3Path) ReadTree() ([]Path, error) {
 
 	request := &s3.ListObjectsInput{}
 	request.Bucket = aws.String(p.bucket)
-	request.Prefix = aws.String(p.key)
+	prefix := p.key
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	request.Prefix = aws.String(prefix)
 	// No delimiter for recursive search
 
 	var paths []Path

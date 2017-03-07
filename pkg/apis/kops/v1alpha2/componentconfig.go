@@ -16,15 +16,16 @@ limitations under the License.
 
 package v1alpha2
 
+import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 type KubeletConfigSpec struct {
 	APIServers string `json:"apiServers,omitempty" flag:"api-servers"`
 
-	LogLevel *int `json:"logLevel,omitempty" flag:"v"`
+	LogLevel *int32 `json:"logLevel,omitempty" flag:"v"`
 
 	// Configuration flags - a subset of https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/componentconfig/types.go
 
-	// config is the path to the config file or directory of files
-	Config string `json:"config,omitempty" flag:"config"`
+	PodManifestPath string `json:"podManifestPath,omitempty" flag:"pod-manifest-path"`
 	// hostnameOverride is the hostname used to identify the kubelet instead
 	// of the actual hostname.
 	// Note: We recognize some additional values:
@@ -75,6 +76,13 @@ type KubeletConfigSpec struct {
 	HairpinMode string `json:"hairpinMode,omitempty" flag:"hairpin-mode"`
 	// The node has babysitter process monitoring docker and kubelet.
 	BabysitDaemons *bool `json:"babysitDaemons,omitempty" flag:"babysit-daemons"`
+
+	// maxPods is the number of pods that can run on this Kubelet.
+	MaxPods *int32 `json:"maxPods,omitempty" flag:"max-pods"`
+
+	// nvidiaGPUs is the number of NVIDIA GPU devices on this node.
+	NvidiaGPUs int32 `json:"nvidiaGPUs,omitempty" flag:"experimental-nvidia-gpus"`
+
 	// The CIDR to use for pod IP addresses, only used in standalone mode.
 	// In cluster mode, this is obtained from the master.
 	PodCIDR string `json:"podCIDR,omitempty" flag:"pod-cidr"`
@@ -89,10 +97,42 @@ type KubeletConfigSpec struct {
 	// nonMasqueradeCIDR configures masquerading: traffic to IPs outside this range will use IP masquerade.
 	NonMasqueradeCIDR string `json:"nonMasqueradeCIDR,omitempty" flag:"non-masquerade-cidr"`
 
+	// enable gathering custom metrics.
+	EnableCustomMetrics *bool `json:"enableCustomMetrics,omitempty" flag:"enable-custom-metrics"`
+
 	// networkPluginMTU is the MTU to be passed to the network plugin,
 	// and overrides the default MTU for cases where it cannot be automatically
 	// computed (such as IPSEC).
 	NetworkPluginMTU *int32 `json:"networkPluginMTU,omitEmpty" flag:"network-plugin-mtu"`
+
+	// imageGCHighThresholdPercent is the percent of disk usage after which
+	// image garbage collection is always run.
+	ImageGCHighThresholdPercent *int32 `json:"imageGCHighThresholdPercent,omitempty" flag:"image-gc-high-threshold"`
+	// imageGCLowThresholdPercent is the percent of disk usage before which
+	// image garbage collection is never run. Lowest disk usage to garbage
+	// collect to.
+	ImageGCLowThresholdPercent *int32 `json:"imageGCLowThresholdPercent,omitempty" flag:"image-gc-low-threshold"`
+
+	// terminatedPodGCThreshold is the number of terminated pods that can exist
+	// before the terminated pod garbage collector starts deleting terminated pods.
+	// If <= 0, the terminated pod garbage collector is disabled.
+	TerminatedPodGCThreshold *int32 `json:"terminatedPodGCThreshold,omitempty" flag:"terminated-pod-gc-threshold"`
+
+	// Comma-delimited list of hard eviction expressions.  For example, 'memory.available<300Mi'.
+	EvictionHard *string `json:"evictionHard,omitempty" flag:"eviction-hard"`
+	// Comma-delimited list of soft eviction expressions.  For example, 'memory.available<300Mi'.
+	EvictionSoft string `json:"evictionSoft,omitempty" flag:"eviction-soft"`
+	// Comma-delimited list of grace periods for each soft eviction signal.  For example, 'memory.available=30s'.
+	EvictionSoftGracePeriod string `json:"evictionSoftGracePeriod,omitempty" flag:"eviction-soft-grace-period"`
+	// Duration for which the kubelet has to wait before transitioning out of an eviction pressure condition.
+	EvictionPressureTransitionPeriod metav1.Duration `json:"evictionPressureTransitionPeriod,omitempty" flag:"eviction-pressure-transition-period"`
+	// Maximum allowed grace period (in seconds) to use when terminating pods in response to a soft eviction threshold being met.
+	EvictionMaxPodGracePeriod int32 `json:"evictionMaxPodGracePeriod,omitempty" flag:"eviction-max-pod-grace-period"`
+	// Comma-delimited list of minimum reclaims (e.g. imagefs.available=2Gi) that describes the minimum amount of resource the kubelet will reclaim when performing a pod eviction if that resource is under pressure.
+	EvictionMinimumReclaim string `json:"evictionMinimumReclaim,omitempty" flag:"eviction-minimum-reclaim"`
+
+	// The full path of the directory in which to search for additional third party volume plugins
+	VolumePluginDirectory string `json:"volumePluginDirectory,omitempty" flag:"volume-plugin-dir"`
 }
 
 type KubeProxyConfig struct {
@@ -100,7 +140,7 @@ type KubeProxyConfig struct {
 	// TODO: Better type ?
 	CPURequest string `json:"cpuRequest,omitempty"` // e.g. "20m"
 
-	LogLevel int `json:"logLevel,omitempty" flag:"v"`
+	LogLevel int32 `json:"logLevel,omitempty" flag:"v"`
 
 	// Configuration flags - a subset of https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/componentconfig/types.go
 
@@ -113,10 +153,10 @@ type KubeAPIServerConfig struct {
 	PathSrvSshproxy   string `json:"pathSrvSshproxy,omitempty"`
 	Image             string `json:"image,omitempty"`
 
-	LogLevel int `json:"logLevel,omitempty" flag:"v"`
+	LogLevel int32 `json:"logLevel,omitempty" flag:"v"`
 
 	CloudProvider         string   `json:"cloudProvider,omitempty" flag:"cloud-provider"`
-	SecurePort            int      `json:"securePort,omitempty" flag:"secure-port"`
+	SecurePort            int32    `json:"securePort,omitempty" flag:"secure-port"`
 	Address               string   `json:"address,omitempty" flag:"address"`
 	EtcdServers           []string `json:"etcdServers,omitempty" flag:"etcd-servers"`
 	EtcdServersOverrides  []string `json:"etcdServersOverrides,omitempty" flag:"etcd-servers-overrides"`
@@ -128,7 +168,7 @@ type KubeAPIServerConfig struct {
 	TLSPrivateKeyFile     string   `json:"tlsPrivateKeyFile,omitempty" flag:"tls-private-key-file"`
 	TokenAuthFile         string   `json:"tokenAuthFile,omitempty" flag:"token-auth-file"`
 	AllowPrivileged       *bool    `json:"allowPrivileged,omitempty" flag:"allow-privileged"`
-	APIServerCount        *int     `json:"apiServerCount,omitempty" flag:"apiserver-count"`
+	APIServerCount        *int32   `json:"apiServerCount,omitempty" flag:"apiserver-count"`
 	// keys and values in RuntimeConfig are parsed into the `--runtime-config` parameter
 	// for KubeAPIServer, concatenated with commas. ex: `--runtime-config=key1=value1,key2=value2`.
 	// Use this to enable alpha resources on kube-apiserver
@@ -139,11 +179,29 @@ type KubeAPIServerConfig struct {
 	KubeletPreferredAddressTypes []string `json:"kubeletPreferredAddressTypes,omitempty" flag:"kubelet-preferred-address-types"`
 
 	StorageBackend *string `json:"storageBackend,omitempty" flag:"storage-backend"`
+
+	// The OpenID claim to use as the user name.
+	// Note that claims other than the default ('sub') is not guaranteed to be unique and immutable.
+	OIDCUsernameClaim *string `json:"oidcUsernameClaim,omitempty" flag:"oidc-username-claim"`
+	// If provided, the name of a custom OpenID Connect claim for specifying user groups.
+	// The claim value is expected to be a string or array of strings.
+	OIDCGroupsClaim *string `json:"oidcGroupsClaim,omitempty" flag:"oidc-groups-claim"`
+	// The URL of the OpenID issuer, only HTTPS scheme will be accepted.
+	// If set, it will be used to verify the OIDC JSON Web Token (JWT).
+	OIDCIssuerURL *string `json:"oidcIssuerURL,omitempty" flag:"oidc-issuer-url"`
+	// The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.
+	OIDCClientID *string `json:"oidcClientID,omitempty" flag:"oidc-client-id"`
+	// If set, the OpenID server's certificate will be verified by one of the authorities in the oidc-ca-file
+	// otherwise the host's root CA set will be used.
+	OIDCCAFile *string `json:"oidcCAFile,omitempty" flag:"oidc-ca-file"`
+
+	AuthorizationMode          *string `json:"authorizationMode,omitempty" flag:"authorization-mode"`
+	AuthorizationRBACSuperUser *string `json:"authorizationRbacSuperUser,omitempty" flag:"authorization-rbac-super-user"`
 }
 
 type KubeControllerManagerConfig struct {
 	Master   string `json:"master,omitempty" flag:"master"`
-	LogLevel int    `json:"logLevel,omitempty" flag:"v"`
+	LogLevel int32  `json:"logLevel,omitempty" flag:"v"`
 
 	ServiceAccountPrivateKeyFile string `json:"serviceAccountPrivateKeyFile,omitempty" flag:"service-account-private-key-file"`
 
@@ -170,11 +228,14 @@ type KubeControllerManagerConfig struct {
 	RootCAFile string `json:"rootCAFile,omitempty" flag:"root-ca-file"`
 	// leaderElection defines the configuration of leader election client.
 	LeaderElection *LeaderElectionConfiguration `json:"leaderElection,omitempty"`
+	// ReconcilerSyncLoopPeriod is the amount of time the reconciler sync states loop
+	// wait between successive executions. Is set to 1 min by kops by default
+	AttachDetachReconcileSyncPeriod *metav1.Duration `json:"attachDetachReconcileSyncPeriod,omitempty" flag:"attach-detach-reconcile-sync-period"`
 }
 
 type KubeSchedulerConfig struct {
 	Master   string `json:"master,omitempty" flag:"master"`
-	LogLevel int    `json:"logLevel,omitempty" flag:"v"`
+	LogLevel int32  `json:"logLevel,omitempty" flag:"v"`
 
 	Image string `json:"image,omitempty"`
 

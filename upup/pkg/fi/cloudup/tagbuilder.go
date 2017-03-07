@@ -27,9 +27,10 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/sets"
 	api "k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/apis/kops/util"
 	"k8s.io/kops/upup/pkg/fi"
-	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 func buildCloudupTags(cluster *api.Cluster) (sets.String, error) {
@@ -44,7 +45,7 @@ func buildCloudupTags(cluster *api.Cluster) (sets.String, error) {
 	} else if networking.External != nil {
 		// external is based on kubenet
 		tags.Insert("_networking_kubenet", "_networking_external")
-	} else if networking.CNI != nil || networking.Weave != nil || networking.Calico != nil {
+	} else if networking.CNI != nil || networking.Weave != nil || networking.Calico != nil || networking.Canal != nil {
 		tags.Insert("_networking_cni")
 	} else if networking.Kopeio != nil {
 		// TODO combine with the External
@@ -53,18 +54,6 @@ func buildCloudupTags(cluster *api.Cluster) (sets.String, error) {
 		tags.Insert("_networking_kubenet", "_networking_external")
 	} else {
 		return nil, fmt.Errorf("No networking mode set")
-	}
-
-	// Network Topologies
-	if cluster.Spec.Topology == nil {
-		return nil, fmt.Errorf("missing topology spec")
-	}
-	if cluster.Spec.Topology.Masters == api.TopologyPublic && cluster.Spec.Topology.Nodes == api.TopologyPublic {
-		tags.Insert("_topology_public")
-	} else if cluster.Spec.Topology.Masters == api.TopologyPrivate && cluster.Spec.Topology.Nodes == api.TopologyPrivate {
-		tags.Insert("_topology_private")
-	} else {
-		return nil, fmt.Errorf("Unable to parse topology. Unsupported topology configuration. Masters and nodes must match!")
 	}
 
 	switch cluster.Spec.CloudProvider {
@@ -85,7 +74,7 @@ func buildCloudupTags(cluster *api.Cluster) (sets.String, error) {
 
 	versionTag := ""
 	if cluster.Spec.KubernetesVersion != "" {
-		sv, err := api.ParseKubernetesVersion(cluster.Spec.KubernetesVersion)
+		sv, err := util.ParseKubernetesVersion(cluster.Spec.KubernetesVersion)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine kubernetes version from %q", cluster.Spec.KubernetesVersion)
 		}
@@ -119,7 +108,7 @@ func buildNodeupTags(role api.InstanceGroupRole, cluster *api.Cluster, clusterTa
 		return nil, fmt.Errorf("Networking is not set, and should not be nil here")
 	}
 
-	if networking.CNI != nil || networking.Weave != nil || networking.Calico != nil {
+	if networking.CNI != nil || networking.Weave != nil || networking.Calico != nil || networking.Canal != nil {
 		// external is based on cni, weave, flannel, calico, etc
 		tags.Insert("_networking_cni")
 	}

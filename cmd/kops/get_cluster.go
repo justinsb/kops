@@ -23,6 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"io"
+	"k8s.io/apimachinery/pkg/util/sets"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
 	"k8s.io/kops/util/pkg/tables"
@@ -126,14 +127,14 @@ func RunGetClusters(context Factory, out io.Writer, options *GetClusterOptions) 
 		t.AddColumn("CLOUD", func(c *api.Cluster) string {
 			return c.Spec.CloudProvider
 		})
-		t.AddColumn("SUBNETS", func(c *api.Cluster) string {
-			var subnetNames []string
+		t.AddColumn("ZONES", func(c *api.Cluster) string {
+			zones := sets.NewString()
 			for _, s := range c.Spec.Subnets {
-				subnetNames = append(subnetNames, s.Name)
+				zones.Insert(s.Zone)
 			}
-			return strings.Join(subnetNames, ",")
+			return strings.Join(zones.List(), ",")
 		})
-		return t.Render(clusters, out, "NAME", "CLOUD", "SUBNETS")
+		return t.Render(clusters, out, "NAME", "CLOUD", "ZONES")
 
 	case OutputYaml:
 		for i, cluster := range clusters {

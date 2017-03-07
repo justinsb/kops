@@ -25,15 +25,16 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kops/cmd/kops/util"
 	kopsapi "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/upup/pkg/kutil"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/util/validation/field"
+	"k8s.io/client-go/tools/clientcmd"
 
 	// Register our APIs
 	_ "k8s.io/kops/pkg/apis/kops/install"
+	"k8s.io/kops/pkg/kubeconfig"
 )
 
 type Factory interface {
@@ -97,9 +98,11 @@ func NewCmdRoot(f *util.Factory, out io.Writer) *cobra.Command {
 	// create subcommands
 	cmd.AddCommand(NewCmdCompletion(f, out))
 	cmd.AddCommand(NewCmdCreate(f, out))
+	cmd.AddCommand(NewCmdDelete(f, out))
 	cmd.AddCommand(NewCmdEdit(f, out))
 	cmd.AddCommand(NewCmdUpdate(f, out))
 	cmd.AddCommand(NewCmdReplace(f, out))
+	cmd.AddCommand(NewCmdRollingUpdate(f, out))
 	cmd.AddCommand(NewCmdToolbox(f, out))
 	cmd.AddCommand(NewCmdValidate(f, out))
 
@@ -135,16 +138,31 @@ func (c *RootCmd) ProcessArgs(args []string) error {
 	if len(args) == 0 {
 		return nil
 	}
+
 	if len(args) == 1 {
 		// Assume <clustername>
-		if c.clusterName != "" {
-			return fmt.Errorf("Cannot specify cluster via --name and positional argument")
+		if c.clusterName == "" {
+			c.clusterName = args[0]
+			return nil
 		}
-		c.clusterName = args[0]
-		return nil
 	}
 
-	return fmt.Errorf("expected a single <clustername> to be passed as an argument")
+	fmt.Printf("\nFound multiple arguments which look like a cluster name\n")
+	if c.clusterName != "" {
+		fmt.Printf("\t%q (via flag)\n", c.clusterName)
+	}
+	for _, arg := range args {
+		fmt.Printf("\t%q (as argument)\n", arg)
+	}
+	fmt.Printf("\n")
+	fmt.Printf("This often happens if you specify an argument to a boolean flag without using =\n")
+	fmt.Printf("For example: use `--bastion=true` or `--bastion`, not `--bastion true`\n\n")
+
+	if len(args) == 1 {
+		return fmt.Errorf("Cannot specify cluster via --name and positional argument")
+	} else {
+		return fmt.Errorf("expected a single <clustername> to be passed as an argument")
+	}
 }
 
 func (c *RootCmd) ClusterName() string {
@@ -183,7 +201,7 @@ func (c *RootCmd) ClusterName() string {
 	return c.clusterName
 }
 
-func readKubectlClusterConfig() (*kutil.KubectlClusterWithName, error) {
+func readKubectlClusterConfig() (*kubeconfig.KubectlClusterWithName, error) {
 	kubectl := &kutil.Kubectl{}
 	context, err := kubectl.GetCurrentContext()
 	if err != nil {

@@ -22,13 +22,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
 	"io"
+
+	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kops/cmd/kops/util"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
+	"k8s.io/kops/pkg/apis/kops/validation"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
-	k8sapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/util/editor"
 )
 
@@ -41,7 +43,11 @@ func NewCmdEditCluster(f *util.Factory, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Edit cluster",
-		Long:  `Edit a cluster configuration.`,
+		Long: `Edit a cluster configuration.
+
+This command changes the cloud specification in the registry.
+
+It does not update the cloud resources, to apply the changes use "kops update cluster".`,
 		Run: func(cmd *cobra.Command, args []string) {
 			err := RunEditCluster(f, cmd, args, out, options)
 			if err != nil {
@@ -74,7 +80,7 @@ func RunEditCluster(f *util.Factory, cmd *cobra.Command, args []string, out io.W
 		return err
 	}
 
-	list, err := clientset.InstanceGroups(oldCluster.ObjectMeta.Name).List(k8sapi.ListOptions{})
+	list, err := clientset.InstanceGroups(oldCluster.ObjectMeta.Name).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -128,7 +134,7 @@ func RunEditCluster(f *util.Factory, cmd *cobra.Command, args []string, out io.W
 		return err
 	}
 
-	err = api.DeepValidate(fullCluster, instancegroups, true)
+	err = validation.DeepValidate(fullCluster, instancegroups, true)
 	if err != nil {
 		return err
 	}

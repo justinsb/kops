@@ -85,7 +85,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 
 	{
 		key := "kube-dns.addons.k8s.io"
-		version := "1.5.0"
+		version := "1.5.1"
 
 		location := key + "/v" + version + ".yaml"
 
@@ -115,7 +115,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 
 	{
 		key := "dns-controller.addons.k8s.io"
-		version := "1.4.1"
+		version := "1.5.1"
 
 		location := key + "/v" + version + ".yaml"
 
@@ -128,12 +128,33 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 		manifests[key] = "addons/" + location
 	}
 
-	addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
-		Name:     fi.String("storage-aws"),
-		Version:  fi.String("1.5.0"),
-		Selector: map[string]string{"k8s-addon": "storage-aws.addons.k8s.io"},
-		Manifest: fi.String("storage-aws/v1.5.0.yaml"),
-	})
+	{
+		key := "storage-aws.addons.k8s.io"
+		version := "1.5.0"
+
+		location := key + "/v" + version + ".yaml"
+
+		addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
+			Name:     fi.String(key),
+			Version:  fi.String(version),
+			Selector: map[string]string{"k8s-addon": key},
+			Manifest: fi.String(location),
+		})
+		manifests[key] = "addons/" + location
+	}
+
+	// The role.kubernetes.io/networking is used to label anything related to a networking addin,
+	// so that if we switch networking plugins (e.g. calico -> weave or vice-versa), we'll replace the
+	// old networking plugin, and there won't be old pods "floating around".
+
+	// This means whenever we create or update a networking plugin, we should be sure that:
+	// 1. the selector is role.kubernetes.io/networking=1
+	// 2. every object in the manifest is labeleled with role.kubernetes.io/networking=1
+
+	// TODO: Some way to test/enforce this?
+
+	// TODO: Create "empty" configurations for others, so we can delete e.g. the kopeio configuration
+	// if we switch to kubenet?
 
 	if b.cluster.Spec.Networking.Kopeio != nil {
 		key := "networking.kope.io"
@@ -145,7 +166,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 		addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
 			Name:     fi.String(key),
 			Version:  fi.String(version),
-			Selector: map[string]string{"k8s-addon": key},
+			Selector: map[string]string{"role.kubernetes.io/networking": "1"},
 			Manifest: fi.String(location),
 		})
 
@@ -162,7 +183,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 		addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
 			Name:     fi.String(key),
 			Version:  fi.String(version),
-			Selector: map[string]string{"k8s-addon": key},
+			Selector: map[string]string{"role.kubernetes.io/networking": "1"},
 			Manifest: fi.String(location),
 		})
 
@@ -179,7 +200,24 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 		addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
 			Name:     fi.String(key),
 			Version:  fi.String(version),
-			Selector: map[string]string{"k8s-addon": key},
+			Selector: map[string]string{"role.kubernetes.io/networking": "1"},
+			Manifest: fi.String(location),
+		})
+
+		manifests[key] = "addons/" + location
+	}
+
+	if b.cluster.Spec.Networking.Canal != nil {
+		key := "networking.projectcalico.org.canal"
+		version := "1.0"
+
+		// TODO: Create configuration object for cni providers (maybe create it but orphan it)?
+		location := key + "/v" + version + ".yaml"
+
+		addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
+			Name:     fi.String(key),
+			Version:  fi.String(version),
+			Selector: map[string]string{"role.kubernetes.io/networking": "1"},
 			Manifest: fi.String(location),
 		})
 

@@ -23,15 +23,14 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/api/v1"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 )
 
-// The following upgrade functions are passed into the framework below and used
-// to do the actual upgrades.
-var MasterUpgrade = func(v string) error {
+func MasterUpgrade(v string) error {
 	switch TestContext.Provider {
 	case "gce":
 		return masterUpgradeGCE(v)
@@ -62,7 +61,7 @@ func masterUpgradeGKE(v string) error {
 	return err
 }
 
-var NodeUpgrade = func(f *Framework, v string, img string) error {
+func NodeUpgrade(f *Framework, v string, img string) error {
 	// Perform the upgrade.
 	var err error
 	switch TestContext.Provider {
@@ -153,7 +152,7 @@ func CheckNodesReady(c clientset.Interface, nt time.Duration, expect int) ([]str
 		// A rolling-update (GCE/GKE implementation of restart) can complete before the apiserver
 		// knows about all of the nodes. Thus, we retry the list nodes call
 		// until we get the expected number of nodes.
-		nodeList, errLast = c.Core().Nodes().List(v1.ListOptions{
+		nodeList, errLast = c.Core().Nodes().List(metav1.ListOptions{
 			FieldSelector: fields.Set{"spec.unschedulable": "false"}.AsSelector().String()})
 		if errLast != nil {
 			return false, nil

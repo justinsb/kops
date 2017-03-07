@@ -28,6 +28,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
+	"time"
 )
 
 //go:generate fitask -type=LaunchConfiguration
@@ -36,12 +37,13 @@ type LaunchConfiguration struct {
 
 	UserData *fi.ResourceHolder
 
-	ImageID            *string
-	InstanceType       *string
-	SSHKey             *SSHKey
-	SecurityGroups     []*SecurityGroup
-	AssociatePublicIP  *bool
-	IAMInstanceProfile *IAMInstanceProfile
+	ImageID                    *string
+	InstanceType               *string
+	SSHKey                     *SSHKey
+	SecurityGroups             []*SecurityGroup
+	AdditionalSecurityGroupIDs []string
+	AssociatePublicIP          *bool
+	IAMInstanceProfile         *IAMInstanceProfile
 
 	// RootVolumeSize is the size of the EBS root volume to use, in GB
 	RootVolumeSize *int64
@@ -49,7 +51,7 @@ type LaunchConfiguration struct {
 	RootVolumeType *string
 
 	// SpotPrice is set to the spot-price bid if this is a spot pricing request
-	SpotPrice *string
+	SpotPrice string
 
 	ID *string
 }
@@ -105,7 +107,7 @@ func (e *LaunchConfiguration) Find(c *fi.Context) (*LaunchConfiguration, error) 
 		SSHKey:             &SSHKey{Name: lc.KeyName},
 		AssociatePublicIP:  lc.AssociatePublicIpAddress,
 		IAMInstanceProfile: &IAMInstanceProfile{Name: lc.IamInstanceProfile},
-		SpotPrice:          lc.SpotPrice,
+		SpotPrice:          aws.StringValue(lc.SpotPrice),
 	}
 
 	securityGroups := []*SecurityGroup{}
@@ -227,16 +229,25 @@ func (_ *LaunchConfiguration) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *La
 	request.LaunchConfigurationName = &launchConfigurationName
 	request.ImageId = image.ImageId
 	request.InstanceType = e.InstanceType
+
 	if e.SSHKey != nil {
 		request.KeyName = e.SSHKey.Name
 	}
+
 	securityGroupIDs := []*string{}
 	for _, sg := range e.SecurityGroups {
 		securityGroupIDs = append(securityGroupIDs, sg.ID)
 	}
+
+	for i := range e.AdditionalSecurityGroupIDs {
+		securityGroupIDs = append(securityGroupIDs, &e.AdditionalSecurityGroupIDs[i])
+	}
+
 	request.SecurityGroups = securityGroupIDs
 	request.AssociatePublicIpAddress = e.AssociatePublicIP
-	request.SpotPrice = e.SpotPrice
+	if e.SpotPrice != "" {
+		request.SpotPrice = aws.String(e.SpotPrice)
+	}
 
 	// Build up the actual block device mappings
 	{
@@ -273,6 +284,7 @@ func (_ *LaunchConfiguration) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *La
 	}
 
 	attempt := 0
+	maxAttempts := 10
 	for {
 		attempt++
 		_, err = t.Cloud.Autoscaling().CreateLaunchConfiguration(request)
@@ -284,7 +296,12 @@ func (_ *LaunchConfiguration) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *La
 		if awsup.AWSErrorCode(err) == "ValidationError" {
 			message := awsup.AWSErrorMessage(err)
 			if strings.Contains(message, "not authorized") || strings.Contains(message, "Invalid IamInstance") {
-				return fmt.Errorf("IAM instance profile not yet created/propagated (original error: %v)", message)
+				if attempt > maxAttempts {
+					return fmt.Errorf("IAM instance profile not yet created/propagated (original error: %v)", message)
+				}
+				glog.Infof("waiting for IAM instance profile %q to be ready", fi.StringValue(e.IAMInstanceProfile.Name))
+				time.Sleep(10 * time.Second)
+				continue
 			}
 			glog.V(4).Infof("ErrorCode=%q, Message=%q", awsup.AWSErrorCode(err), awsup.AWSErrorMessage(err))
 			return fmt.Errorf("error creating AutoscalingLaunchConfiguration: %v", err)
@@ -337,7 +354,10 @@ func (_ *LaunchConfiguration) RenderTerraform(t *terraform.TerraformTarget, a, e
 		NamePrefix:   fi.String(*e.Name + "-"),
 		ImageID:      image.ImageId,
 		InstanceType: e.InstanceType,
-		SpotPrice:    e.SpotPrice,
+	}
+
+	if e.SpotPrice != "" {
+		tf.SpotPrice = aws.String(e.SpotPrice)
 	}
 
 	if e.SSHKey != nil {
@@ -346,6 +366,10 @@ func (_ *LaunchConfiguration) RenderTerraform(t *terraform.TerraformTarget, a, e
 
 	for _, sg := range e.SecurityGroups {
 		tf.SecurityGroups = append(tf.SecurityGroups, sg.TerraformLink())
+	}
+
+	for _, sg := range e.AdditionalSecurityGroupIDs {
+		tf.SecurityGroups = append(tf.SecurityGroups, terraform.LiteralFromStringValue(sg))
 	}
 	tf.AssociatePublicIpAddress = e.AssociatePublicIP
 

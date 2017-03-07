@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"io"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/utils"
-	"k8s.io/kubernetes/pkg/util/sets"
 	"os"
 	"path"
 )
@@ -71,6 +71,11 @@ type CloudConfigFile struct {
 func (t *CloudInitTarget) HasTag(tag string) bool {
 	_, found := t.Tags[tag]
 	return found
+}
+
+func (t *CloudInitTarget) ProcessDeletions() bool {
+	// We don't expect any, but it would be our job to process them
+	return true
 }
 
 func (t *CloudInitTarget) AddMkdirpCommand(p string, dirMode os.FileMode) {

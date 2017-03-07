@@ -18,6 +18,7 @@ package model
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/model/resources"
 	"k8s.io/kops/upup/pkg/fi"
@@ -50,7 +51,7 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		// LaunchConfiguration
 		var launchConfiguration *awstasks.LaunchConfiguration
 		{
-			volumeSize := int64(fi.IntValue(ig.Spec.RootVolumeSize))
+			volumeSize := fi.Int32Value(ig.Spec.RootVolumeSize)
 			if volumeSize == 0 {
 				volumeSize = DefaultVolumeSize
 			}
@@ -65,11 +66,12 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				SecurityGroups: []*awstasks.SecurityGroup{
 					b.LinkToSecurityGroup(ig.Spec.Role),
 				},
-				IAMInstanceProfile: b.LinkToIAMInstanceProfile(ig),
-				ImageID:            s(ig.Spec.Image),
-				InstanceType:       s(ig.Spec.MachineType),
+				AdditionalSecurityGroupIDs: ig.Spec.AdditionalSecurityGroups,
+				IAMInstanceProfile:         b.LinkToIAMInstanceProfile(ig),
+				ImageID:                    s(ig.Spec.Image),
+				InstanceType:               s(ig.Spec.MachineType),
 
-				RootVolumeSize: i64(volumeSize),
+				RootVolumeSize: i64(int64(volumeSize)),
 				RootVolumeType: s(volumeType),
 			}
 
@@ -84,52 +86,50 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			}
 
 			if fi.StringValue(ig.Spec.MaxPrice) != "" {
-				t.SpotPrice = ig.Spec.MaxPrice
+				spotPrice := fi.StringValue(ig.Spec.MaxPrice)
+				t.SpotPrice = spotPrice
 			}
 
 			{
+				// TODO: Wrapper / helper class to analyze clusters
+				subnetMap := make(map[string]*kops.ClusterSubnetSpec)
+				for i := range b.Cluster.Spec.Subnets {
+					subnet := &b.Cluster.Spec.Subnets[i]
+					subnetMap[subnet.Name] = subnet
+				}
+
+				var subnetType kops.SubnetType
+				for _, subnetName := range ig.Spec.Subnets {
+					subnet := subnetMap[subnetName]
+					if subnet == nil {
+						return fmt.Errorf("InstanceGroup %q uses subnet %q that does not exist", ig.ObjectMeta.Name, subnetName)
+					}
+					if subnetType != "" && subnetType != subnet.Type {
+						return fmt.Errorf("InstanceGroup %q cannot be in subnets of different Type", ig.ObjectMeta.Name)
+					}
+					subnetType = subnet.Type
+				}
+
 				associatePublicIP := true
-				switch ig.Spec.Role {
-				case kops.InstanceGroupRoleMaster:
-					switch b.Cluster.Spec.Topology.Masters {
-					case kops.TopologyPrivate:
-						associatePublicIP = false
-						// TODO: what if AssociatePublicIP is set
-
-					case kops.TopologyPublic:
-						associatePublicIP = true
-						if ig.Spec.AssociatePublicIP != nil {
-							associatePublicIP = *ig.Spec.AssociatePublicIP
-						}
-
-					default:
-						return fmt.Errorf("unhandled master topology %q", b.Cluster.Spec.Topology.Masters)
-					}
-
-				case kops.InstanceGroupRoleNode:
-					switch b.Cluster.Spec.Topology.Nodes {
-					case kops.TopologyPrivate:
-						associatePublicIP = false
-						// TODO: We probably should honor AssociatePublicIP
-
-					case kops.TopologyPublic:
-						associatePublicIP = true
-						if ig.Spec.AssociatePublicIP != nil {
-							associatePublicIP = *ig.Spec.AssociatePublicIP
-						}
-
-					default:
-						return fmt.Errorf("unhandled master topology %q", b.Cluster.Spec.Topology.Masters)
-					}
-
-				case kops.InstanceGroupRoleBastion:
+				switch subnetType {
+				case kops.SubnetTypePublic, kops.SubnetTypeUtility:
 					associatePublicIP = true
 					if ig.Spec.AssociatePublicIP != nil {
 						associatePublicIP = *ig.Spec.AssociatePublicIP
 					}
 
+				case kops.SubnetTypePrivate:
+					associatePublicIP = false
+					if ig.Spec.AssociatePublicIP != nil {
+						// This isn't meaningful - private subnets can't have public ip
+						//associatePublicIP = *ig.Spec.AssociatePublicIP
+						if *ig.Spec.AssociatePublicIP {
+							glog.Warningf("Ignoring AssociatePublicIP=true for private InstanceGroup %q", ig.ObjectMeta.Name)
+						}
+					}
+
 				default:
-					return fmt.Errorf("Unknown instance group role %q", ig.Spec.Role)
+					return fmt.Errorf("unknown subnet type %q", subnetType)
 				}
 				t.AssociatePublicIP = &associatePublicIP
 			}
@@ -146,10 +146,10 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				LaunchConfiguration: launchConfiguration,
 			}
 
-			minSize := 1
-			maxSize := 1
+			minSize := int32(1)
+			maxSize := int32(1)
 			if ig.Spec.MinSize != nil {
-				minSize = *ig.Spec.MinSize
+				minSize = fi.Int32Value(ig.Spec.MinSize)
 			} else if ig.Spec.Role == kops.InstanceGroupRoleNode {
 				minSize = 2
 			}

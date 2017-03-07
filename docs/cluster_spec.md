@@ -55,9 +55,48 @@ spec:
     - 12.34.56.78/32
 ```
 
+### cluster.spec Subnet Keys
+
+#### id
+ID of a subnet to share in an existing VPC.
+
+#### egress
+The resource identifier (ID) of something in your existing VPC that you would like to use as "egress" to the outside world.
+
+This feature was originally envisioned to allow re-use of NAT Gateways. In this case, the usage is as follows. Although NAT gateways are "public"-facing resources, in the Cluster spec, you must specify them in the private subnet section. One way to think about this is that you are specifying "egress", which is the default route out from this private subnet. 
+
+```
+spec:
+  subnets:
+  - cidr: 10.20.64.0/21
+    name: us-east-1a
+    egress: nat-987654321
+    type: Private
+    zone: us-east-1a
+  - cidr: 10.20.32.0/21
+    name: utility-us-east-1a
+    id: subnet-12345
+    type: Utility
+    zone: us-east-1a
+```
+
 ### kubeAPIServer
 
 This block contains configuration for the `kube-apiserver`.
+
+#### oidc flags for Open ID Connect Tokens
+
+Read more about this here: https://kubernetes.io/docs/admin/authentication/#openid-connect-tokens
+
+```yaml
+spec:
+  kubeAPIServer:
+    oidcIssuerURL: https://your-oidc-provider.svc.cluster.local
+    oidcClientID: kubernetes
+    oidcUsernameClaim: sub
+    oidcGroupsClaim: user_roles
+    oidcCAFile: /etc/kubernetes/ssl/kc-ca.pem
+```
 
 #### runtimeConfig
 

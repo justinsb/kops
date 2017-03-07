@@ -18,7 +18,7 @@ package v1alpha2
 
 import (
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
@@ -39,6 +39,14 @@ func SetDefaults_ClusterSpec(obj *ClusterSpec) {
 
 	if obj.Topology.Nodes == "" {
 		obj.Topology.Nodes = TopologyPublic
+	}
+
+	if obj.Topology.DNS == nil {
+		obj.Topology.DNS = &DNSSpec{}
+	}
+
+	if obj.Topology.DNS.Type == "" {
+		obj.Topology.DNS.Type = DNSTypePublic
 	}
 
 	if obj.API == nil {

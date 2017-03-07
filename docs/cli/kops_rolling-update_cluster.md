@@ -1,11 +1,15 @@
 ## kops rolling-update cluster
 
-rolling-update cluster
+Rolling update a cluster
 
 ### Synopsis
 
 
-rolling-updates a k8s cluster.
+Rolling update a cluster instance groups.
+		
+This command updates the running instances to match the cloud specifications.
+
+To perform rolling update, you need to update the cloud resources first with "kops update cluster"
 
 ```
 kops rolling-update cluster
@@ -14,11 +18,13 @@ kops rolling-update cluster
 ### Options
 
 ```
-      --cloudonly                  Perform rolling update without confirming progress with k8s
-      --force                      Force rolling update, even if no changes
-      --master-interval duration   Time to wait between restarting masters (default 5m0s)
-      --node-interval duration     Time to wait between restarting nodes (default 2m0s)
-      --yes                        perform rolling update without confirmation
+      --bastion-interval duration    Time to wait between restarting bastions (default 5m0s)
+      --cloudonly                    Perform rolling update without confirming progress with k8s
+      --force                        Force rolling update, even if no changes
+      --instance-group stringSlice   List of instance groups to update (defaults to all if not specified)
+      --master-interval duration     Time to wait between restarting masters (default 5m0s)
+      --node-interval duration       Time to wait between restarting nodes (default 2m0s)
+      --yes                          perform rolling update without confirmation
 ```
 
 ### Options inherited from parent commands

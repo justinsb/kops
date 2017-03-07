@@ -21,21 +21,22 @@ import (
 	"sync"
 	"time"
 
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 
 	"github.com/golang/glog"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	metav1 "k8s.io/kubernetes/pkg/apis/meta/v1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	kubepod "k8s.io/kubernetes/pkg/kubelet/pod"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
-	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util/diff"
-	"k8s.io/kubernetes/pkg/util/wait"
 )
 
 // A wrapper around v1.PodStatus that includes a version to enforce that stale pod statuses are
@@ -116,7 +117,7 @@ func NewManager(kubeClient clientset.Interface, podManager kubepod.Manager) Mana
 // This method normalizes the status before comparing so as to make sure that meaningless
 // changes will be ignored.
 func isStatusEqual(oldStatus, status *v1.PodStatus) bool {
-	return api.Semantic.DeepEqual(status, oldStatus)
+	return apiequality.Semantic.DeepEqual(status, oldStatus)
 }
 
 func (m *manager) Start() {
@@ -440,9 +441,9 @@ func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 				glog.V(3).Infof("Pod %q is terminated, but some containers are still running", format.Pod(pod))
 				return
 			}
-			deleteOptions := v1.NewDeleteOptions(0)
+			deleteOptions := metav1.NewDeleteOptions(0)
 			// Use the pod UID as the precondition for deletion to prevent deleting a newly created pod with the same name and namespace.
-			deleteOptions.Preconditions = v1.NewUIDPreconditions(string(pod.UID))
+			deleteOptions.Preconditions = metav1.NewUIDPreconditions(string(pod.UID))
 			if err = m.kubeClient.Core().Pods(pod.Namespace).Delete(pod.Name, deleteOptions); err == nil {
 				glog.V(3).Infof("Pod %q fully terminated and removed from etcd", format.Pod(pod))
 				m.deletePodStatus(uid)
@@ -513,6 +514,10 @@ func (m *manager) needsReconcile(uid types.UID, status v1.PodStatus) bool {
 // kubelet temporarily.
 // TODO(random-liu): Remove timestamp related logic after apiserver supports nanosecond or makes it consistent.
 func normalizeStatus(pod *v1.Pod, status *v1.PodStatus) *v1.PodStatus {
+	bytesPerStatus := kubecontainer.MaxPodTerminationMessageLogLength
+	if containers := len(pod.Spec.Containers) + len(pod.Spec.InitContainers); containers > 0 {
+		bytesPerStatus = bytesPerStatus / containers
+	}
 	normalizeTimeStamp := func(t *metav1.Time) {
 		*t = t.Rfc3339Copy()
 	}
@@ -523,6 +528,9 @@ func normalizeStatus(pod *v1.Pod, status *v1.PodStatus) *v1.PodStatus {
 		if c.Terminated != nil {
 			normalizeTimeStamp(&c.Terminated.StartedAt)
 			normalizeTimeStamp(&c.Terminated.FinishedAt)
+			if len(c.Terminated.Message) > bytesPerStatus {
+				c.Terminated.Message = c.Terminated.Message[:bytesPerStatus]
+			}
 		}
 	}
 

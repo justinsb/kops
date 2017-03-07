@@ -20,13 +20,17 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/blang/semver"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/kops"
 	api "k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/apis/kops/util"
+	"k8s.io/kops/pkg/apis/kops/validation"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/util/pkg/tables"
-	k8sapi "k8s.io/kubernetes/pkg/api"
 )
 
 type UpgradeClusterCmd struct {
@@ -81,7 +85,7 @@ func (c *UpgradeClusterCmd) Run(args []string) error {
 		return err
 	}
 
-	list, err := clientset.InstanceGroups(cluster.ObjectMeta.Name).List(k8sapi.ListOptions{})
+	list, err := clientset.InstanceGroups(cluster.ObjectMeta.Name).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -127,21 +131,40 @@ func (c *UpgradeClusterCmd) Run(args []string) error {
 		channelClusterSpec = &api.ClusterSpec{}
 	}
 
-	//latestKubernetesVersion, err := api.FindLatestKubernetesVersion()
-	//if err != nil {
-	//	return err
-	//}
+	var currentKubernetesVersion *semver.Version
+	{
+		sv, err := util.ParseKubernetesVersion(cluster.Spec.KubernetesVersion)
+		if err != nil {
+			glog.Warningf("error parsing KubernetesVersion %q", cluster.Spec.KubernetesVersion)
+		} else {
+			currentKubernetesVersion = sv
+		}
+	}
 
-	if channelClusterSpec.KubernetesVersion != "" && cluster.Spec.KubernetesVersion != channelClusterSpec.KubernetesVersion {
+	proposedKubernetesVersion := api.RecommendedKubernetesVersion(channel, kops.Version)
+
+	// We won't propose a downgrade
+	// TODO: What if a kubernetes version is bad?
+	if currentKubernetesVersion != nil && proposedKubernetesVersion != nil && currentKubernetesVersion.GT(*proposedKubernetesVersion) {
+		glog.Warningf("cluster version %q is greater than recommended version %q", *currentKubernetesVersion, *proposedKubernetesVersion)
+		proposedKubernetesVersion = currentKubernetesVersion
+	}
+
+	if proposedKubernetesVersion != nil && currentKubernetesVersion != nil && currentKubernetesVersion.NE(*proposedKubernetesVersion) {
 		actions = append(actions, &upgradeAction{
 			Item:     "Cluster",
 			Property: "KubernetesVersion",
 			Old:      cluster.Spec.KubernetesVersion,
-			New:      channelClusterSpec.KubernetesVersion,
+			New:      proposedKubernetesVersion.String(),
 			apply: func() {
-				cluster.Spec.KubernetesVersion = channelClusterSpec.KubernetesVersion
+				cluster.Spec.KubernetesVersion = proposedKubernetesVersion.String()
 			},
 		})
+	}
+
+	// For further calculations, default to the current kubernetes version
+	if proposedKubernetesVersion == nil {
+		proposedKubernetesVersion = currentKubernetesVersion
 	}
 
 	// Prompt to upgrade addins?
@@ -172,8 +195,8 @@ func (c *UpgradeClusterCmd) Run(args []string) error {
 	}
 
 	// Prompt to upgrade image
-	{
-		image := channel.FindImage(cloud.ProviderID())
+	if proposedKubernetesVersion != nil {
+		image := channel.FindImage(cloud.ProviderID(), *proposedKubernetesVersion)
 
 		if image == nil {
 			glog.Warningf("No matching images specified in channel; cannot prompt for upgrade")
@@ -264,7 +287,7 @@ func (c *UpgradeClusterCmd) Run(args []string) error {
 			return err
 		}
 
-		err = api.DeepValidate(fullCluster, instanceGroups, true)
+		err = validation.DeepValidate(fullCluster, instanceGroups, true)
 		if err != nil {
 			return err
 		}

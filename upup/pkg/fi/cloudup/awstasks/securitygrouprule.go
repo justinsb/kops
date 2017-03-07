@@ -22,9 +22,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
+	"strings"
 )
 
 //go:generate fitask -type=SecurityGroupRule
@@ -48,6 +50,11 @@ func (e *SecurityGroupRule) Find(c *fi.Context) (*SecurityGroupRule, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	if e.SecurityGroup == nil || e.SecurityGroup.ID == nil {
+		return nil, nil
+	}
+
+	if e.SourceGroup != nil && e.SourceGroup.ID == nil {
+		glog.V(4).Infof("Skipping find of SecurityGroupRule %s, because SourceGroup was not found", fi.StringValue(e.Name))
 		return nil, nil
 	}
 
@@ -173,15 +180,51 @@ func (e *SecurityGroupRule) Run(c *fi.Context) error {
 func (_ *SecurityGroupRule) CheckChanges(a, e, changes *SecurityGroupRule) error {
 	if a == nil {
 		if e.SecurityGroup == nil {
-			return fi.RequiredField("SecurityGroup")
+			return field.Required(field.NewPath("SecurityGroup"), "")
 		}
 	}
+
+	if e.FromPort != nil && e.Protocol == nil {
+		return field.Required(field.NewPath("Protocol"), "Protocol must be specified with FromPort")
+	}
+	if e.ToPort != nil && e.Protocol == nil {
+		return field.Required(field.NewPath("Protocol"), "Protocol must be specified with ToPort")
+	}
+
 	return nil
 }
 
-func (_ *SecurityGroupRule) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *SecurityGroupRule) error {
-	if a == nil {
+// Description returns a human readable summary of the security group rule
+func (e *SecurityGroupRule) Description() string {
+	var description []string
 
+	if e.Protocol != nil {
+		description = append(description, fmt.Sprintf("protocol=%s", *e.Protocol))
+	}
+
+	if e.FromPort != nil {
+		description = append(description, fmt.Sprintf("fromPort=%d", *e.FromPort))
+	}
+
+	if e.ToPort != nil {
+		description = append(description, fmt.Sprintf("toPort=%d", *e.ToPort))
+	}
+
+	if e.SourceGroup != nil {
+		description = append(description, fmt.Sprintf("sourceGroup=%s", fi.StringValue(e.SourceGroup.ID)))
+	}
+
+	if e.CIDR != nil {
+		description = append(description, fmt.Sprintf("cidr=%s", *e.CIDR))
+	}
+
+	return strings.Join(description, " ")
+}
+
+func (_ *SecurityGroupRule) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *SecurityGroupRule) error {
+	name := fi.StringValue(e.Name)
+
+	if a == nil {
 		protocol := e.Protocol
 		if protocol == nil {
 			protocol = aws.String("-1")
@@ -206,13 +249,15 @@ func (_ *SecurityGroupRule) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Secu
 			}
 		}
 
+		description := e.Description()
+
 		if fi.BoolValue(e.Egress) {
 			request := &ec2.AuthorizeSecurityGroupEgressInput{
 				GroupId: e.SecurityGroup.ID,
 			}
 			request.IpPermissions = []*ec2.IpPermission{ipPermission}
 
-			glog.V(2).Infof("Calling EC2 AuthorizeSecurityGroupEgress")
+			glog.V(2).Infof("%s: Calling EC2 AuthorizeSecurityGroupEgress (%s)", name, description)
 			_, err := t.Cloud.EC2().AuthorizeSecurityGroupEgress(request)
 			if err != nil {
 				return fmt.Errorf("error creating SecurityGroupEgress: %v", err)
@@ -223,7 +268,7 @@ func (_ *SecurityGroupRule) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Secu
 			}
 			request.IpPermissions = []*ec2.IpPermission{ipPermission}
 
-			glog.V(2).Infof("Calling EC2 AuthorizeSecurityGroupIngress")
+			glog.V(2).Infof("%s: Calling EC2 AuthorizeSecurityGroupIngress (%s)", name, description)
 			_, err := t.Cloud.EC2().AuthorizeSecurityGroupIngress(request)
 			if err != nil {
 				return fmt.Errorf("error creating SecurityGroupIngress: %v", err)

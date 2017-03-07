@@ -18,11 +18,14 @@ package vfs
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 // VFSContext is a 'context' for VFS, that is normally a singleton
@@ -41,7 +44,7 @@ var Context = VFSContext{
 //   metadata: reads from instance metadata on GCE/AWS
 //   http / https: reads from HTTP
 func (c *VFSContext) ReadFile(location string) ([]byte, error) {
-	if strings.Contains(location, "://") {
+	if strings.Contains(location, "://") && !strings.HasPrefix(location, "file://") {
 		// Handle our special case schemas
 		u, err := url.Parse(location)
 		if err != nil {
@@ -67,8 +70,9 @@ func (c *VFSContext) ReadFile(location string) ([]byte, error) {
 		case "http", "https":
 			return c.readHttpLocation(location, nil)
 		}
-
 	}
+
+	location = strings.TrimPrefix(location, "file://")
 
 	p, err := c.BuildVfsPath(location)
 	if err != nil {
@@ -95,32 +99,94 @@ func (c *VFSContext) BuildVfsPath(p string) (Path, error) {
 
 // readHttpLocation reads an http (or https) url.
 // It returns the contents, or an error on any non-200 response.  On a 404, it will return os.ErrNotExist
+// It will retry a few times on a 500 class error
 func (c *VFSContext) readHttpLocation(httpURL string, httpHeaders map[string]string) ([]byte, error) {
-	req, err := http.NewRequest("GET", httpURL, nil)
+	// Exponential backoff, starting with 500 milliseconds, doubling each time, 5 steps
+	backoff := wait.Backoff{
+		Duration: 500 * time.Millisecond,
+		Factor:   2,
+		Steps:    5,
+	}
+
+	var body []byte
+
+	done, err := RetryWithBackoff(backoff, func() (bool, error) {
+		glog.V(4).Infof("Performing HTTP request: GET %s", httpURL)
+		req, err := http.NewRequest("GET", httpURL, nil)
+		if err != nil {
+			return false, err
+		}
+		for k, v := range httpHeaders {
+			req.Header.Add(k, v)
+		}
+		response, err := http.DefaultClient.Do(req)
+		if response != nil {
+			defer response.Body.Close()
+		}
+		if err != nil {
+			return false, fmt.Errorf("error fetching %q: %v", httpURL, err)
+		}
+		body, err = ioutil.ReadAll(response.Body)
+		if err != nil {
+			return false, fmt.Errorf("error reading response for %q: %v", httpURL, err)
+		}
+		if response.StatusCode == 404 {
+			// We retry on 404s in case of eventual consistency
+			return false, os.ErrNotExist
+		}
+		if response.StatusCode >= 500 && response.StatusCode <= 599 {
+			// Retry on 5XX errors
+			return false, fmt.Errorf("unexpected response code %q for %q: %v", response.Status, httpURL, string(body))
+		}
+
+		if response.StatusCode == 200 {
+			return true, nil
+		}
+
+		// Don't retry on other errors
+		return true, fmt.Errorf("unexpected response code %q for %q: %v", response.Status, httpURL, string(body))
+	})
 	if err != nil {
 		return nil, err
+	} else if done {
+		return body, nil
+	} else {
+		// Shouldn't happen - we always return a non-nil error with false
+		return nil, wait.ErrWaitTimeout
 	}
-	for k, v := range httpHeaders {
-		req.Header.Add(k, v)
+}
+
+// RetryWithBackoff runs until a condition function returns true, or until Steps attempts have been taken
+// As compared to wait.ExponentialBackoff, this function returns the results from the function on the final attempt
+func RetryWithBackoff(backoff wait.Backoff, condition func() (bool, error)) (bool, error) {
+	duration := backoff.Duration
+	i := 0
+	for {
+		if i != 0 {
+			adjusted := duration
+			if backoff.Jitter > 0.0 {
+				adjusted = wait.Jitter(duration, backoff.Jitter)
+			}
+			time.Sleep(adjusted)
+			duration = time.Duration(float64(duration) * backoff.Factor)
+		}
+
+		i++
+
+		done, err := condition()
+		if done {
+			return done, err
+		}
+		noMoreRetries := i >= backoff.Steps
+		if !noMoreRetries && err != nil {
+			glog.V(2).Infof("retrying after error %v", err)
+		}
+
+		if noMoreRetries {
+			glog.V(2).Infof("hit maximum retries %d with error %v", i, err)
+			return done, err
+		}
 	}
-	response, err := http.DefaultClient.Do(req)
-	if response != nil {
-		defer response.Body.Close()
-	}
-	if err != nil {
-		return nil, fmt.Errorf("error fetching %q: %v", httpURL, err)
-	}
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response for %q: %v", httpURL, err)
-	}
-	if response.StatusCode == 404 {
-		return nil, os.ErrNotExist
-	}
-	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("unexpected response code %q for %q: %v", response.Status, httpURL, string(body))
-	}
-	return body, nil
 }
 
 func (c *VFSContext) buildS3Path(p string) (*S3Path, error) {
@@ -130,8 +196,11 @@ func (c *VFSContext) buildS3Path(p string) (*S3Path, error) {
 	}
 
 	bucket := strings.TrimSuffix(u.Host, "/")
+	if bucket == "" {
+		return nil, fmt.Errorf("invalid s3 path: %q", err)
+	}
 
-	s3path := NewS3Path(c.s3Context, bucket, u.Path)
+	s3path := newS3Path(c.s3Context, bucket, u.Path)
 	return s3path, nil
 }
 

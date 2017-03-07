@@ -27,7 +27,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
-	"k8s.io/kubernetes/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"net/url"
 	"reflect"
 )

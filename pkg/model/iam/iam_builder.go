@@ -20,9 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/sets"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/util/pkg/vfs"
-	"k8s.io/kubernetes/pkg/util/sets"
 	"strings"
 )
 
@@ -137,6 +137,17 @@ func (b *IAMPolicyBuilder) BuildAWSIAMPolicy() (*IAMPolicy, error) {
 		p.Statement = append(p.Statement, &IAMStatement{
 			Effect:   IAMStatementEffectAllow,
 			Action:   []string{"elasticloadbalancing:*"},
+			Resource: []string{"*"},
+		})
+
+		p.Statement = append(p.Statement, &IAMStatement{
+			Effect: IAMStatementEffectAllow,
+			Action: []string{
+				"autoscaling:DescribeAutoScalingGroups",
+				"autoscaling:DescribeAutoScalingInstances",
+				"autoscaling:SetDesiredCapacity",
+				"autoscaling:TerminateInstanceInAutoScalingGroup",
+			},
 			Resource: []string{"*"},
 		})
 

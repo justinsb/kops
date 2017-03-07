@@ -23,9 +23,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/util/pkg/tables"
-	k8sapi "k8s.io/kubernetes/pkg/api"
 )
 
 type GetInstanceGroupsCmd struct {
@@ -63,7 +63,7 @@ func (c *GetInstanceGroupsCmd) Run(args []string) error {
 		return err
 	}
 
-	list, err := clientset.InstanceGroups(clusterName).List(k8sapi.ListOptions{})
+	list, err := clientset.InstanceGroups(clusterName).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -113,10 +113,10 @@ func (c *GetInstanceGroupsCmd) Run(args []string) error {
 			return strings.Join(c.Spec.Subnets, ",")
 		})
 		t.AddColumn("MIN", func(c *api.InstanceGroup) string {
-			return intPointerToString(c.Spec.MinSize)
+			return int32PointerToString(c.Spec.MinSize)
 		})
 		t.AddColumn("MAX", func(c *api.InstanceGroup) string {
-			return intPointerToString(c.Spec.MaxSize)
+			return int32PointerToString(c.Spec.MaxSize)
 		})
 		return t.Render(instancegroups, os.Stdout, "NAME", "ROLE", "MACHINETYPE", "MIN", "MAX", "SUBNETS")
 
@@ -144,9 +144,9 @@ func (c *GetInstanceGroupsCmd) Run(args []string) error {
 	return nil
 }
 
-func intPointerToString(v *int) string {
+func int32PointerToString(v *int32) string {
 	if v == nil {
 		return "-"
 	}
-	return strconv.Itoa(*v)
+	return strconv.Itoa(int(*v))
 }
