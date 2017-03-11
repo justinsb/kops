@@ -277,12 +277,23 @@ type KubeDNSConfig struct {
 	ServerIP string `json:"serverIP,omitempty"`
 }
 
+// StorageType describes storage type for an etcd cluster (etcd2, etcd3)
+type StorageType string
+
+const (
+	StorageTypeETCD2 StorageType = "etcd2"
+	StorageTypeETCD3 StorageType = "etcd3"
+)
+
 type EtcdClusterSpec struct {
 	// Name is the name of the etcd cluster (main, events etc)
 	Name string `json:"name,omitempty"`
 
 	// EtcdMember stores the configurations for each member of the cluster (including the data volume)
 	Members []*EtcdMemberSpec `json:"etcdMembers,omitempty"`
+
+	// Storage is the type of storage to use (etcd2, etcd3)
+	Storage StorageType `json:"storage,omitempty"`
 }
 
 type EtcdMemberSpec struct {
