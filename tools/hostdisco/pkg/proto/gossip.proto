@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package proto;
+
+// Interface exported by a producer of logs
+service LogServer {
+  rpc GetStreams(GetStreamsRequest) returns (stream StreamInfo) {}
+  rpc Search(SearchRequest) returns (stream SearchResultChunk) {}
+}
+
+message GetStreamsRequest {
+  string host = 1;
+}
+
+// StreamInfo is metadata about a stream
+message StreamInfo {
+  string host = 1;
+
+  string pod_namespace = 2;
+  string pod_name = 3;
+  string pod_uid = 4;
+
+  string container_name = 5;
+  string container_id = 6;
+}
+
+message SearchRequest {
+  string contains = 1;
+  repeated FieldFilter field_filters = 2;
+}
+
+enum FieldFilterOperator {
+  EQ = 0;
+  NOT_EQ = 1;
+  GTE = 2;
+}
+
+message FieldFilter {
+  string key = 1;
+  string value = 2;
+  FieldFilterOperator op = 3;
+}
+
+message Fields {
+  repeated Field fields = 1;
+}
+
+message Field {
+  string key = 1;
+  string value = 2;
+}
+
+// SearchResult is an "batch" of search results
+message SearchResultChunk {
+  repeated SearchResult items = 1;
+  Fields common_fields = 2;
+}
+
+// SearchResult is an individual search result
+message SearchResult {
+  bytes raw = 1;
+  Fields fields = 2;
+  fixed64 timestamp = 3;
+}
+
+message LogFile {
+  string path = 1;
+  Fields fields = 2;
+  int64 last_modified = 3;
+  int64 size = 4;
+  fixed64 max_timestamp = 5;
+}
+
+service MeshService {
+  rpc JoinMesh(JoinMeshRequest) returns (JoinMeshResponse) {}
+}
+
+message HostInfo {
+  string id = 1;
+  string url = 2;
+}
+message JoinMeshRequest {
+  HostInfo host_info = 1;
+}
+
+message JoinMeshResponse {
+}
+
