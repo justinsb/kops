@@ -250,3 +250,33 @@
 [submodule "_vendor/github.com/chai2010/gettext-go"]
 	path = _vendor/github.com/chai2010/gettext-go
 	url = https://github.com/chai2010/gettext-go
+[submodule "_vendor/github.com/hashicorp/serf"]
+	path = _vendor/github.com/hashicorp/serf
+	url = https://github.com/hashicorp/serf
+[submodule "_vendor/github.com/armon/go-metrics"]
+	path = _vendor/github.com/armon/go-metrics
+	url = https://github.com/armon/go-metrics
+[submodule "_vendor/github.com/hashicorp/go-msgpack"]
+	path = _vendor/github.com/hashicorp/go-msgpack
+	url = https://github.com/hashicorp/go-msgpack
+[submodule "_vendor/github.com/hashicorp/memberlist"]
+	path = _vendor/github.com/hashicorp/memberlist
+	url = https://github.com/hashicorp/memberlist
+[submodule "_vendor/github.com/hashicorp/go-multierror"]
+	path = _vendor/github.com/hashicorp/go-multierror
+	url = https://github.com/hashicorp/go-multierror
+[submodule "_vendor/github.com/hashicorp/go-sockaddr"]
+	path = _vendor/github.com/hashicorp/go-sockaddr
+	url = https://github.com/hashicorp/go-sockaddr
+[submodule "_vendor/github.com/miekg/dns"]
+	path = _vendor/github.com/miekg/dns
+	url = https://github.com/miekg/dns
+[submodule "_vendor/github.com/sean-/seed"]
+	path = _vendor/github.com/sean-/seed
+	url = https://github.com/sean-/seed
+[submodule "_vendor/github.com/hashicorp/errwrap"]
+	path = _vendor/github.com/hashicorp/errwrap
+	url = https://github.com/hashicorp/errwrap
+[submodule "_vendor/github.com/weaveworks/mesh"]
+	path = _vendor/github.com/weaveworks/mesh
+	url = https://github.com/weaveworks/mesh

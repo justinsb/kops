@@ -23,6 +23,8 @@ import (
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v0.beta"
 	"google.golang.org/cloud/compute/metadata"
+	"k8s.io/kops/protokube/pkg/gossip"
+	gossipgce "k8s.io/kops/protokube/pkg/gossip/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"net"
 	"strings"
@@ -34,6 +36,7 @@ type GCEVolumes struct {
 
 	project      string
 	zone         string
+	region       string
 	clusterName  string
 	instanceName string
 	internalIP   net.IP
@@ -120,6 +123,13 @@ func (a *GCEVolumes) discoverTags() error {
 			return fmt.Errorf("zone metadata was empty")
 		}
 		glog.Infof("Found zone=%q", a.zone)
+
+		region, err := regionFromZone(zone)
+		if err != nil {
+			return fmt.Errorf("error determining region from zone %q: %v", zone, err)
+		}
+		a.region = region
+		glog.Infof("Found region=%q", a.region)
 	}
 
 	// Instance Name
@@ -335,4 +345,24 @@ func (v *GCEVolumes) AttachVolume(volume *Volume) error {
 	volume.LocalDevice = devicePath
 
 	return nil
+}
+
+func (g *GCEVolumes) GossipSeeds() (gossip.SeedProvider, error) {
+	return gossipgce.NewSeedProvider(g.compute, g.region, g.project)
+}
+
+func (g *GCEVolumes) InstanceName() string {
+	return g.instanceName
+}
+
+// regionFromZone returns region of the gce zone. Zone names
+// are of the form: ${region-name}-${ix}.
+// For example, "us-central1-b" has a region of "us-central1".
+// So we look for the last '-' and trim to just before that.
+func regionFromZone(zone string) (string, error) {
+	ix := strings.LastIndex(zone, "-")
+	if ix == -1 {
+		return "", fmt.Errorf("unexpected zone: %s", zone)
+	}
+	return zone[:ix], nil
 }

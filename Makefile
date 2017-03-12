@@ -29,7 +29,7 @@ GOVERSION=1.7.4
 MAKEDIR:=$(strip $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))"))
 
 # Keep in sync with upup/models/cloudup/resources/addons/dns-controller/
-DNS_CONTROLLER_TAG=1.5.2
+DNS_CONTROLLER_TAG=1.6.0-alpha.1
 
 KOPS_RELEASE_VERSION=1.6.0-alpha.1
 KOPS_CI_VERSION=1.6.0-alpha.0
@@ -192,7 +192,7 @@ push-aws-run: push
 
 
 protokube-gocode:
-	go install k8s.io/kops/protokube/cmd/protokube
+	go install -tags 'peer_name_alternative peer_name_hash' k8s.io/kops/protokube/cmd/protokube
 
 protokube-builder-image:
 	docker build -t protokube-builder images/protokube-builder
@@ -228,7 +228,7 @@ nodeup-dist:
 	(${SHASUMCMD} .build/dist/nodeup | cut -d' ' -f1) > .build/dist/nodeup.sha1
 
 dns-controller-gocode:
-	go install -ldflags "${EXTRA_LDFLAGS} -X main.BuildVersion=${DNS_CONTROLLER_TAG}" k8s.io/kops/dns-controller/cmd/dns-controller
+	go install -tags 'peer_name_alternative peer_name_hash' -ldflags "${EXTRA_LDFLAGS} -X main.BuildVersion=${DNS_CONTROLLER_TAG}" k8s.io/kops/dns-controller/cmd/dns-controller
 
 dns-controller-builder-image:
 	docker build -t dns-controller-builder images/dns-controller-builder
