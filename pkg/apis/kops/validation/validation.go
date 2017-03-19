@@ -24,7 +24,6 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"net"
 	"strings"
-	"unicode"
 )
 
 var validDockerConfigStorageValues = []string{"aufs", "btrfs", "devicemapper", "overlay", "overlay2", "zfs"}
