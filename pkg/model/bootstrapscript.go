@@ -22,6 +22,7 @@ import (
 	"k8s.io/kops/pkg/model/resources"
 	"k8s.io/kops/upup/pkg/fi"
 	"text/template"
+	"encoding/base64"
 )
 
 // BootstrapScript creates the bootstrap script
@@ -29,6 +30,7 @@ type BootstrapScript struct {
 	NodeUpSource        string
 	NodeUpSourceHash    string
 	NodeUpConfigBuilder func(ig *kops.InstanceGroup) (*nodeup.NodeUpConfig, error)
+	FingerprintBuilder  func(ig *kops.InstanceGroup) ([]byte, error)
 }
 
 func (b *BootstrapScript) ResourceNodeUp(ig *kops.InstanceGroup) (*fi.ResourceHolder, error) {
@@ -56,6 +58,14 @@ func (b *BootstrapScript) ResourceNodeUp(ig *kops.InstanceGroup) (*fi.ResourceHo
 			}
 
 			return string(data), nil
+		},
+		"Fingerprint": func() (string, error) {
+			fingerprint, err := b.FingerprintBuilder(ig)
+			if err != nil {
+				return "", err
+			}
+
+			return base64.StdEncoding.EncodeToString(fingerprint), nil
 		},
 	}
 
