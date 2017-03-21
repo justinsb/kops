@@ -17,12 +17,12 @@ limitations under the License.
 package model
 
 import (
+	"encoding/base64"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/nodeup"
 	"k8s.io/kops/pkg/model/resources"
 	"k8s.io/kops/upup/pkg/fi"
 	"text/template"
-	"encoding/base64"
 )
 
 // BootstrapScript creates the bootstrap script
