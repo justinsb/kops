@@ -79,3 +79,7 @@ func SetDefaults_ClusterSpec(obj *ClusterSpec) {
 	}
 
 }
+
+func SetDefaults_EtcdClusterSpec(obj *EtcdClusterSpec) {
+	// We don't set the defaults, otherwise we could not change them as etcd3 became the default
+}

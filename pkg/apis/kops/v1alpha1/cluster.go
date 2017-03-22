@@ -215,7 +215,7 @@ type ClusterSpec struct {
 	//KubeProxyTestLogLevel         string `json:",omitempty"`
 
 	// EtcdClusters stores the configuration for each cluster
-	EtcdClusters []*EtcdClusterSpec `json:"etcdClusters,omitempty"`
+	EtcdClusters []EtcdClusterSpec `json:"etcdClusters,omitempty"`
 
 	// Component configurations
 	Docker                *DockerConfig                `json:"docker,omitempty"`
@@ -290,13 +290,13 @@ type KubeDNSConfig struct {
 	ServerIP string `json:"serverIP,omitempty"`
 }
 
-//type MasterConfig struct {
-//	Name string `json:",omitempty"`
-//
-//	Image       string `json:",omitempty"`
-//	Zone        string `json:",omitempty"`
-//	MachineType string `json:",omitempty"`
-//}
+// StorageType describes storage type for an etcd cluster (etcd2, etcd3)
+type StorageType string
+
+const (
+	StorageTypeETCD2 StorageType = "etcd2"
+	StorageTypeETCD3 StorageType = "etcd3"
+)
 
 type EtcdClusterSpec struct {
 	// Name is the name of the etcd cluster (main, events etc)
@@ -304,6 +304,12 @@ type EtcdClusterSpec struct {
 
 	// EtcdMember stores the configurations for each member of the cluster (including the data volume)
 	Members []*EtcdMemberSpec `json:"etcdMembers,omitempty"`
+
+	// Storage is the type of storage to use (etcd2, etcd3)
+	Storage StorageType `json:"storage,omitempty"`
+
+	// Version is the version of etcd to use
+	Version string `json:"version,omitempty"`
 }
 
 type EtcdMemberSpec struct {
