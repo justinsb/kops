@@ -67,5 +67,11 @@ func (b *KubeProxyOptionsBuilder) BuildOptions(o interface{}) error {
 
 	config.Master = "https://" + clusterSpec.MasterInternalName
 
+	if config.ClusterCIDR == "" {
+		if clusterSpec.KubeControllerManager != nil {
+			config.ClusterCIDR = clusterSpec.KubeControllerManager.ClusterCIDR
+		}
+	}
+
 	return nil
 }
