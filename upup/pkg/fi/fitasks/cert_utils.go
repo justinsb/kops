@@ -77,7 +77,7 @@ func parsePkixName(s string) (*pkix.Name, error) {
 		case "cn":
 			name.CommonName = v
 		case "o":
-			name.Organization = append(name.Organization, v)
+			name.Organization = append(name.Organization,  v)
 		default:
 			return nil, fmt.Errorf("unrecognized key %q in token %q", k, token)
 		}
