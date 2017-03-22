@@ -172,8 +172,7 @@ func (b *KubeProxyBuilder) buildPod() (*v1.Pod, error) {
 			},
 		},
 		Spec: v1.PodSpec{
-			HostNetwork:        true,
-			ServiceAccountName: "kube-proxy",
+			HostNetwork: true,
 			Tolerations: tolerateMasterTaints(),
 		},
 	}
@@ -194,6 +193,8 @@ func (b *KubeProxyBuilder) buildPod() (*v1.Pod, error) {
 	pod.Spec.Containers = append(pod.Spec.Containers, *container)
 
 	// Note that e.g. kubeadm has this as a daemonset, but this doesn't have a lot of test coverage AFAICT
+	//ServiceAccountName: "kube-proxy",
+
 	//d := &v1beta1.DaemonSet{
 	//	ObjectMeta: metav1.ObjectMeta{
 	//		Labels: map[string]string{
