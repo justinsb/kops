@@ -211,9 +211,9 @@ spec:
 ---
 
 apiVersion: v1
-kind: Service
+kind: ServiceAccount
 metadata:
-  name: kube-dns
+  name: kube-dns-autoscaler
   namespace: kube-system
   labels:
     k8s-addon: kube-dns.addons.k8s.io
