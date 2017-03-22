@@ -61,6 +61,16 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 
 	{
+		// Keypair used by the kube-scheduler
+		t := &fitasks.Keypair{
+			Name:    fi.String("kube-scheduler"),
+			Subject: "cn=" + user.KubeScheduler,
+			Type:    "client",
+		}
+		c.AddTask(t)
+	}
+
+	{
 		// Keypair used by the kube-controller-manager
 		t := &fitasks.Keypair{
 			Name:    fi.String("kube-controller-manager"),
