@@ -71,16 +71,6 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 
 	{
-		// Keypair used by the kube-controller-manager
-		t := &fitasks.Keypair{
-			Name:    fi.String("kube-controller-manager"),
-			Subject: "cn=" + user.KubeControllerManager,
-			Type:    "client",
-		}
-		c.AddTask(t)
-	}
-
-	{
 		// Keypair used for admin kubecfg
 		t := &fitasks.Keypair{
 			Name:    fi.String("kubecfg"),
