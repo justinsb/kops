@@ -39,6 +39,13 @@ func (b *KubeAPIServerOptionsBuilder) BuildOptions(o interface{}) error {
 	}
 
 	c := clusterSpec.KubeAPIServer
+	if fi.StringValue(clusterSpec.KubeAPIServer.StorageBackend) == "" {
+		for _, etcd := range clusterSpec.EtcdClusters {
+			if etcd.Storage == kops.StorageTypeETCD3 {
+				clusterSpec.KubeAPIServer.StorageBackend = fi.String("etcd3")
+			}
+		}
+	}
 
 	if fi.StringValue(clusterSpec.KubeAPIServer.StorageBackend) == "" {
 		for _, etcd := range clusterSpec.EtcdClusters {
