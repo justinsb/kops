@@ -71,7 +71,7 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 
 	{
-		// Keypair used for admin kubecfg
+		// Keypair used for admin kubecfg (deprecated)
 		t := &fitasks.Keypair{
 			Name:    fi.String("kubecfg"),
 			Subject: "o=" + user.SystemPrivilegedGroup + ",cn=kubecfg",
