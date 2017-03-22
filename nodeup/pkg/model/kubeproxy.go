@@ -172,7 +172,8 @@ func (b *KubeProxyBuilder) buildPod() (*v1.Pod, error) {
 			},
 		},
 		Spec: v1.PodSpec{
-			HostNetwork: true,
+			HostNetwork:        true,
+			ServiceAccountName: "kube-proxy",
 			Tolerations: tolerateMasterTaints(),
 		},
 	}
@@ -193,8 +194,6 @@ func (b *KubeProxyBuilder) buildPod() (*v1.Pod, error) {
 	pod.Spec.Containers = append(pod.Spec.Containers, *container)
 
 	// Note that e.g. kubeadm has this as a daemonset, but this doesn't have a lot of test coverage AFAICT
-	//ServiceAccountName: "kube-proxy",
-
 	//d := &v1beta1.DaemonSet{
 	//	ObjectMeta: metav1.ObjectMeta{
 	//		Labels: map[string]string{
@@ -227,4 +226,23 @@ func tolerateMasterTaints() []v1.Toleration {
 	//}
 
 	return tolerations
+}
+
+func addHostPathMapping(pod *v1.Pod, container *v1.Container, name string, path string) *v1.VolumeMount {
+	pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
+		Name: name,
+		VolumeSource: v1.VolumeSource{
+			HostPath: &v1.HostPathVolumeSource{
+				Path: path,
+			},
+		},
+	})
+
+	container.VolumeMounts = append(container.VolumeMounts, v1.VolumeMount{
+		Name:      name,
+		MountPath: path,
+		ReadOnly:  true,
+	})
+
+	return &container.VolumeMounts[len(container.VolumeMounts)-1]
 }

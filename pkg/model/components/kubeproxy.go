@@ -65,5 +65,7 @@ func (b *KubeProxyOptionsBuilder) BuildOptions(o interface{}) error {
 		}
 	}
 
+	config.Master = "https://" + clusterSpec.MasterInternalName
+
 	return nil
 }

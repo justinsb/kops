@@ -112,7 +112,7 @@ func (c *NodeupModelContext) buildPKIKubeconfig(id string) (string, error) {
 	}
 
 	user := kubeconfig.KubectlUser{}
-	user.ClientCertificateData, err = certificate.AsBytes()
+	user.ClientCertificateData, err = cert.AsBytes()
 	if err != nil {
 		return "", fmt.Errorf("error encoding %q certificate: %v", id, err)
 	}
@@ -120,6 +120,28 @@ func (c *NodeupModelContext) buildPKIKubeconfig(id string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error encoding %q private key: %v", id, err)
 	}
+
+	return c.buildKubeconfig(id, user)
+}
+
+func (c *NodeupModelContext) buildTokenKubeconfig(id string) (string, error) {
+	token, err := c.GetToken(id)
+	if err != nil {
+		return "", fmt.Errorf("error fetching %q token: %v", id, err)
+	}
+
+	user := kubeconfig.KubectlUser{}
+	user.Token = token
+
+	return c.buildKubeconfig(id, user)
+}
+
+func (c *NodeupModelContext) buildKubeconfig(id string, user kubeconfig.KubectlUser) (string, error) {
+	caCertificate, err := c.KeyStore.Cert(fi.CertificateId_CA)
+	if err != nil {
+		return "", fmt.Errorf("error fetching CA certificate from keystore: %v", err)
+	}
+
 	cluster := kubeconfig.KubectlCluster{}
 	cluster.CertificateAuthorityData, err = caCertificate.AsBytes()
 	if err != nil {
@@ -174,4 +196,16 @@ func (c *NodeupModelContext) buildPKIKubeconfig(id string) (string, error) {
 
 func (c *NodeupModelContext) IsKubernetesGTE(version string) bool {
 	return util.IsKubernetesGTE(version, c.KubernetesVersion)
+}
+
+// GetToken returns the specified token
+func (c *NodeupModelContext) GetToken(key string) (string, error) {
+	token, err := c.SecretStore.FindSecret(key)
+	if err != nil {
+		return "", err
+	}
+	if token == nil {
+		return "", fmt.Errorf("token not found: %q", key)
+	}
+	return string(token.Data), nil
 }
