@@ -546,26 +546,21 @@ func (c *ApplyClusterCmd) Run() error {
 	computeFingerprint := func(ig *api.InstanceGroup) ([]byte, error) {
 		hasher := sha1.New()
 
-		nodeupConfig, err := renderNodeUpConfig(ig)
-		if err != nil {
-			return nil, err
-		}
-
-		data, err := api.ToRawYaml(nodeupConfig)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err := hasher.Write(data); err != nil {
-			return nil, fmt.Errorf("error computing fingerprint hash: %v", err)
-		}
-
 		clusterData, err := api.ToRawYaml(c.Cluster)
 		if err != nil {
 			return nil, err
 		}
 
 		if _, err := hasher.Write(clusterData); err != nil {
+			return nil, fmt.Errorf("error computing fingerprint hash: %v", err)
+		}
+
+		igData, err := api.ToRawYaml(ig)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := hasher.Write(igData); err != nil {
 			return nil, fmt.Errorf("error computing fingerprint hash: %v", err)
 		}
 
