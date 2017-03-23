@@ -182,11 +182,7 @@ func (v *GCEVolumes) buildGCEVolume(d *compute.Disk) (*Volume, error) {
 		}
 	}
 
-	labelMap := make(map[string]string)
 	for k, v := range d.Labels {
-		labelMap[k] = v
-	}
-	for k, v := range labelMap {
 		switch k {
 		case gce.GceLabelNameKubernetesCluster:
 			{
@@ -202,7 +198,7 @@ func (v *GCEVolumes) buildGCEVolume(d *compute.Disk) (*Volume, error) {
 					return nil, fmt.Errorf("Error decoding GCE label: %s=%q", k, v)
 				}
 
-				optionsLabelValue := labelMap[gce.GceLabelNameEtcdClusterOptionsPrefix+etcdClusterName]
+				optionsLabelValue := d.Labels[gce.GceLabelNameEtcdClusterOptionsPrefix+etcdClusterName]
 				options, err := gce.DecodeGCELabel(optionsLabelValue)
 				if err != nil {
 					return nil, fmt.Errorf("Error decoding GCE label: %s=%q", gce.GceLabelNameEtcdClusterOptionsPrefix+etcdClusterName, v)

@@ -174,7 +174,7 @@ func (b *MasterVolumeBuilder) addGCEVolume(c *fi.ModelBuilderContext, name strin
 	if err != nil {
 		return fmt.Errorf("unexpected error encoding options for etcd: %v", err)
 	}
-	tags[gce.GceLabelNameEtcdClusterPrefix+etcd.Name] = options
+	tags[gce.GceLabelNameEtcdClusterOptionsPrefix+etcd.Name] = gce.EncodeGCELabel(options)
 
 	name = strings.Replace(name, ".", "-", -1)
 
