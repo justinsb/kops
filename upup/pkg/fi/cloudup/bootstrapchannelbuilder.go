@@ -67,6 +67,12 @@ func (b *BootstrapChannelBuilder) Build(c *fi.ModelBuilderContext) error {
 }
 
 func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[string]string, error) {
+	kv, err := util.ParseKubernetesVersion(b.cluster.Spec.KubernetesVersion)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to determine kubernetes version from %q",
+			b.cluster.Spec.KubernetesVersion)
+	}
+
 	manifests := make(map[string]string)
 
 	addons := &channelsapi.Addons{}
