@@ -33,10 +33,7 @@ const (
 	DefaultAWSEtcdVolumeType = "gp2"
 	DefaultGCEEtcdVolumeType = "pd-ssd"
 
-	// Even with V2, we still use the V3 image, because the V3 image embeds etcd2 and can downgrade to it
-	//DefaultEtcdVersionV2 = "2.2.1"
-	DefaultEtcdVersionV2 = "3.0.17"
-
+	DefaultEtcdVersionV2 = "2.2.1"
 	DefaultEtcdVersionV3 = "3.0.17"
 )
 
