@@ -29,9 +29,6 @@ const GceLabelNameKubernetesCluster = "k8s-io-cluster-name"
 const GceLabelNameRolePrefix = "k8s-io-role-"
 const GceLabelNameEtcdClusterPrefix = "k8s-io-etcd-"
 
-// We have to be careful that GceLabelNameEtcdClusterOptionsPrefix is not a prefix of GceLabelNameEtcdClusterOptionsPrefix!
-const GceLabelNameEtcdClusterOptionsPrefix = "k8s-io-etcdoptions-"
-
 // GceLabelNameEtcdClusterOptionsPrefix should not be a prefix of GceLabelNameEtcdClusterOptionsPrefix,
 // as otherwise the parsing logic would get tricky.
 const GceLabelNameEtcdClusterOptionsPrefix = "k8s-io-etcdoptions-"
