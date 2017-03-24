@@ -59,20 +59,29 @@ func BuildEtcdManifest(c *EtcdCluster) *v1.Pod {
 
 	env := make(map[string]string)
 
-	env["ETCD_NAME"] = c.Me.Name
-	env["ETCD_DATA_DIR"] = "/var/etcd/" + c.DataDirName
+	//env["ETCD_NAME"] = c.Me.Name
+	etcdCommand += " --name=" + c.Me.Name
+	// env["ETCD_DATA_DIR"] = "/var/etcd/" + c.DataDirName
+	etcdCommand += " --data-dir=" + "/var/etcd/" + c.DataDirName
 
 	// Note that we listen on 0.0.0.0, not 127.0.0.1, so we can support etcd clusters
-	env["ETCD_LISTEN_PEER_URLS"] = fmt.Sprintf("%s://0.0.0.0:%d", peerProtocol, c.PeerPort)
-	env["ETCD_INITIAL_ADVERTISE_PEER_URLS"] = fmt.Sprintf("%s://%s:%d", peerProtocol, c.Me.InternalName, c.PeerPort)
-	env["ETCD_INITIAL_CLUSTER_TOKEN"] = c.ClusterToken
+	// env["ETCD_LISTEN_PEER_URLS"] = fmt.Sprintf("%s://0.0.0.0:%d", peerProtocol, c.PeerPort)
+	etcdCommand += " --listen-peer-urls=" + fmt.Sprintf("%s://0.0.0.0:%d", peerProtocol, c.PeerPort)
+	// env["ETCD_INITIAL_ADVERTISE_PEER_URLS"] = fmt.Sprintf("%s://%s:%d", peerProtocol, c.Me.InternalName, c.PeerPort)
+	etcdCommand += " --initial-advertise-peer-urls=" + fmt.Sprintf("%s://%s:%d", peerProtocol, c.Me.InternalName, c.PeerPort)
+	// env["ETCD_INITIAL_CLUSTER_TOKEN"] = c.ClusterToken
+	etcdCommand += " --initial-cluster-token=" + c.ClusterToken
 
 	if c.Spec.LockdownClient {
-		env["ETCD_LISTEN_CLIENT_URLS"] = fmt.Sprintf("http://127.0.0.1:%d", c.ClientPort)
-		env["ETCD_ADVERTISE_CLIENT_URLS"] = fmt.Sprintf("http://127.0.0.1:%d", c.ClientPort)
+		//env["ETCD_LISTEN_CLIENT_URLS"] = fmt.Sprintf("http://127.0.0.1:%d", c.ClientPort)
+		etcdCommand += " --listen-client-urls=" + fmt.Sprintf("http://127.0.0.1:%d", c.ClientPort)
+		//env["ETCD_ADVERTISE_CLIENT_URLS"] = fmt.Sprintf("http://127.0.0.1:%d", c.ClientPort)
+		etcdCommand += " --advertise-client-urls=" + fmt.Sprintf("http://127.0.0.1:%d", c.ClientPort)
 	} else {
-		env["ETCD_LISTEN_CLIENT_URLS"] = fmt.Sprintf("http://0.0.0.0:%d", c.ClientPort)
-		env["ETCD_ADVERTISE_CLIENT_URLS"] = fmt.Sprintf("http://%s:%d", c.Me.InternalName, c.ClientPort)
+		//env["ETCD_LISTEN_CLIENT_URLS"] = fmt.Sprintf("http://0.0.0.0:%d", c.ClientPort)
+		etcdCommand += " --listen-client-urls=" + fmt.Sprintf("http://0.0.0.0:%d", c.ClientPort)
+		//env["ETCD_ADVERTISE_CLIENT_URLS"] = fmt.Sprintf("http://%s:%d", c.Me.InternalName, c.ClientPort)
+		etcdCommand += " --advertise-client-urls=" + fmt.Sprintf("http://%s:%d", c.Me.InternalName, c.ClientPort)
 	}
 
 	storageBackend := c.Spec.StorageBackend
@@ -89,20 +98,24 @@ func BuildEtcdManifest(c *EtcdCluster) *v1.Pod {
 	env["TARGET_VERSION"] = etcdVersion
 	env["DATA_DIRECTORY"] = "/var/etcd/" + c.DataDirName
 
-	// TODO: tee or similar, so we can see it in kubectl logs
-	etcdCommand += " 1>>/var/log/etcd.log 2>&1"
 
 	var initialCluster []string
 	for _, node := range c.Nodes {
 		// TODO: Use localhost for ourselves?  Does the cluster view have to be symmetric?
 		initialCluster = append(initialCluster, node.Name+"="+fmt.Sprintf("%s://%s:%d", peerProtocol, node.InternalName, c.PeerPort))
 	}
-	env["ETCD_INITIAL_CLUSTER"] = strings.Join(initialCluster, ",")
+	//env["ETCD_INITIAL_CLUSTER"] = strings.Join(initialCluster, ",")
+	etcdCommand += " --initial-cluster=" + strings.Join(initialCluster, ",")
 	if c.Spec.JoinExistingCluster {
-		env["ETCD_INITIAL_CLUSTER_STATE"] = "existing"
+		//env["ETCD_INITIAL_CLUSTER_STATE"] = "existing"
+		etcdCommand += " --initial-cluster-state=existing"
 	} else {
-		env["ETCD_INITIAL_CLUSTER_STATE"] = "new"
+		//env["ETCD_INITIAL_CLUSTER_STATE"] = "new"
+		etcdCommand += " --initial-cluster-state=new"
 	}
+
+	// TODO: tee or similar, so we can see it in kubectl logs
+	etcdCommand += " 1>>/var/log/etcd.log 2>&1"
 
 	pod := &v1.Pod{}
 	pod.APIVersion = "v1"

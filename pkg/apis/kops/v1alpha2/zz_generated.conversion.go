@@ -1210,6 +1210,7 @@ func autoConvert_v1alpha2_KubeAPIServerConfig_To_kops_KubeAPIServerConfig(in *Ku
 	out.AnonymousAuth = in.AnonymousAuth
 	out.KubeletPreferredAddressTypes = in.KubeletPreferredAddressTypes
 	out.StorageBackend = in.StorageBackend
+	out.DefaultStorageMediaType = in.DefaultStorageMediaType
 	out.OIDCUsernameClaim = in.OIDCUsernameClaim
 	out.OIDCGroupsClaim = in.OIDCGroupsClaim
 	out.OIDCIssuerURL = in.OIDCIssuerURL
@@ -1254,6 +1255,7 @@ func autoConvert_kops_KubeAPIServerConfig_To_v1alpha2_KubeAPIServerConfig(in *ko
 	out.AnonymousAuth = in.AnonymousAuth
 	out.KubeletPreferredAddressTypes = in.KubeletPreferredAddressTypes
 	out.StorageBackend = in.StorageBackend
+	out.DefaultStorageMediaType = in.DefaultStorageMediaType
 	out.OIDCUsernameClaim = in.OIDCUsernameClaim
 	out.OIDCGroupsClaim = in.OIDCGroupsClaim
 	out.OIDCIssuerURL = in.OIDCIssuerURL

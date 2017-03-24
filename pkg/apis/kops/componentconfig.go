@@ -428,6 +428,8 @@ type KubeAPIServerConfig struct {
 
 	StorageBackend *string `json:"storageBackend,omitempty" flag:"storage-backend"`
 
+	DefaultStorageMediaType *string `json:"defaultStorageMediaType,omitempty" flag:"storage-media-type"`
+
 	// The OpenID claim to use as the user name.
 	// Note that claims other than the default ('sub') is not guaranteed to be unique and immutable.
 	OIDCUsernameClaim *string `json:"oidcUsernameClaim,omitempty" flag:"oidc-username-claim"`

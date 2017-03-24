@@ -43,6 +43,10 @@ func (b *KubeAPIServerOptionsBuilder) BuildOptions(o interface{}) error {
 		for _, etcd := range clusterSpec.EtcdClusters {
 			if etcd.Storage == kops.StorageTypeETCD3 {
 				clusterSpec.KubeAPIServer.StorageBackend = fi.String("etcd3")
+				if fi.StringValue(clusterSpec.KubeAPIServer.DefaultStorageMediaType) == "" {
+					// Preserve the option to downgrade to etcd2
+					clusterSpec.KubeAPIServer.DefaultStorageMediaType = fi.String("application/json")
+				}
 			}
 		}
 	}
