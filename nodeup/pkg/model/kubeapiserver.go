@@ -28,7 +28,6 @@ import (
 	"k8s.io/kops/pkg/flagbuilder"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/nodeup/nodetasks"
-	"path/filepath"
 )
 
 // KubeAPIServerBuilder install kube-apiserver (just the manifest at the moment)
@@ -187,25 +186,6 @@ func (b *KubeAPIServerBuilder) buildPod() (*v1.Pod, error) {
 	pod.Spec.Containers = append(pod.Spec.Containers, *container)
 
 	return pod, nil
-}
-
-func addHostPathMapping(pod *v1.Pod, container *v1.Container, name string, path string) *v1.VolumeMount {
-	pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
-		Name: name,
-		VolumeSource: v1.VolumeSource{
-			HostPath: &v1.HostPathVolumeSource{
-				Path: path,
-			},
-		},
-	})
-
-	container.VolumeMounts = append(container.VolumeMounts, v1.VolumeMount{
-		Name:      name,
-		MountPath: path,
-		ReadOnly:  true,
-	})
-
-	return &container.VolumeMounts[len(container.VolumeMounts)-1]
 }
 
 func (b *KubeAPIServerBuilder) buildAnnotations() map[string]string {

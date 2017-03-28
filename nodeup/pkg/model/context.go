@@ -19,6 +19,7 @@ package model
 import (
 	"fmt"
 	"github.com/blang/semver"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/kops/nodeup/pkg/distros"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/util"
@@ -208,4 +209,23 @@ func (c *NodeupModelContext) GetToken(key string) (string, error) {
 		return "", fmt.Errorf("token not found: %q", key)
 	}
 	return string(token.Data), nil
+}
+
+func addHostPathMapping(pod *v1.Pod, container *v1.Container, name string, path string) *v1.VolumeMount {
+	pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
+		Name: name,
+		VolumeSource: v1.VolumeSource{
+			HostPath: &v1.HostPathVolumeSource{
+				Path: path,
+			},
+		},
+	})
+
+	container.VolumeMounts = append(container.VolumeMounts, v1.VolumeMount{
+		Name:      name,
+		MountPath: path,
+		ReadOnly:  true,
+	})
+
+	return &container.VolumeMounts[len(container.VolumeMounts)-1]
 }

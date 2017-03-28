@@ -300,7 +300,6 @@ func (c *populateClusterSpec) run() error {
 			codeModels = append(codeModels, &components.KubeControllerManagerOptionsBuilder{Context: optionsContext})
 			codeModels = append(codeModels, &components.KubeSchedulerOptionsBuilder{OptionsContext: optionsContext})
 			codeModels = append(codeModels, &components.KubeProxyOptionsBuilder{Context: optionsContext})
-			codeModels = append(codeModels, &components.KubeSchedulerOptionsBuilder{Context: optionsContext})
 			fileModels = append(fileModels, m)
 
 		default:

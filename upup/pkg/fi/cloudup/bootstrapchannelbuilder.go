@@ -79,11 +79,6 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 	addons.Kind = "Addons"
 	addons.ObjectMeta.Name = "bootstrap"
 
-	kv, err := util.ParseKubernetesVersion(b.cluster.Spec.KubernetesVersion)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to determine kubernetes version from %q", b.cluster.Spec.KubernetesVersion)
-	}
-
 	{
 		key := "core.addons.k8s.io"
 		version := "1.4.0"

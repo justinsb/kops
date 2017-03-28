@@ -228,22 +228,3 @@ func tolerateMasterTaints() []v1.Toleration {
 
 	return tolerations
 }
-
-func addHostPathMapping(pod *v1.Pod, container *v1.Container, name string, path string) *v1.VolumeMount {
-	pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
-		Name: name,
-		VolumeSource: v1.VolumeSource{
-			HostPath: &v1.HostPathVolumeSource{
-				Path: path,
-			},
-		},
-	})
-
-	container.VolumeMounts = append(container.VolumeMounts, v1.VolumeMount{
-		Name:      name,
-		MountPath: path,
-		ReadOnly:  true,
-	})
-
-	return &container.VolumeMounts[len(container.VolumeMounts)-1]
-}
