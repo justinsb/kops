@@ -98,7 +98,6 @@ func BuildEtcdManifest(c *EtcdCluster) *v1.Pod {
 	env["TARGET_VERSION"] = etcdVersion
 	env["DATA_DIRECTORY"] = "/var/etcd/" + c.DataDirName
 
-
 	var initialCluster []string
 	for _, node := range c.Nodes {
 		// TODO: Use localhost for ourselves?  Does the cluster view have to be symmetric?
