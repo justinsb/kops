@@ -77,7 +77,7 @@ func (c *NodeUpCommand) Run(out io.Writer) error {
 	if c.CacheDir == "" {
 		return fmt.Errorf("CacheDir is required")
 	}
-	assets := fi.NewAssetStore(c.CacheDir)
+	assets := fi.NewFilesystemAssetStore(c.CacheDir)
 	for _, asset := range c.config.Assets {
 		err := assets.Add(asset)
 		if err != nil {
