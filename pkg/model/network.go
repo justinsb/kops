@@ -140,8 +140,11 @@ func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		subnetName := subnetSpec.Name + "." + b.ClusterName()
 		tags := b.CloudTags(subnetName, sharedSubnet)
 
+		name := subnetSpec.Name + "." + b.ClusterName()
+		tags := b.CloudTags(name, sharedSubnet)
+
 		subnet := &awstasks.Subnet{
-			Name:             s(subnetName),
+			Name:             s(name),
 			VPC:              b.LinkToVPC(),
 			AvailabilityZone: s(subnetSpec.Zone),
 			CIDR:             s(subnetSpec.CIDR),
