@@ -37,6 +37,7 @@ const (
 // MasterVolumeBuilder builds master EBS volumes
 type MasterVolumeBuilder struct {
 	*KopsModelContext
+	Lifecycle *fi.Lifecycle
 }
 
 var _ fi.ModelBuilder = &MasterVolumeBuilder{}
@@ -115,7 +116,9 @@ func (b *MasterVolumeBuilder) addAWSVolume(c *fi.ModelBuilderContext, name strin
 	encrypted := fi.BoolValue(m.EncryptedVolume)
 
 	t := &awstasks.EBSVolume{
-		Name:             s(name),
+		Name:      s(name),
+		Lifecycle: b.Lifecycle,
+
 		AvailabilityZone: s(subnet.Zone),
 		SizeGB:           fi.Int64(int64(volumeSize)),
 		VolumeType:       s(volumeType),
@@ -158,7 +161,9 @@ func (b *MasterVolumeBuilder) addGCEVolume(c *fi.ModelBuilderContext, name strin
 	name = strings.Replace(name, ".", "-", -1)
 
 	t := &gcetasks.Disk{
-		Name:       s(name),
+		Name:      s(name),
+		Lifecycle: b.Lifecycle,
+
 		Zone:       s(subnet.Zone),
 		SizeGB:     fi.Int64(int64(volumeSize)),
 		VolumeType: s(volumeType),
