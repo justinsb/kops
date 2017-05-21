@@ -38,6 +38,7 @@ import (
 	_ "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/aws/route53"
 	k8scoredns "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/coredns"
 	_ "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/google/clouddns"
+	"fmt"
 )
 
 var (
@@ -76,9 +77,6 @@ func run() error {
 
 	populateExternalIP := false
 	flag.BoolVar(&populateExternalIP, "populate-external-ip", populateExternalIP, "If set, will populate the external IP when starting up")
-
-	cloud := ""
-	flag.StringVar(&cloud, "cloud", cloud, "Cloud provider to use - gce, aws, baremetal")
 
 	containerized := false
 	flag.BoolVar(&containerized, "containerized", containerized, "Set if we are running containerized.")
@@ -161,11 +159,12 @@ func run() error {
 		}
 	} else if cloud == "baremetal" {
 		basedir := "/volumes"
-		volumes, err = baremetal.NewVolumes(basedir)
+		baremetalVolumes, err := baremetal.NewVolumes(basedir)
 		if err != nil {
 			glog.Errorf("Error initializing AWS: %q", err)
 			os.Exit(1)
 		}
+		volumes = baremetalVolumes
 	} else {
 		glog.Errorf("Unknown cloud %q", cloud)
 		os.Exit(1)

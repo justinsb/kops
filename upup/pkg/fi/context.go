@@ -21,7 +21,7 @@ import (
 	"github.com/golang/glog"
 	"io/ioutil"
 	"k8s.io/kops/util/pkg/vfs"
-	"k8s.io/kubernetes/federation/pkg/dnsprovider"
+	"k8s.io/kops/forks/pkg/dnsprovider"
 	"os"
 	"reflect"
 	"strings"
