@@ -21,11 +21,11 @@ import (
 	"os"
 	"runtime"
 
-	"k8s.io/kops/pkg/apiserver/cmd/server"
 	"k8s.io/apiserver/pkg/util/logs"
+	"k8s.io/kops/pkg/apiserver/cmd/server"
+	"k8s.io/kops/pkg/cmdutil"
 	"math/rand"
 	"time"
-	"k8s.io/kops/pkg/cmdutil"
 )
 
 func main() {

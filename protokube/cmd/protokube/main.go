@@ -35,10 +35,10 @@ import (
 	"strings"
 
 	// Load DNS plugins
+	"fmt"
 	_ "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/aws/route53"
 	k8scoredns "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/coredns"
 	_ "k8s.io/kubernetes/federation/pkg/dnsprovider/providers/google/clouddns"
-	"fmt"
 )
 
 var (

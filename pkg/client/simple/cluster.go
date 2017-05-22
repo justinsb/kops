@@ -18,8 +18,8 @@ package simple
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops"
+	api "k8s.io/kops/pkg/apis/kops"
 )
 
 // ClusterInterface has methods to work with Cluster resources.

@@ -1,8 +1,8 @@
 package baremetal
 
 import (
-	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/forks/pkg/dnsprovider"
+	"k8s.io/kops/upup/pkg/fi"
 )
 
 type Cloud struct {
