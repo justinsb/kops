@@ -17,17 +17,16 @@ limitations under the License.
 package apiserver
 
 import (
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/server"
-	"k8s.io/apimachinery/pkg/version"
 
 	"k8s.io/kops/pkg/apis/kops"
 	_ "k8s.io/kops/pkg/apis/kops/install"
 	"k8s.io/kops/pkg/apis/kops/v1alpha2"
 	registrycluster "k8s.io/kops/pkg/apiserver/registry/cluster"
-	//registryinstancegroup "k8s.io/kops/pkg/apiserver/registry/instancegroup"
-	//"k8s.io/kubernetes/pkg/version"
+	registryinstancegroup "k8s.io/kops/pkg/apiserver/registry/instancegroup"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -77,7 +76,6 @@ func (c *Config) Complete() completedConfig {
 	return completedConfig{c}
 }
 
-
 // SkipComplete provides a way to construct a server instance without config completion.
 func (c *Config) SkipComplete() completedConfig {
 	return completedConfig{c}
@@ -100,7 +98,7 @@ func (c completedConfig) New() (*APIDiscoveryServer, error) {
 	v1alpha2storage := map[string]rest.Storage{}
 	v1alpha2storage["clusters"] = registrycluster.NewREST(c.RESTOptionsGetter)
 	//v1alpha2storage["clusters/full"] = registrycluster.NewREST(c.RESTOptionsGetter)
-	//v1alpha2storage["instancegroups"] = registryinstancegroup.NewREST(c.RESTOptionsGetter)
+	v1alpha2storage["instancegroups"] = registryinstancegroup.NewREST(c.RESTOptionsGetter)
 	apiGroupInfo.VersionedResourcesStorageMap["v1alpha2"] = v1alpha2storage
 
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {

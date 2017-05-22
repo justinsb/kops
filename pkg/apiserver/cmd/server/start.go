@@ -29,25 +29,25 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/kops/pkg/apiserver"
 	//"k8s.io/kops/pkg/apis/kops/v1alpha1"
+	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/v1alpha2"
 	"k8s.io/kops/pkg/cmdutil"
-	"fmt"
 	"net"
 )
 
 const defaultEtcdPathPrefix = "/registry/kops.kubernetes.io"
 
 type KopsServerOptions struct {
-	Etcd           *genericoptions.EtcdOptions
-	SecureServing  *genericoptions.SecureServingOptions
+	Etcd          *genericoptions.EtcdOptions
+	SecureServing *genericoptions.SecureServingOptions
 	//InsecureServing *genericoptions.ServingOptions
 	Authentication *genericoptions.DelegatingAuthenticationOptions
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
 
-	StdOut         io.Writer
-	StdErr         io.Writer
+	StdOut io.Writer
+	StdErr io.Writer
 }
 
 // NewCommandStartKopsServer provides a CLI handler for 'start master' command
@@ -58,10 +58,10 @@ func NewCommandStartKopsServer(out, err io.Writer) *cobra.Command {
 			Copier: kops.Scheme,
 			Codec:  nil,
 		}),
-		SecureServing:  genericoptions.NewSecureServingOptions(),
+		SecureServing: genericoptions.NewSecureServingOptions(),
 		//InsecureServing: genericoptions.NewInsecureServingOptions(),
-		Authentication:  genericoptions.NewDelegatingAuthenticationOptions(),
-		Authorization:   genericoptions.NewDelegatingAuthorizationOptions(),
+		Authentication: genericoptions.NewDelegatingAuthenticationOptions(),
+		Authorization:  genericoptions.NewDelegatingAuthorizationOptions(),
 
 		StdOut: out,
 		StdErr: err,
@@ -110,7 +110,7 @@ func (o KopsServerOptions) RunKopsServer() error {
 	//	return nil, err
 	//}
 
-	serverConfig.CorsAllowedOriginList = []string{".*" }
+	serverConfig.CorsAllowedOriginList = []string{".*"}
 
 	if err := o.Etcd.ApplyTo(serverConfig); err != nil {
 		return err
@@ -130,7 +130,6 @@ func (o KopsServerOptions) RunKopsServer() error {
 	//if _, err := genericAPIServerConfig.ApplyDelegatingAuthorizationOptions(o.Authorization); err != nil {
 	//	return err
 	//}
-
 
 	//var err error
 	//privilegedLoopbackToken := uuid.NewRandom().String()
