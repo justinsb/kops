@@ -99,6 +99,7 @@ func (c completedConfig) New() (*APIDiscoveryServer, error) {
 	apiGroupInfo.GroupMeta.GroupVersion = v1alpha2.SchemeGroupVersion
 	v1alpha2storage := map[string]rest.Storage{}
 	v1alpha2storage["clusters"] = registrycluster.NewREST(c.RESTOptionsGetter)
+	//v1alpha2storage["clusters/full"] = registrycluster.NewREST(c.RESTOptionsGetter)
 	//v1alpha2storage["instancegroups"] = registryinstancegroup.NewREST(c.RESTOptionsGetter)
 	apiGroupInfo.VersionedResourcesStorageMap["v1alpha2"] = v1alpha2storage
 
