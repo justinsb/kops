@@ -98,7 +98,6 @@ func (tf *TemplateFunctions) AddTo(dest template.FuncMap) {
 
 	// TODO: Only for GCE?
 	dest["EncodeGCELabel"] = gce.EncodeGCELabel
-
 }
 
 // SharedVPC is a simple helper function which makes the templates for a shared VPC clearer
