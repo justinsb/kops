@@ -132,7 +132,7 @@ func (g *MeshGossiper) Snapshot() *gossip.GossipStateSnapshot {
 	return g.peer.snapshot()
 }
 
-func (g *MeshGossiper) UpdateValues(removeKeys []string, putEntries map[string]string) error {
+func (g *MeshGossiper) UpdateValues(removeKeys []string, putEntries map[string][]byte) error {
 	glog.V(2).Infof("UpdateValues: remove=%s, put=%s", removeKeys, putEntries)
 	return g.peer.updateValues(removeKeys, putEntries)
 }

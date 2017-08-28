@@ -76,12 +76,12 @@ func (s *state) snapshot() *gossip.GossipStateSnapshot {
 		return s.lastSnapshot
 	}
 
-	values := make(map[string]string)
+	values := make(map[string][]byte)
 	for k, v := range s.data.Records {
 		if v.Tombstone {
 			continue
 		}
-		values[k] = string(v.Data)
+		values[k] = v.Data
 	}
 
 	snapshot := &gossip.GossipStateSnapshot{
@@ -111,7 +111,7 @@ func (s *state) put(key string, data []byte) {
 	s.version++
 }
 
-func (s *state) updateValues(removeKeys []string, putEntries map[string]string) {
+func (s *state) updateValues(removeKeys []string, putEntries map[string][]byte) {
 	if len(removeKeys) == 0 && len(putEntries) == 0 {
 		return
 	}
@@ -137,7 +137,7 @@ func (s *state) updateValues(removeKeys []string, putEntries map[string]string) 
 	for k, v := range putEntries {
 		// TODO: Check that now > existing version?
 		s.data.Records[k] = &KVStateRecord{
-			Data:    []byte(v),
+			Data:    v,
 			Version: now,
 		}
 	}

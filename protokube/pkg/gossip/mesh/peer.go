@@ -71,7 +71,7 @@ func (p *peer) snapshot() *gossip.GossipStateSnapshot {
 	return p.st.snapshot()
 }
 
-func (p *peer) updateValues(removeKeys []string, putEntries map[string]string) error {
+func (p *peer) updateValues(removeKeys []string, putEntries map[string][]byte) error {
 	c := make(chan struct{})
 	p.actions <- func() {
 		defer close(c)

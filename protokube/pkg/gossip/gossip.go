@@ -17,11 +17,11 @@ limitations under the License.
 package gossip
 
 type GossipStateSnapshot struct {
-	Values  map[string]string
+	Values  map[string][]byte
 	Version uint64
 }
 
 type GossipState interface {
 	Snapshot() *GossipStateSnapshot
-	UpdateValues(removeKeys []string, putKeys map[string]string) error
+	UpdateValues(removeKeys []string, putKeys map[string][]byte) error
 }

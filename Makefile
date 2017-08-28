@@ -141,10 +141,13 @@ codegen: kops-gobindata
 	PATH=${GOPATH_1ST}/bin:${PATH} go generate k8s.io/kops/upup/pkg/fi/fitasks
 
 .PHONY: protobuf
-protobuf: protokube/pkg/gossip/mesh/mesh.pb.go
+protobuf: protokube/pkg/gossip/mesh/mesh.pb.go protokube/pkg/gossip/fs/fs.pb.go
 
 protokube/pkg/gossip/mesh/mesh.pb.go: protokube/pkg/gossip/mesh/mesh.proto
 	cd ${GOPATH_1ST}/src; protoc --gofast_out=. k8s.io/kops/protokube/pkg/gossip/mesh/mesh.proto
+
+protokube/pkg/gossip/fs/fs.pb.go: protokube/pkg/gossip/fs/fs.proto
+	cd ${GOPATH_1ST}/src; protoc --gofast_out=. k8s.io/kops/protokube/pkg/gossip/fs/fs.proto
 
 .PHONY: hooks
 hooks: # Install Git hooks

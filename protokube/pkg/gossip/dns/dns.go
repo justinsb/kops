@@ -143,16 +143,16 @@ func (v *DNSView) ApplyChangeset(zone DNSZoneInfo, removeRecords []*DNSRecord, c
 		removeTags = append(removeTags, tagKey)
 	}
 
-	createTags := make(map[string]string)
+	createTags := make(map[string][]byte)
 	for _, record := range createRecords {
 		tagKey, err := buildTagKey(zone, record)
 		if err != nil {
 			return err
 		}
-		if createTags[tagKey] != "" {
+		if createTags[tagKey] != nil {
 			return fmt.Errorf("duplicate record %q being created", tagKey)
 		}
-		createTags[tagKey] = strings.Join(record.Rrdatas, ",")
+		createTags[tagKey] = []byte(strings.Join(record.Rrdatas, ","))
 	}
 
 	return v.gossipState.UpdateValues(removeTags, createTags)
@@ -234,10 +234,10 @@ func (v *DNSView) Snapshot() *DNSViewSnapshot {
 				record.RrsType = recordType
 			}
 
-			addresses := strings.Split(v, ",")
+			addresses := strings.Split(string(v), ",")
 			record.Rrdatas = append(record.Rrdatas, addresses...)
 			zone.Records[key] = record
-		} else {
+		} else if !strings.HasPrefix(k, "fs/") {
 			glog.Warningf("unknown tag %q=%q", k, v)
 		}
 	}
