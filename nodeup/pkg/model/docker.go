@@ -346,8 +346,6 @@ var dockerVersions = []dockerVersion{
 		Dependencies:  []string{"policycoreutils-python"},
 	},
 
-	// 17.03.2 - k8s 1.8
-
 	// 17.03.2 - Jessie
 	{
 		DockerVersion: "17.03.2",
