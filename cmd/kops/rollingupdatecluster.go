@@ -33,6 +33,7 @@ import (
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/instancegroups"
+	"k8s.io/kops/pkg/instancegroups/rollingupdate"
 	"k8s.io/kops/pkg/pretty"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/upup/pkg/kutil"
@@ -275,7 +276,7 @@ func RunRollingUpdateCluster(f *util.Factory, out io.Writer, options *RollingUpd
 		return err
 	}
 
-	groups, err := instancegroups.FindCloudInstanceGroups(cloud, cluster, instanceGroups, warnUnmatched, nodes)
+	groups, err := cloud.(instancegroups.HasCloudInstanceGroups).FindCloudInstanceGroups(cluster, instanceGroups, warnUnmatched, nodes)
 	if err != nil {
 		return err
 	}
@@ -295,10 +296,10 @@ func RunRollingUpdateCluster(f *util.Factory, out io.Writer, options *RollingUpd
 			return strconv.Itoa(len(r.Ready))
 		})
 		t.AddColumn("MIN", func(r *instancegroups.CloudInstanceGroup) string {
-			return strconv.Itoa(r.MinSize())
+			return strconv.Itoa(r.MinSize)
 		})
 		t.AddColumn("MAX", func(r *instancegroups.CloudInstanceGroup) string {
-			return strconv.Itoa(r.MaxSize())
+			return strconv.Itoa(r.MaxSize)
 		})
 		t.AddColumn("NODES", func(r *instancegroups.CloudInstanceGroup) string {
 			var nodes []*v1.Node
@@ -349,11 +350,11 @@ func RunRollingUpdateCluster(f *util.Factory, out io.Writer, options *RollingUpd
 	if featureflag.DrainAndValidateRollingUpdate.Enabled() {
 		glog.V(2).Infof("Rolling update with drain and validate enabled.")
 	}
-	d := &instancegroups.RollingUpdateCluster{
+	d := &rollingupdate.RollingUpdateCluster{
 		MasterInterval:   options.MasterInterval,
 		NodeInterval:     options.NodeInterval,
 		Force:            options.Force,
-		Cloud:            cloud,
+		Cloud:            cloud.(instancegroups.HasCloudInstanceGroups),
 		K8sClient:        k8sClient,
 		ClientConfig:     kutil.NewClientConfig(config, "kube-system"),
 		FailOnDrainError: options.FailOnDrainError,

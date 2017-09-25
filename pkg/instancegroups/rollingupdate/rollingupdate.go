@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package instancegroups
+package rollingupdate
 
 import (
 	"fmt"
@@ -25,12 +25,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	api "k8s.io/kops/pkg/apis/kops"
-	"k8s.io/kops/upup/pkg/fi"
+	"k8s.io/kops/pkg/instancegroups"
 )
 
 // RollingUpdateCluster is a struct containing cluster information for a rolling update.
 type RollingUpdateCluster struct {
-	Cloud fi.Cloud
+	Cloud instancegroups.HasCloudInstanceGroups
 
 	MasterInterval  time.Duration
 	NodeInterval    time.Duration
@@ -48,7 +48,7 @@ type RollingUpdateCluster struct {
 }
 
 // RollingUpdate performs a rolling update on a K8s Cluster.
-func (c *RollingUpdateCluster) RollingUpdate(groups map[string]*CloudInstanceGroup, instanceGroups *api.InstanceGroupList) error {
+func (r *RollingUpdateCluster) RollingUpdate(groups map[string]*instancegroups.CloudInstanceGroup, instanceGroups *api.InstanceGroupList) error {
 	if len(groups) == 0 {
 		glog.Infof("Cloud Instance Group length is zero. Not doing a rolling-update.")
 		return nil
@@ -57,9 +57,9 @@ func (c *RollingUpdateCluster) RollingUpdate(groups map[string]*CloudInstanceGro
 	var resultsMutex sync.Mutex
 	results := make(map[string]error)
 
-	masterGroups := make(map[string]*CloudInstanceGroup)
-	nodeGroups := make(map[string]*CloudInstanceGroup)
-	bastionGroups := make(map[string]*CloudInstanceGroup)
+	masterGroups := make(map[string]*instancegroups.CloudInstanceGroup)
+	nodeGroups := make(map[string]*instancegroups.CloudInstanceGroup)
+	bastionGroups := make(map[string]*instancegroups.CloudInstanceGroup)
 	for k, group := range groups {
 		switch group.InstanceGroup.Spec.Role {
 		case api.InstanceGroupRoleNode:
@@ -79,14 +79,14 @@ func (c *RollingUpdateCluster) RollingUpdate(groups map[string]*CloudInstanceGro
 
 		for k, bastionGroup := range bastionGroups {
 			wg.Add(1)
-			go func(k string, group *CloudInstanceGroup) {
+			go func(k string, group *instancegroups.CloudInstanceGroup) {
 				resultsMutex.Lock()
 				results[k] = fmt.Errorf("function panic bastions")
 				resultsMutex.Unlock()
 
 				defer wg.Done()
 
-				err := group.RollingUpdate(c, instanceGroups, true, c.BastionInterval)
+				err := r.RollingUpdateCloudInstanceGroup(bastionGroup, instanceGroups, true, r.BastionInterval)
 
 				resultsMutex.Lock()
 				results[k] = err
@@ -116,7 +116,7 @@ func (c *RollingUpdateCluster) RollingUpdate(groups map[string]*CloudInstanceGro
 			defer wg.Done()
 
 			for k, group := range masterGroups {
-				err := group.RollingUpdate(c, instanceGroups, false, c.MasterInterval)
+				err := r.RollingUpdateCloudInstanceGroup(group, instanceGroups, false, r.MasterInterval)
 
 				resultsMutex.Lock()
 				results[k] = err
@@ -151,7 +151,7 @@ func (c *RollingUpdateCluster) RollingUpdate(groups map[string]*CloudInstanceGro
 			defer wg.Done()
 
 			for k, group := range nodeGroups {
-				err := group.RollingUpdate(c, instanceGroups, false, c.NodeInterval)
+				err := r.RollingUpdateCloudInstanceGroup(group, instanceGroups, false, r.NodeInterval)
 
 				resultsMutex.Lock()
 				results[k] = err
@@ -170,6 +170,6 @@ func (c *RollingUpdateCluster) RollingUpdate(groups map[string]*CloudInstanceGro
 		}
 	}
 
-	glog.Infof("Rolling update completed for cluster %q!", c.ClusterName)
+	glog.Infof("Rolling update completed for cluster %q!", r.ClusterName)
 	return nil
 }

@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kops/cmd/kops/util"
 	"k8s.io/kops/pkg/instancegroups"
+	"k8s.io/kops/pkg/instancegroups/actions"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/util/pkg/ui"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
@@ -150,9 +151,9 @@ func RunDeleteInstanceGroup(f *util.Factory, out io.Writer, options *DeleteInsta
 		return nil
 	}
 
-	d := &instancegroups.DeleteInstanceGroup{}
+	d := &actions.DeleteInstanceGroup{}
 	d.Cluster = cluster
-	d.Cloud = cloud
+	d.Cloud = cloud.(instancegroups.HasCloudInstanceGroups)
 	d.Clientset = clientset
 
 	err = d.DeleteInstanceGroup(group)
