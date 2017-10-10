@@ -44,8 +44,8 @@ MAKEDIR:=$(strip $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))"))
 # Keep in sync with upup/models/cloudup/resources/addons/dns-controller/
 DNS_CONTROLLER_TAG=1.8.0
 
-KOPS_RELEASE_VERSION = 1.8.0-alpha.1
-KOPS_CI_VERSION      = 1.8.0-alpha.2
+KOPS_RELEASE_VERSION = 1.8.0-alpha.2
+KOPS_CI_VERSION      = 1.8.0-alpha.3
 
 # kops local location
 KOPS                 = ${LOCAL}/kops
