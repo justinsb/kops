@@ -580,7 +580,6 @@ bazel-build:
 bazel-crossbuild-nodeup:
 	bazel build //cmd/nodeup
 
-.PHONY: bazel-push
 # Will always push a linux-based build up to the server
 bazel-push: bazel-crossbuild-nodeup
 	scp -C bazel-bin/cmd/nodeup/nodeup  ${TARGET}:/tmp/
