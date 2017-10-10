@@ -151,7 +151,11 @@ func startKubeletService() error {
 	// (in particular, we want to avoid kubernetes/kubernetes#40123 )
 	glog.V(2).Infof("ensuring that kubelet systemd service is running")
 
-	cmd := exec.Command("systemctl", "status", "--no-block", "kubelet")
+	// We run systemctl from the hostfs so we don't need systemd in our image
+	// (and we don't risk version skew)
+	systemctlCommand := pathFor("/bin/systemctl")
+		
+	cmd := exec.Command(systemctlCommand, "status", "--no-block", "kubelet")
 	output, err := cmd.CombinedOutput()
 	glog.V(2).Infof("'systemctl status kubelet' output:\n%s", string(output))
 	if err == nil {
@@ -160,7 +164,7 @@ func startKubeletService() error {
 	}
 
 	glog.Infof("kubelet systemd service not running. Starting")
-	cmd = exec.Command("systemctl", "start", "--no-block", "kubelet")
+	cmd = exec.Command(systemctlCommand, "start", "--no-block", "kubelet")
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error starting kubelet: %v\nOutput: %s", err, output)
