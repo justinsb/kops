@@ -562,3 +562,15 @@ kops-server-build:
 .PHONY: kops-server-push
 kops-server-push: kops-server-build
 	docker push ${DOCKER_REGISTRY}/kops-server:latest
+
+
+# -----------------------------------------------------
+# bazel targets
+
+.PHONY: bazel-test
+bazel-test:
+	bazel test //cmd/... //pkg/... //channels/... //nodeup/... //channels/... //protokube/... //dns-controller/...
+
+.PHONY: bazel-build
+bazel-build:
+	bazel build //cmd/... //pkg/... //channels/... //nodeup/... //channels/... //protokube/... //dns-controller/...
