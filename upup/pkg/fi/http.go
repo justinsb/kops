@@ -75,6 +75,8 @@ func downloadURLAlways(url string, destPath string, dirMode os.FileMode) error {
 
 	glog.Infof("Downloading %q", url)
 
+	fmt.Printf("Downloading: %s\n", url)
+
 	response, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("error doing HTTP fetch of %q: %v", url, err)

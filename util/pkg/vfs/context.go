@@ -130,6 +130,9 @@ func (c *VFSContext) readHttpLocation(httpURL string, httpHeaders map[string]str
 
 	done, err := RetryWithBackoff(backoff, func() (bool, error) {
 		glog.V(4).Infof("Performing HTTP request: GET %s", httpURL)
+		fmt.Printf("Doing HTTP GET on: %s\n", httpURL)
+
+		t := time.Now()
 		req, err := http.NewRequest("GET", httpURL, nil)
 		if err != nil {
 			return false, err
@@ -141,6 +144,7 @@ func (c *VFSContext) readHttpLocation(httpURL string, httpHeaders map[string]str
 		if response != nil {
 			defer response.Body.Close()
 		}
+		fmt.Printf("Duration of HTTP GET on: %s %f\n", httpURL, float64(time.Now().Sub(t).Nanoseconds())/1E9)
 		if err != nil {
 			return false, fmt.Errorf("error fetching %q: %v", httpURL, err)
 		}

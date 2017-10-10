@@ -130,6 +130,8 @@ func (a *AssetStore) Find(key string, assetPath string) (Resource, error) {
 
 func hashFromHttpHeader(url string) (*hashing.Hash, error) {
 	glog.Infof("Doing HTTP HEAD on %q", url)
+	fmt.Printf("Doing HTTP HEAD on: %s\n", url)
+
 	response, err := http.Head(url)
 	if err != nil {
 		return nil, fmt.Errorf("error doing HEAD on %q: %v", url, err)
