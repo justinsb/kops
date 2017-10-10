@@ -34,18 +34,18 @@ spec:
     requiredVersion: 1.4.2
   kopsVersions:
   - range: ">=1.7.0-alpha.1"
-    recommendedVersion: 1.7.0
-    #requiredVersion: 1.7.0
+    recommendedVersion: 1.7.1
+    #requiredVersion: 1.7.1
     kubernetesVersion: 1.7.4
   - range: ">=1.6.0-alpha.1"
-    #recommendedVersion: 1.6.0
-    #requiredVersion: 1.6.0
+    #recommendedVersion: 1.7.1
+    #requiredVersion: 1.7.1
     kubernetesVersion: 1.6.7
   - range: ">=1.5.0-alpha1"
-    recommendedVersion: 1.5.1
-    #requiredVersion: 1.5.1
+    recommendedVersion: 1.7.1
+    #requiredVersion: 1.7.1
     kubernetesVersion: 1.5.7
   - range: "<1.5.0"
-    recommendedVersion: 1.4.4
-    #requiredVersion: 1.4.4
+    recommendedVersion: 1.7.1
+    #requiredVersion: 1.7.1
     kubernetesVersion: 1.4.12
