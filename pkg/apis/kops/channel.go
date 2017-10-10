@@ -58,7 +58,7 @@ type KopsVersionSpec struct {
 	RecommendedVersion string `json:"recommendedVersion,omitempty"`
 
 	// RequiredVersion is the required version of kops to use for this Range of kops versions, forcing an upgrade
-	RequiredVersion    string `json:"requiredVersion,omitempty"`
+	RequiredVersion string `json:"requiredVersion,omitempty"`
 
 	// KubernetesVersion is the default version of kubernetes to use with this kops version e.g. for new clusters
 	KubernetesVersion string `json:"kubernetesVersion,omitempty"`
