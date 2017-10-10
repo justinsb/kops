@@ -17,7 +17,7 @@ FROM gcr.io/google_containers/debian-base-amd64:0.1
 # ca-certificates: Needed to talk to EC2 API
 # e2fsprogs: Needed to mount / format ext4 filesytems
 RUN apt-get update && apt-get install --yes \
-  bash ca-certificates e2fsprogs systemd \
+  bash ca-certificates e2fsprogs \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
