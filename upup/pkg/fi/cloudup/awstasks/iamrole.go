@@ -42,8 +42,10 @@ type IAMRole struct {
 	Name               *string
 	RolePolicyDocument *fi.ResourceHolder // "inline" IAM policy
 
-	// ExportWithId will expose the name & ARN for reuse as part of a larger system.  Only supported by terraform currently.
+	// ExportWithID will expose the name & ARN for reuse as part of a larger system.  Only supported by terraform currently.
 	ExportWithID *string
+
+	arn *string
 }
 
 var _ fi.CompareWithID = &IAMRole{}
@@ -71,6 +73,7 @@ func (e *IAMRole) Find(c *fi.Context) (*IAMRole, error) {
 	actual := &IAMRole{}
 	actual.ID = r.RoleId
 	actual.Name = r.RoleName
+	actual.arn = r.Arn
 	if r.AssumeRolePolicyDocument != nil {
 		// The AssumeRolePolicyDocument is URI encoded (?)
 		actualPolicy := *r.AssumeRolePolicyDocument
@@ -108,6 +111,7 @@ func (e *IAMRole) Find(c *fi.Context) (*IAMRole, error) {
 
 	glog.V(2).Infof("found matching IAMRole %q", *actual.ID)
 	e.ID = actual.ID
+	e.arn = actual.arn
 
 	// Avoid spurious changes
 	actual.ExportWithID = e.ExportWithID
@@ -134,10 +138,10 @@ func (s *IAMRole) CheckChanges(a, e, changes *IAMRole) error {
 }
 
 func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error {
-	policy, err := e.RolePolicyDocument.AsString()
-	if err != nil {
-		return fmt.Errorf("error rendering RolePolicyDocument: %v", err)
-	}
+		policy, err := e.RolePolicyDocument.AsString()
+		if err != nil {
+			return fmt.Errorf("error rendering RolePolicyDocument: %v", err)
+		}
 
 	if a == nil {
 		glog.V(2).Infof("Creating IAMRole with Name:%q", *e.Name)
@@ -152,6 +156,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 		}
 
 		e.ID = response.Role.RoleId
+		e.arn = response.Role.Arn
 	} else {
 		if changes.RolePolicyDocument != nil {
 			glog.V(2).Infof("Updating IAMRole AssumeRolePolicy %q", *e.Name)

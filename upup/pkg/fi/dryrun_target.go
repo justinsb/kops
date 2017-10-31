@@ -343,6 +343,10 @@ func tryResourceAsString(v reflect.Value) (string, bool) {
 		return "", false
 	}
 
+	if v.IsNil() {
+		return "", false
+	}
+
 	intf := v.Interface()
 	if res, ok := intf.(Resource); ok {
 		s, err := ResourceAsString(res)

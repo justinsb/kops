@@ -140,7 +140,7 @@ func (e *Instance) Find(c *fi.Context) (*Instance, error) {
 	actual.AssociatePublicIP = &associatePublicIpAddress
 
 	if i.IamInstanceProfile != nil {
-		actual.IAMInstanceProfile = &IAMInstanceProfile{Name: nameFromIAMARN(i.IamInstanceProfile.Arn)}
+		actual.IAMInstanceProfile = &IAMInstanceProfile{Name: nameFromIAMInstanceProfileARN(i.IamInstanceProfile.Arn)}
 	}
 
 	actual.Tags = mapEC2TagsToMap(i.Tags)
@@ -163,7 +163,8 @@ func (e *Instance) Find(c *fi.Context) (*Instance, error) {
 	return actual, nil
 }
 
-func nameFromIAMARN(arn *string) *string {
+// nameFromIAMInstanceProfileARN attempts to extract the name portion of an IAM instance profile ARN
+func nameFromIAMInstanceProfileARN(arn *string) *string {
 	if arn == nil {
 		return nil
 	}
@@ -171,10 +172,26 @@ func nameFromIAMARN(arn *string) *string {
 	last := tokens[len(tokens)-1]
 
 	if !strings.HasPrefix(last, "instance-profile/") {
-		glog.Warningf("Unexpected ARN for instance profile: %q", *arn)
+		glog.Warningf("Unexpected ARN for IAM instance profile: %q", *arn)
 	}
 
 	name := strings.TrimPrefix(last, "instance-profile/")
+	return &name
+}
+
+// nameFromIAMRoleARN attempts to extract the name portion of an IAM role ARN
+func nameFromIAMRoleARN(arn *string) *string {
+	if arn == nil {
+		return nil
+	}
+	tokens := strings.Split(*arn, ":")
+	last := tokens[len(tokens)-1]
+
+	if !strings.HasPrefix(last, "role/") {
+		glog.Warningf("Unexpected ARN for IAM role: %q", *arn)
+	}
+
+	name := strings.TrimPrefix(last, "role/")
 	return &name
 }
 

@@ -21,3 +21,8 @@ import "k8s.io/kops/pkg/model"
 type AWSModelContext struct {
 	*model.KopsModelContext
 }
+
+// IAMNameForSpotFleet returns the name to use for IAM roles, policies etc for the spot fleet IAM permissions
+func (b *AWSModelContext) IAMNameForSpotFleet() string {
+	return "spotfleet." + b.ClusterName()
+}

@@ -171,12 +171,14 @@ func (e *LaunchConfiguration) Find(c *fi.Context) (*LaunchConfiguration, error) 
 	return actual, nil
 }
 
+// buildEphemeralDevices builds BlockDeviceMappings for the ephemeral devices for the specified instance type
 func buildEphemeralDevices(instanceTypeName *string) (map[string]*BlockDeviceMapping, error) {
 	// TODO: Any reason not to always attach the ephemeral devices?
-	if instanceTypeName == nil {
+	if fi.StringValue(instanceTypeName) == "" {
 		return nil, fi.RequiredField("InstanceType")
 	}
-	instanceType, err := awsup.GetMachineTypeInfo(*instanceTypeName)
+
+	instanceType, err := awsup.GetMachineTypeInfo(fi.StringValue(instanceTypeName))
 	if err != nil {
 		return nil, err
 	}

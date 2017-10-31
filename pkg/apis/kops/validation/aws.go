@@ -58,8 +58,11 @@ func awsValidateMachineType(fieldPath *field.Path, machineType string) field.Err
 	allErrs := field.ErrorList{}
 
 	if machineType != "" {
-		if _, err := awsup.GetMachineTypeInfo(machineType); err != nil {
-			allErrs = append(allErrs, field.Invalid(fieldPath, machineType, "machine type specified is invalid"))
+		// TODO: Only with spotfleet?
+		for _, m := range strings.Split(machineType, ",") {
+			if _, err := awsup.GetMachineTypeInfo(m); err != nil {
+				allErrs = append(allErrs, field.Invalid(fieldPath, m, "machine type specified is invalid"))
+			}
 		}
 	}
 
