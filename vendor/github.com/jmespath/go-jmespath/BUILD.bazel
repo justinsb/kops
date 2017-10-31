@@ -18,6 +18,7 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
+        "api_test.go",
         "compliance_test.go",
         "interpreter_test.go",
         "lexer_test.go",

@@ -4,6 +4,8 @@ go_library(
     name = "go_default_library",
     srcs = [
         "api.go",
+        "doc.go",
+        "errors.go",
         "service.go",
     ],
     visibility = ["//visibility:public"],
@@ -20,15 +22,10 @@ go_library(
 
 go_test(
     name = "go_default_xtest",
-    srcs = [
-        "customizations_test.go",
-        "examples_test.go",
-    ],
+    srcs = ["customizations_test.go"],
     deps = [
         ":go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws:go_default_library",
-        "//vendor/github.com/aws/aws-sdk-go/aws/session:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/awstesting/unit:go_default_library",
-        "//vendor/github.com/stretchr/testify/assert:go_default_library",
     ],
 )

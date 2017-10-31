@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "assert.go",
         "client.go",
+        "custom_ca_bundle.go",
         "util.go",
     ],
     visibility = ["//visibility:public"],
@@ -23,8 +24,5 @@ go_test(
         "assert_test.go",
         "util_test.go",
     ],
-    deps = [
-        ":go_default_library",
-        "//vendor/github.com/stretchr/testify/assert:go_default_library",
-    ],
+    deps = [":go_default_library"],
 )

@@ -7,6 +7,9 @@ go_library(
         "bucket_location.go",
         "content_md5.go",
         "customizations.go",
+        "doc.go",
+        "doc_custom.go",
+        "errors.go",
         "host_style_bucket.go",
         "platform_handlers.go",
         "platform_handlers_go1.6.go",
@@ -27,7 +30,6 @@ go_library(
         "//vendor/github.com/aws/aws-sdk-go/aws/signer/v4:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/private/protocol:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/private/protocol/restxml:go_default_library",
-        "//vendor/github.com/aws/aws-sdk-go/private/waiter:go_default_library",
     ],
 )
 
@@ -38,7 +40,6 @@ go_test(
     deps = [
         "//vendor/github.com/aws/aws-sdk-go/aws/request:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/awstesting:go_default_library",
-        "//vendor/github.com/stretchr/testify/assert:go_default_library",
     ],
 )
 
@@ -62,7 +63,5 @@ go_test(
         "//vendor/github.com/aws/aws-sdk-go/aws/request:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/aws/session:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/awstesting/unit:go_default_library",
-        "//vendor/github.com/stretchr/testify/assert:go_default_library",
-        "//vendor/github.com/stretchr/testify/require:go_default_library",
     ],
 )
