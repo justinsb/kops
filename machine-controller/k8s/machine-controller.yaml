@@ -1,0 +1,100 @@
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: kops-machine-controller
+  namespace: kube-system
+  labels:
+    k8s-addon: kops-machine-controller.addons.k8s.io
+    k8s-app: kops-machine-controller
+    version: v1.8.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: kops-machine-controller
+  template:
+    metadata:
+      labels:
+        k8s-addon: kops-machine-controller.addons.k8s.io
+        k8s-app: kops-machine-controller
+        version: v1.8.0
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      tolerations:
+      - key: "node-role.kubernetes.io/master"
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      serviceAccount: kops-machine-controller
+      containers:
+      - name: kops-machine-controller
+        image: justinsb/kops-machine-controller:latest
+        args:
+          - --cloud=baremetal
+          - --config=/etc/kubernetes/kops/config
+          - --cluster=open.k8s.local
+          - --ssh-username=justinsb
+          - --v=9
+        env:
+          - name: AWS_SHARED_CREDENTIALS_FILE
+            value: /etc/kubernetes/kops/aws/credentials
+          - name: AWS_PROFILE
+            value: kops
+          - name: KOPS_BASE_URL
+            value: https://development-justinsb.s3.amazonaws.com/kops/dev/
+        resources:
+          requests:
+            cpu: 50m
+            memory: 50Mi
+        volumeMounts:
+        - name: etc-kubernetes
+          mountPath: /etc/kubernetes
+      volumes:
+      - name: etc-kubernetes
+        hostPath:
+          path: /etc/kubernetes
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kops-machine-controller
+  namespace: kube-system
+  labels:
+    k8s-addon: kops-machine-controller.addons.k8s.io
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  labels:
+    k8s-addon: kops-machine-controller.addons.k8s.io
+  name: kops:kops-machine-controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    k8s-addon: kops-machine-controller.addons.k8s.io
+  name: kops:kops-machine-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kops:kops-machine-controller
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: system:serviceaccount:kube-system:kops-machine-controller

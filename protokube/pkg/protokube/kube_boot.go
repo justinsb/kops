@@ -68,6 +68,8 @@ type KubeBoot struct {
 	PeerKey string
 	// Kubernetes is the context methods for kubernetes
 	Kubernetes *KubernetesContext
+	// ManageEtcd is true if we should manage etcd
+	ManageEtcd bool
 	// Master indicates we are a master node
 	Master          bool
 	volumeMounter   *VolumeMountController
@@ -92,7 +94,7 @@ func (k *KubeBoot) RunSyncLoop() {
 }
 
 func (k *KubeBoot) syncOnce() error {
-	if k.Master {
+	if k.ManageEtcd && k.Master {
 		// attempt to mount the volumes
 		volumes, err := k.volumeMounter.mountMasterVolumes()
 		if err != nil {

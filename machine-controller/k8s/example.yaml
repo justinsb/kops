@@ -1,0 +1,20 @@
+apiVersion: "cluster.k8s.io/v1alpha1"
+kind: Machine
+metadata:
+  name: node1
+spec:
+  providerConfig: >
+    {
+      "apiVersion": "kopsproviderconfig/v1alpha1",
+      "kind": "KopsProviderConfig",
+      "instanceGroup": "nodes",
+      "target": "192.168.100.1"
+    }
+  versions:
+    kubelet: 1.8.4
+    controlPlane: 1.8.4
+    containerRuntime:
+      name: docker
+      version: 1.12.0
+  roles:
+  - Node

@@ -214,6 +214,8 @@ type ProtokubeFlags struct {
 	TLSCertFile               *string  `json:"tls-cert,omitempty" flag:"tls-cert"`
 	TLSKeyFile                *string  `json:"tls-key,omitempty" flag:"tls-key"`
 	Zone                      []string `json:"zone,omitempty" flag:"zone"`
+
+	ManageEtcd *bool `json:"manageEtcd,omitempty" flag:"manage-etcd"`
 }
 
 // ProtokubeFlags is responsible for building the command line flags for protokube
@@ -319,6 +321,13 @@ func (t *ProtokubeBuilder) ProtokubeFlags(k8sVersion semver.Version) (*Protokube
 
 	if k8sVersion.Major == 1 && k8sVersion.Minor <= 5 {
 		f.ApplyTaints = fi.Bool(true)
+	}
+
+	switch kops.CloudProviderID(t.Cluster.Spec.CloudProvider) {
+	case kops.CloudProviderBareMetal:
+		f.DNSProvider = s("none")
+		f.ManageEtcd = b(false)
+		f.ClusterID = s(t.Cluster.Name)
 	}
 
 	return f, nil

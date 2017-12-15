@@ -194,17 +194,18 @@ func (b *SecretBuilder) Build(c *fi.ModelBuilderContext) error {
 			return err
 		}
 		if token == nil {
-			return fmt.Errorf("token not found: %q", key)
-		}
-		csv := string(token.Data) + ",admin,admin,system:masters"
+			glog.Warningf("token not found: %q", key)
+		} else {
+			csv := string(token.Data) + ",admin,admin,system:masters"
 
-		t := &nodetasks.File{
-			Path:     filepath.Join(b.PathSrvKubernetes(), "basic_auth.csv"),
-			Contents: fi.NewStringResource(csv),
-			Type:     nodetasks.FileType_File,
-			Mode:     s("0600"),
+			t := &nodetasks.File{
+				Path:     filepath.Join(b.PathSrvKubernetes(), "basic_auth.csv"),
+				Contents: fi.NewStringResource(csv),
+				Type:     nodetasks.FileType_File,
+				Mode:     s("0600"),
+			}
+			c.AddTask(t)
 		}
-		c.AddTask(t)
 	}
 
 	if b.SecretStore != nil {

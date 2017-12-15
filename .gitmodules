@@ -394,3 +394,6 @@
 [submodule "_vendor/github.com/inconshreveable/mousetrap"]
 	path = _vendor/github.com/inconshreveable/mousetrap
 	url = https://github.com/inconshreveable/mousetrap
+[submodule "_vendor/k8s.io/kube-deploy"]
+	path = _vendor/k8s.io/kube-deploy
+	url = https://github.com/kubernetes/kube-deploy

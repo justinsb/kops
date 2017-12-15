@@ -644,3 +644,9 @@ check-markdown-links:
 		-e LANGUAGE=en_US.UTF-8 \
 		rubygem/awesome_bot --allow-dupe --allow-redirect \
 		$(shell find $$PWD -name "*.md" -mindepth 1 -printf '%P\n' | grep -v vendor | grep -v _vendor | grep -v Changelog.md)
+
+#-----------------------------------------------------------
+push-machine-controller:
+	bazel run //machine-controller/images:kops-machine-controller
+	docker tag bazel/machine-controller/images:kops-machine-controller ${DOCKER_REGISTRY}/kops-machine-controller:${DOCKER_TAG}
+	docker push ${DOCKER_REGISTRY}/kops-machine-controller:${DOCKER_TAG}

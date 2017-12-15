@@ -1,0 +1,27 @@
+package(default_visibility = ["//visibility:public"])
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+    "container_push",
+)
+
+container_image(
+    name = "kops-machine-controller",
+    base = "@debian_hyperkube_base_amd64//image",
+    directory = "/usr/bin/",
+    entrypoint = ["/usr/bin/machine-controller"],
+    files = [
+        "//machine-controller/cmd/machine-controller",
+    ],
+)
+
+# Not working for reasons unknown
+#container_push(
+#    name = "push-machine-controller",
+#    format = "Docker",
+#    image = ":kops-machine-controller",
+#    registry = "index.docker.io",
+#    repository = "justinsb/kops-machine-controller",
+#    tag = "dev",
+#)

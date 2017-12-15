@@ -36,3 +36,19 @@ container_pull(
   digest = "sha256:fc1b461367730660ac5a40c1eb2d1b23221829acf8a892981c12361383b3742b",
   tag = "0.8",
 )
+
+#=============================================================================
+# Packages for building docker base images
+debs = (
+    (
+        "systemd",
+        "a593a5b0e4a7108dc436b852c87bbda987ed83699aca0480d5c66778bd85f507",
+        "http://http.us.debian.org/debian/pool/main/s/systemd/systemd_215-17+deb8u7_amd64.deb",
+    ),
+)
+
+[http_file(
+    name = name,
+    sha256 = sha256,
+    url = url,
+) for name, sha256, url in debs]

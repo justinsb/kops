@@ -41,6 +41,7 @@ go_library(
         "//pkg/featureflag:go_default_library",
         "//pkg/model:go_default_library",
         "//pkg/model/awsmodel:go_default_library",
+        "//pkg/model/baremetalmodel:go_default_library",
         "//pkg/model/components:go_default_library",
         "//pkg/model/domodel:go_default_library",
         "//pkg/model/gcemodel:go_default_library",
