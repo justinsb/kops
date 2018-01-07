@@ -18,6 +18,7 @@ package vfs
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/golang/glog"
@@ -42,6 +43,8 @@ type ACLOracle func(Path) (ACL, error)
 
 // Path is a path in the VFS space, which we can read, write, list etc
 type Path interface {
+	io.WriterTo
+
 	Join(relativePath ...string) Path
 	ReadFile() ([]byte, error)
 
