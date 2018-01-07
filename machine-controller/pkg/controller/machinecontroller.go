@@ -29,20 +29,22 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	clusterv1 "k8s.io/kube-deploy/cluster-api/api/cluster/v1alpha1"
-	"k8s.io/kube-deploy/cluster-api/client"
-	"k8s.io/kube-deploy/cluster-api-gcp/cloud"
-	apiutil "k8s.io/kube-deploy/cluster-api/util"
+	"fmt"
+
 	"k8s.io/kops/machine-controller/pkg/actuators"
+	"k8s.io/kops/machine-controller/pkg/config"
+	"k8s.io/kops/machine-controller/pkg/util"
+	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/client/simple/vfsclientset"
 	"k8s.io/kops/util/pkg/vfs"
-	"k8s.io/kops/pkg/client/simple"
-	"fmt"
-	"k8s.io/kops/machine-controller/pkg/util"
+	"k8s.io/kube-deploy/cluster-api-gcp/cloud"
+	clusterv1 "k8s.io/kube-deploy/cluster-api/api/cluster/v1alpha1"
+	"k8s.io/kube-deploy/cluster-api/client"
+	apiutil "k8s.io/kube-deploy/cluster-api/util"
 )
 
 type MachineController struct {
-	config        *Configuration
+	config        *config.Configuration
 	restClient    *rest.RESTClient
 	kubeClientSet *kubernetes.Clientset
 	clusterClient *client.ClusterAPIV1Alpha1Client
@@ -52,29 +54,29 @@ type MachineController struct {
 	runner        *asyncRunner
 }
 
-func NewMachineController(config *Configuration) (*MachineController, error) {
-	restClient, err := restClient(config.Kubeconfig)
+func NewMachineController(conf *config.Configuration) (*MachineController, error) {
+	restClient, err := restClient(conf.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("error creating rest client: %v", err)
 	}
 
-	kubeClientSet, err := kubeClientSet(config.Kubeconfig)
+	kubeClientSet, err := kubeClientSet(conf.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("error creating kube client set: %v", err)
 	}
 
 	clusterClient := client.New(restClient)
 
-	machineClient, err := machineClient(config.Kubeconfig)
+	machineClient, err := machineClient(conf.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("error creating machine client: %v", err)
 	}
 
 	var clientset simple.Clientset
 	{
-		basePath, err := vfs.Context.BuildVfsPath(config.ConfigBase)
+		basePath, err := vfs.Context.BuildVfsPath(conf.ConfigBase)
 		if err != nil {
-			return nil, fmt.Errorf("error building ConfigBase %q: %v", config.ConfigBase, err)
+			return nil, fmt.Errorf("error building ConfigBase %q: %v", conf.ConfigBase, err)
 		}
 		glog.Warningf("TODO: Set allowList=false")
 		allowList := true
@@ -82,18 +84,18 @@ func NewMachineController(config *Configuration) (*MachineController, error) {
 	}
 
 	// Determine cloud type from cluster CRD when available
-	actuator, err := actuators.NewKopsMachineActuator(config.Cloud, clientset, config.ClusterName, config.SshUsername, config.SshPrivateKeyPath, machineClient)
+	actuator, err := actuators.NewKopsMachineActuator(conf, clientset, machineClient)
 	if err != nil {
 		return nil, fmt.Errorf("error creating machine actuator: %v", err)
 	}
 
-	nodeWatcher, err := NewNodeWatcher(config.Kubeconfig)
+	nodeWatcher, err := NewNodeWatcher(conf.Kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("error creating node watcher: %v", err)
 	}
 
 	return &MachineController{
-		config:        config,
+		config:        conf,
 		restClient:    restClient,
 		kubeClientSet: kubeClientSet,
 		clusterClient: clusterClient,
@@ -103,7 +105,6 @@ func NewMachineController(config *Configuration) (*MachineController, error) {
 		runner:        newAsyncRunner(),
 	}, nil
 }
-
 
 func (c *MachineController) Run() error {
 	glog.Infof("Running ...")
@@ -139,7 +140,7 @@ func (c *MachineController) onAdd(obj interface{}) {
 	machine := obj.(*clusterv1.Machine)
 	glog.Infof("machine object created: %s\n", machine.ObjectMeta.Name)
 
-	c.runner.runAsync(machine.ObjectMeta.Name, func(){
+	c.runner.runAsync(machine.ObjectMeta.Name, func() {
 		err := c.reconcile(machine)
 		if err != nil {
 			glog.Errorf("processing machine object %s create failed: %v", machine.ObjectMeta.Name, err)
@@ -154,8 +155,8 @@ func (c *MachineController) onUpdate(oldObj, newObj interface{}) {
 	newMachine := newObj.(*clusterv1.Machine)
 	glog.Infof("machine object updated: %s\n", oldMachine.ObjectMeta.Name)
 
-	c.runner.runAsync(newMachine.ObjectMeta.Name, func(){
-		err := 	c.reconcile(newMachine)
+	c.runner.runAsync(newMachine.ObjectMeta.Name, func() {
+		err := c.reconcile(newMachine)
 		if err != nil {
 			glog.Errorf("processing machine object %s update failed: %v", newMachine.ObjectMeta.Name, err)
 		} else {
@@ -172,7 +173,7 @@ func (c *MachineController) onDelete(obj interface{}) {
 		return
 	}
 
-	c.runner.runAsync(machine.ObjectMeta.Name, func(){
+	c.runner.runAsync(machine.ObjectMeta.Name, func() {
 		err := c.reconcile(machine)
 		if err != nil {
 			glog.Errorf("processing machine object %s delete failed: %v", machine.ObjectMeta.Name, err)

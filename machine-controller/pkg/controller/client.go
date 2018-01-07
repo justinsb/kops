@@ -133,7 +133,6 @@ func machineClient(kubeconfig string) (client.MachinesInterface, error) {
 		config = *cfg
 	}
 
-
 	client, err := client.NewForConfig(&config)
 	if err != nil {
 		return nil, err

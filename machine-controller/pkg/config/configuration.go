@@ -14,24 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package config
 
 import (
 	"github.com/spf13/pflag"
 )
 
 type Configuration struct {
-	Kubeconfig   string
-	Cloud        string
-	SshUsername string
+	Kubeconfig        string
+	Cloud             string
+	SshUsername       string
 	SshPrivateKeyPath string
-	ConfigBase string
-	ClusterName string
+	ConfigBase        string
+	ClusterName       string
+	ControllerId      string
 }
 
 func NewConfiguration() *Configuration {
 	c := &Configuration{
-		SshUsername: "root",
+		SshUsername:       "root",
 		SshPrivateKeyPath: "/etc/kubernetes/kops/ssh/id_rsa",
 	}
 	return c
@@ -44,4 +45,5 @@ func (c *Configuration) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.SshPrivateKeyPath, "ssh-private-key", c.SshPrivateKeyPath, "Path to SSH private key to use for SSH communications with machines.")
 	fs.StringVar(&c.ConfigBase, "config", c.ConfigBase, "VFS path where cluster configuration is stored.")
 	fs.StringVar(&c.ClusterName, "cluster", c.ClusterName, "Name of cluster in config store.")
+	fs.StringVar(&c.ControllerId, "controller-id", c.ControllerId, "Identifier for controller; if set we will only create instances with the matching controller id")
 }

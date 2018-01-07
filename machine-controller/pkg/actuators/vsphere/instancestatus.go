@@ -1,4 +1,4 @@
-package baremetal
+package vsphere
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ const InstanceStatusAnnotationKey = "instance-status"
 type instanceStatus *clusterv1.Machine
 
 // Get the status of the instance identified by the given machine
-func (a *BaremetalActuator) instanceStatus(machine *clusterv1.Machine) (instanceStatus, error) {
+func (a *VsphereActuator) instanceStatus(machine *clusterv1.Machine) (instanceStatus, error) {
 	currentMachine, err := util.GetCurrentMachineIfExists(a.machineClient, machine)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (a *BaremetalActuator) instanceStatus(machine *clusterv1.Machine) (instance
 }
 
 // Sets the status of the instance identified by the given machine to the given machine
-func (a *BaremetalActuator) updateInstanceStatus(machine *clusterv1.Machine) error {
+func (a *VsphereActuator) updateInstanceStatus(machine *clusterv1.Machine) error {
 	status := instanceStatus(machine)
 	currentMachine, err := util.GetCurrentMachineIfExists(a.machineClient, machine)
 	if err != nil {
@@ -56,7 +56,7 @@ func (a *BaremetalActuator) updateInstanceStatus(machine *clusterv1.Machine) err
 }
 
 // Gets the state of the instance stored on the given machine CRD
-func (a *BaremetalActuator) machineInstanceStatus(machine *clusterv1.Machine) (instanceStatus, error) {
+func (a *VsphereActuator) machineInstanceStatus(machine *clusterv1.Machine) (instanceStatus, error) {
 	if machine.ObjectMeta.Annotations == nil {
 		// No state
 		return nil, nil
@@ -79,7 +79,7 @@ func (a *BaremetalActuator) machineInstanceStatus(machine *clusterv1.Machine) (i
 }
 
 // Applies the state of an instance onto a given machine CRD
-func (a *BaremetalActuator) setMachineInstanceStatus(machine *clusterv1.Machine, status instanceStatus) (*clusterv1.Machine, error) {
+func (a *VsphereActuator) setMachineInstanceStatus(machine *clusterv1.Machine, status instanceStatus) (*clusterv1.Machine, error) {
 	// Avoid status within status within status ...
 	status.ObjectMeta.Annotations[InstanceStatusAnnotationKey] = ""
 

@@ -41,6 +41,7 @@ import (
 	k8scoredns "k8s.io/kops/dnsprovider/pkg/dnsprovider/providers/coredns"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cloudinstances"
+	"k8s.io/kops/pkg/values"
 	"k8s.io/kops/upup/pkg/fi"
 )
 
@@ -71,12 +72,20 @@ func (c *VSphereCloud) ProviderID() kops.CloudProviderID {
 
 // NewVSphereCloud returns VSphereCloud instance for given ClusterSpec.
 func NewVSphereCloud(spec *kops.ClusterSpec) (*VSphereCloud, error) {
-	server := *spec.CloudConfig.VSphereServer
-	datacenter := *spec.CloudConfig.VSphereDatacenter
-	cluster := *spec.CloudConfig.VSphereResourcePool
+	cloudConfig := spec.CloudConfig
+	if spec.CloudConfig == nil {
+		cloudConfig = &kops.CloudConfiguration{}
+	}
+	server := os.Getenv("VSPHERE_SERVER") // values.StringValue(cloudConfig.VSphereServer)
+	if server == "" {
+		return nil, fmt.Errorf("vSphere server not set.  Please set VSphereServer in cloudconfig.")
+	}
+
+	datacenter := values.StringValue(cloudConfig.VSphereDatacenter)
+	cluster := values.StringValue(cloudConfig.VSphereResourcePool)
 	glog.V(2).Infof("Creating vSphere Cloud with server(%s), datacenter(%s), cluster(%s)", server, datacenter, cluster)
 
-	dns_server := *spec.CloudConfig.VSphereCoreDNSServer
+	dns_server := values.StringValue(cloudConfig.VSphereCoreDNSServer)
 	dns_zone := spec.DNSZone
 	username := os.Getenv("VSPHERE_USERNAME")
 	password := os.Getenv("VSPHERE_PASSWORD")
@@ -100,8 +109,8 @@ func NewVSphereCloud(spec *kops.ClusterSpec) (*VSphereCloud, error) {
 	// Add retry functionality
 	c.RoundTripper = vim25.Retry(c.RoundTripper, vim25.TemporaryNetworkError(5))
 	vsphereCloud := &VSphereCloud{Server: server, Datacenter: datacenter, Cluster: cluster, Username: username, Password: password, Client: c, CoreDNSServer: dns_server, DNSZone: dns_zone}
-	spec.CloudConfig.VSphereUsername = fi.String(username)
-	spec.CloudConfig.VSpherePassword = fi.String(password)
+	cloudConfig.VSphereUsername = fi.String(username)
+	cloudConfig.VSpherePassword = fi.String(password)
 	glog.V(2).Infof("Created vSphere Cloud successfully: %+v", vsphereCloud)
 	return vsphereCloud, nil
 }
@@ -315,8 +324,8 @@ func (c *VSphereCloud) UploadAndAttachISO(vm *string, isoFile string) error {
 
 }
 
-// Returns VM's instance uuid
-func (c *VSphereCloud) FindVMUUID(vm *string) (string, error) {
+// FindVMUUID returns VM's instance uuid
+func (c *VSphereCloud) FindVMUUID(vm string) (string, error) {
 	f := find.NewFinder(c.Client.Client, true)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -327,7 +336,7 @@ func (c *VSphereCloud) FindVMUUID(vm *string) (string, error) {
 	}
 	f.SetDatacenter(dc)
 
-	vmRef, err := f.VirtualMachine(ctx, *vm)
+	vmRef, err := f.VirtualMachine(ctx, vm)
 	if err != nil {
 		return "", err
 	}
@@ -340,7 +349,7 @@ func (c *VSphereCloud) FindVMUUID(vm *string) (string, error) {
 		return "", err
 	}
 	glog.V(4).Infof("vm property collector result :%+v\n", vmResult)
-	glog.V(3).Infof("retrieved vm uuid as %q for vm %q", vmResult.Config.Uuid, *vm)
+	glog.V(3).Infof("retrieved vm uuid as %q for vm %q", vmResult.Config.Uuid, vm)
 	return vmResult.Config.Uuid, nil
 }
 

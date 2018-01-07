@@ -20,11 +20,13 @@ import (
 	goflag "flag"
 	"fmt"
 	"os"
+
 	"github.com/spf13/pflag"
 	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/apiserver/pkg/util/logs"
-	"k8s.io/kops/machine-controller/pkg/controller"
 	"k8s.io/kops"
+	"k8s.io/kops/machine-controller/pkg/controller"
+	"k8s.io/kops/machine-controller/pkg/config"
 )
 
 func main() {
@@ -38,7 +40,7 @@ func main() {
 	}
 	fmt.Printf("machine-controller version %s\n", version)
 
-	c := controller.NewConfiguration()
+	c := config.NewConfiguration()
 	c.AddFlags(pflag.CommandLine)
 
 	flag.InitFlags()

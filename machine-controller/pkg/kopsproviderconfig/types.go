@@ -29,6 +29,7 @@ type KopsProviderConfig struct {
 	//MachineType string `json:"machineType"`
 	//Image       string `json:"image"`
 
-	Target string `json:"target"`
+	Target        string `json:"target"`
 	InstanceGroup string `json:"instanceGroup"`
+	Controller    string `json:"controller"`
 }

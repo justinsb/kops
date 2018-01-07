@@ -109,7 +109,7 @@ func (_ *AttachISO) RenderVSphere(t *vsphere.VSphereAPITarget, a, e, changes *At
 	defer os.RemoveAll(dir)
 
 	// Need this in cloud config file for vSphere CloudProvider
-	vmUUID, err := t.Cloud.FindVMUUID(changes.VM.Name)
+	vmUUID, err := t.Cloud.FindVMUUID(fi.StringValue(e.VM.Name))
 	if err != nil {
 		return err
 	}

@@ -78,7 +78,9 @@ func (p *SSHPath) newClient() (*sftp.Client, error) {
 			return nil, fmt.Errorf("error creating sftp client (at stdout pipe): %v", err)
 		}
 
-		err = s.Start("sudo /usr/lib/openssh/sftp-server")
+		//err = s.Start("sudo /usr/lib/openssh/sftp-server")
+		// TODO: Detect CoreOS?
+		err = s.Start("sudo /usr/lib/misc/sftp-server")
 		if err != nil {
 			return nil, fmt.Errorf("error creating sftp client (executing 'sudo /usr/lib/openssh/sftp-server'): %v", err)
 		}

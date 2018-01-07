@@ -15,6 +15,7 @@ go_library(
         "//dnsprovider/pkg/dnsprovider/providers/coredns:go_default_library",
         "//pkg/apis/kops:go_default_library",
         "//pkg/cloudinstances:go_default_library",
+        "//pkg/values:go_default_library",
         "//upup/pkg/fi:go_default_library",
         "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",

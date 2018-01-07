@@ -17,12 +17,12 @@ limitations under the License.
 package util
 
 import (
-	"k8s.io/apimachinery/pkg/types"
+	"github.com/golang/glog"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "k8s.io/kube-deploy/cluster-api/api/cluster/v1alpha1"
 	"k8s.io/kube-deploy/cluster-api/client"
-	"github.com/golang/glog"
 )
 
 //const (

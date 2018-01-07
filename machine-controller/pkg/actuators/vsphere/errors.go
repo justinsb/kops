@@ -1,4 +1,4 @@
-package baremetal
+package vsphere
 
 import (
 	"github.com/golang/glog"
@@ -10,7 +10,7 @@ import (
 // the appropriate reason/message on the Machine.Status. If not, such as during
 // cluster installation, it will operate as a no-op. It also returns the
 // original error for convenience, so callers can do "return handleMachineError(...)".
-func (a *BaremetalActuator) handleMachineError(machine *clusterv1.Machine, err *apierrors.MachineError) error {
+func (a *VsphereActuator) handleMachineError(machine *clusterv1.Machine, err *apierrors.MachineError) error {
 	if a.machineClient != nil {
 		reason := err.Reason
 		message := err.Message

@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "asyncrunner.go",
         "client.go",
-        "configuration.go",
         "machinecontroller.go",
         "nodewatcher.go",
     ],
@@ -13,12 +12,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//machine-controller/pkg/actuators:go_default_library",
+        "//machine-controller/pkg/config:go_default_library",
         "//machine-controller/pkg/util:go_default_library",
         "//pkg/client/simple:go_default_library",
         "//pkg/client/simple/vfsclientset:go_default_library",
         "//util/pkg/vfs:go_default_library",
         "//vendor/github.com/golang/glog:go_default_library",
-        "//vendor/github.com/spf13/pflag:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/fields:go_default_library",
