@@ -35,7 +35,13 @@
   name = "github.com/chai2010/gettext-go"
   revision = "bf70f2a70fb1b1f36d90d671a72795984eab0fcb"
 
+# aws-sdk-go is one of our critical dependencies
+[[override]]
+  name = "github.com/aws/aws-sdk-go"
+  revision = "63ce630574a5ec05ecd8e8de5cea16332a5a684d"
 
+
+# These come from godeps.json in kubernetes
 [[override]]
   name = "github.com/hashicorp/hcl"
   revision = "d8c773c4cba11b11539e3d45f93daeaa5dcf1fa1"
@@ -57,9 +63,6 @@
 [[override]]
   name = "github.com/gogo/protobuf"
   revision = "c0656edd0d9eab7c66d1eb0c568f9039345796f7"
-[[override]]
-  name = "github.com/aws/aws-sdk-go"
-  revision = "760741802ad40f49ae9fc4a69ef6706d2527d62e"
 [[override]]
   name = "golang.org/x/sys"
   revision = "95c6576299259db960f6c5b9b69ea52422860fce"
@@ -85,7 +88,6 @@
 [[override]]
   name = "k8s.io/kube-openapi"
   revision = "39a7bf85c140f972372c2a0d1ee40adbf0c8bfe1"
-# UNKNOWN dep github.com/digitalocean/godo
 [[override]]
   name = "github.com/NYTimes/gziphandler"
   revision = "56545f4a5d46df9a6648819d1664c3a03a13ffdb"
@@ -110,7 +112,6 @@
 [[override]]
   name = "github.com/googleapis/gnostic"
   revision = "0c5108395e2debce0d731cf0287ddf7242066aba"
-# UNKNOWN dep github.com/huandu/xstrings
 [[override]]
   name = "github.com/inconshreveable/mousetrap"
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
@@ -127,9 +128,6 @@
 [[override]]
   name = "github.com/pborman/uuid"
   revision = "ca53cad383cad2479bbba7f7a1a05797ec1386e4"
-[[override]]
-  name = "github.com/go-ini/ini"
-  revision = "300e940a926eb277d3901b20bdfcc54928ad3642"
 [[override]]
   name = "github.com/vmware/govmomi"
   revision = "b8b228cfbad7f0a69ed90393ca9aee085d3c6ef1"
@@ -186,15 +184,12 @@
 [[override]]
   name = "github.com/pkg/errors"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-# UNKNOWN dep github.com/satori/go.uuid
-# UNKNOWN dep github.com/docker/engine-api
 [[override]]
   name = "github.com/golang/glog"
   revision = "44145f04b68cf362d9c4df2182967c2275eaefed"
 [[override]]
   name = "k8s.io/client-go"
   revision = "9389c055a838d4f208b699b3c7c51b70f2368861"
-# UNKNOWN dep github.com/miekg/coredns
 [[override]]
   name = "github.com/docker/go-units"
   revision = "9e638d38cf6977a37a8ea0078f3ee75a7cdb2dd1"
@@ -250,14 +245,12 @@
 [[override]]
   name = "github.com/pelletier/go-toml"
   revision = "0049ab3dc4c4c70a9eee23087437b69c0dde2130"
-# UNKNOWN dep github.com/Masterminds/semver
 [[override]]
   name = "github.com/google/gofuzz"
   revision = "44d81051d367757e1c7c6a5a86423ece9afcf63c"
 [[override]]
   name = "github.com/golang/protobuf"
   revision = "1643683e1b54a9e88ad26d98f81400c8c9d9f4f9"
-# UNKNOWN dep github.com/sergi/go-diff
 [[override]]
   name = "github.com/jonboulle/clockwork"
   revision = "72f9bd7c4e0c2a40055ab3d0f09654f730cce982"
@@ -294,7 +287,6 @@
 [[override]]
   name = "github.com/blang/semver"
   revision = "b38d23b8782a487059e8fc8773e9a5b228a77cb6"
-# UNKNOWN dep github.com/Sirupsen/logrus
 [[override]]
   name = "github.com/docker/go-connections"
   revision = "3ede32e2033de7505e6500d6c868c2b9ed9f169d"
@@ -329,7 +321,6 @@
 [[override]]
   name = "github.com/juju/ratelimit"
   revision = "5b9ff866471762aa2ab2dced63c9fb6f53921342"
-# UNKNOWN dep github.com/weaveworks/mesh
 [[override]]
   name = "github.com/davecgh/go-spew"
   revision = "782f4967f2dc4564575ca782fe2d04090b5faca8"
@@ -342,10 +333,65 @@
 [[override]]
   name = "github.com/hashicorp/golang-lru"
   revision = "a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4"
-# UNKNOWN dep github.com/Masterminds/sprig
 [[override]]
   name = "github.com/coreos/etcd"
   revision = "960f4604bc821241b94906da5fe7f66306a77472"
 [[override]]
   name = "vbom.ml/util"
   revision = "db5cfe13f5cc80a4990d98e2e1b0707a4d1a5394"
+
+
+
+
+# These are our dependencies, with the versions we previously locked to with submodules
+[[override]]
+  name = "github.com/Masterminds/semver"
+  revision = "517734cc7d6470c0d07130e40fd40bdeb9bcd3fd"
+[[override]]
+  name = "github.com/Masterminds/sprig"
+  revision = "e039e20e500c2c025d9145be375e27cf42a94174"
+[[override]]
+  name = "github.com/coreos/pkg"
+  revision = "fa29b1d70f0beaddd4c7021607cc3c3be8ce94b8"
+[[override]]
+  name = "github.com/digitalocean/godo"
+  revision = "34840385860db94c88d044571153b6a200ca40b2"
+[[override]]
+  name = "github.com/docker/engine-api"
+  revision = "dea108d3aa0c67d7162a3fd8aa65f38a430019fd"
+[[override]]
+  name = "github.com/grpc-ecosystem/go-grpc-prometheus"
+  revision = "2500245aa6110c562d17020fb31a2c133d737799"
+[[override]]
+  name = "github.com/grpc-ecosystem/grpc-gateway"
+  revision = "84398b94e188ee336f307779b57b3aa91af7063c"
+[[override]]
+  name = "github.com/huandu/xstrings"
+  revision = "3959339b333561bf62a38b424fd41517c2c90f40"
+[[override]]
+  name = "github.com/miekg/coredns"
+  revision = "20e25559d5eada5a68a0720816a6e947b94860ce"
+[[override]]
+  name = "github.com/opencontainers/go-digest"
+  revision = "a6d0ee40d4207ea02364bd3b9e8e77b9159ba1eb"
+[[override]]
+  name = "github.com/opencontainers/image-spec"
+  revision = "372ad780f63454fbbbbcc7cf80e5b90245c13e13"
+[[override]]
+  name = "github.com/pelletier/go-buffruneio"
+  revision = "df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d"
+[[override]]
+  name = "github.com/satori/go.uuid"
+  revision = "5bf94b69c6b68ee1b541973bb8e1144db23a194b"
+[[override]]
+  name = "github.com/sergi/go-diff"
+  revision = "552b4e9bbdca9e5adafd95ee98c822fdd11b330b"
+[[override]]
+  name = "github.com/shurcooL/sanitized_anchor_name"
+  revision = "10ef21a441db47d8b13ebcc5fd2310f636973c77"
+[[override]]
+  name = "github.com/sirupsen/logrus"
+  revision = "89742aefa4b206dcf400792f3bd35b542998eb3b"
+[[override]]
+  name = "github.com/weaveworks/mesh"
+  revision = "1f158d31de55abf9f97bbaa0a260e2b8023a3785"
