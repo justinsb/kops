@@ -51,7 +51,7 @@ for godep in godeps['Deps']:
 dep_status_map = {}
 for dep in dep_status:
   #print("%s %s" % (godep['ImportPath'], godep['Rev']))
-  dep_status_map[dep['ProjectRoot']] = dep['Latest']
+  dep_status_map[dep['ProjectRoot']] = dep['Revision']
 
 
 for dep in dep_status_map:
