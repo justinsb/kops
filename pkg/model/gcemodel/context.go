@@ -70,3 +70,8 @@ func (c *GCEModelContext) NameForIPAddress(id string) string {
 func (c *GCEModelContext) NameForFirewallRule(id string) string {
 	return c.SafeObjectName(id)
 }
+
+// UseIPAliases determines whether IP aliases are being used for CIDR to pod mappings
+func (c *GCEModelContext) UseIPAliases() bool {
+	return true
+}

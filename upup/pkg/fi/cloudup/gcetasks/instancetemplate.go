@@ -55,8 +55,9 @@ type InstanceTemplate struct {
 	BootDiskSizeGB *int64
 	BootDiskType   *string
 
-	CanIPForward *bool
-	Subnet       *Subnet
+	CanIPForward  *bool
+	Subnet        *Subnet
+	AliasIPRanges map[string]string
 
 	Scopes []string
 
@@ -122,6 +123,13 @@ func (e *InstanceTemplate) Find(c *fi.Context) (*InstanceTemplate, error) {
 		if len(p.NetworkInterfaces) != 0 {
 			ni := p.NetworkInterfaces[0]
 			actual.Network = &Network{Name: fi.String(lastComponent(ni.Network))}
+
+			if len(ni.AliasIpRanges) != 0 {
+				actual.AliasIPRanges = make(map[string]string)
+				for _, aliasIPRange := range ni.AliasIpRanges {
+					actual.AliasIPRanges[aliasIPRange.SubnetworkRangeName] = aliasIPRange.IpCidrRange
+				}
+			}
 		}
 
 		for _, serviceAccount := range p.ServiceAccounts {
@@ -248,6 +256,14 @@ func (e *InstanceTemplate) mapToGCE(project string) (*compute.InstanceTemplate, 
 	}
 	if e.Subnet != nil {
 		ni.Subnetwork = *e.Subnet.Name
+	}
+	if e.NetworkAliases != nil {
+		for k, v := range e.NetworkAliases {
+			ni.AliasIpRanges = append(ni.AliasIpRanges, &compute.AliasIpRange{
+				SubnetworkRangeName: k,
+				IpCidrRange:         v,
+			})
+		}
 	}
 	networkInterfaces = append(networkInterfaces, ni)
 

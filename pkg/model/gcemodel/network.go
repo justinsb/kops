@@ -37,5 +37,19 @@ func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 	c.AddTask(network)
 
+	if b.UseIPAliases() {
+		subnet := &gcetasks.Subnet{
+			Name:      s(b.NameForIPAliasSubnet()),
+			Network:   b.LinkToNetwork(),
+			Lifecycle: b.Lifecycle,
+			Region:    b.Region,
+			Range: b.NodeIPRange(),
+			SecondaryRanges: map[string]string{
+				"pods-default": b.ClusterIPRange(),
+				"services-default": b.ServiceClusterIPRange(),
+			}
+		}
+		c.AddTask(subnet)
+	}
 	return nil
 }
