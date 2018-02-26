@@ -716,3 +716,12 @@ bazel-version-dist: bazel-crossbuild-nodeup bazel-crossbuild-kops bazel-protokub
 .PHONY: bazel-upload
 bazel-upload: bazel-version-dist # Upload kops to S3
 	aws s3 sync --acl public-read ${BAZELUPLOAD}/ ${S3_BUCKET}
+
+#-----------------------------------------------------------
+# machine-controller
+
+.PHONY: push-machine-controller
+push-machine-controller:
+	bazel run //machine-controller/images:kops-machine-controller
+	docker tag bazel/machine-controller/images:kops-machine-controller ${DOCKER_REGISTRY}/kops-machine-controller:${DOCKER_TAG}
+	docker push ${DOCKER_REGISTRY}/kops-machine-controller:${DOCKER_TAG}

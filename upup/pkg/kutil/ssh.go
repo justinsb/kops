@@ -49,6 +49,9 @@ func AddSSHIdentity(sshConfig *ssh.ClientConfig, p string) error {
 }
 
 func (m *NodeSSH) dial() (*ssh.Client, error) {
+	if m.Hostname == "" {
+		return nil, fmt.Errorf("cannot SSH; Hostname not set")
+	}
 	users := []string{"admin", "ubuntu"}
 	if m.SSHConfig.User != "" {
 		users = []string{m.SSHConfig.User}

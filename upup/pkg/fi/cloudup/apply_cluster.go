@@ -40,6 +40,7 @@ import (
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/model/awsmodel"
+	"k8s.io/kops/pkg/model/baremetalmodel"
 	"k8s.io/kops/pkg/model/components"
 	"k8s.io/kops/pkg/model/domodel"
 	"k8s.io/kops/pkg/model/gcemodel"
@@ -468,7 +469,7 @@ func (c *ApplyClusterCmd) Run() error {
 	for _, m := range c.Models {
 		switch m {
 		case "proto":
-		// No proto code options; no file model
+			// No proto code options; no file model
 
 		case "cloudup":
 			templates, err := templates.LoadTemplates(cluster, models.NewAssetPath("cloudup/resources"))
@@ -545,7 +546,6 @@ func (c *ApplyClusterCmd) Run() error {
 				// No special settings (yet!)
 
 			case kops.CloudProviderBareMetal:
-				// No special settings (yet!)
 
 			case kops.CloudProviderOpenstack:
 
@@ -621,7 +621,13 @@ func (c *ApplyClusterCmd) Run() error {
 		}
 
 	case kops.CloudProviderBareMetal:
-		// BareMetal tasks will go here
+		baremetalModelContext := &baremetalmodel.BaremetalModelContext{
+			KopsModelContext: modelContext,
+		}
+
+		l.Builders = append(l.Builders,
+			&baremetalmodel.BundleModelBuilder{BaremetalModelContext: baremetalModelContext, BootstrapScript: bootstrapScriptBuilder, Lifecycle: &clusterLifecycle},
+		)
 
 	case kops.CloudProviderOpenstack:
 

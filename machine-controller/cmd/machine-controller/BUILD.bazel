@@ -1,0 +1,27 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "k8s.io/kops/machine-controller/cmd/machine-controller",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//:go_default_library",
+        "//machine-controller/pkg/config:go_default_library",
+        "//machine-controller/pkg/controller:go_default_library",
+        "//vendor/github.com/spf13/pflag:go_default_library",
+        "//vendor/k8s.io/apiserver/pkg/util/flag:go_default_library",
+        "//vendor/k8s.io/apiserver/pkg/util/logs:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "machine-controller",
+    embed = [":go_default_library"],
+    importpath = "k8s.io/kops/machine-controller/cmd/machine-controller",
+    visibility = ["//visibility:public"],
+    x_defs = {
+        "k8s.io/kops.Version": "1.8.0",  # keep
+        "k8s.io/kops.GitVersion": "{BUILD_SCM_REVISION}",  # keep
+    },
+)

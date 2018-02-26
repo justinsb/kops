@@ -58,7 +58,7 @@ if [[ -z "${VERSION}" ]]; then
   fi
 fi
 
-echo "KOPS_VERSION ${VERSION}"
+echo "STABLE_KOPS_VERSION ${VERSION}"
 
 
 PROTOKUBE_TAG=${VERSION/+/-}

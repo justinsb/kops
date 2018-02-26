@@ -64,9 +64,12 @@ func run() error {
 	var flagChannels, tlsCert, tlsKey, tlsCA, peerCert, peerKey, peerCA string
 	var etcdBackupImage, etcdBackupStore, etcdImageSource, etcdElectionTimeout, etcdHeartbeatInterval string
 
+	manageEtcd := true
+
 	flag.BoolVar(&applyTaints, "apply-taints", applyTaints, "Apply taints to nodes based on the role")
 	flag.BoolVar(&containerized, "containerized", containerized, "Set if we are running containerized.")
 	flag.BoolVar(&initializeRBAC, "initialize-rbac", initializeRBAC, "Set if we should initialize RBAC")
+	flag.BoolVar(&manageEtcd, "manage-etcd", manageEtcd, "Set if we should manage etcd")
 	flag.BoolVar(&master, "master", master, "Whether or not this node is a master")
 	flag.StringVar(&cloud, "cloud", "aws", "CloudProvider we are using (aws,gce)")
 	flag.StringVar(&clusterID, "cluster-id", clusterID, "Cluster ID")
@@ -142,6 +145,11 @@ func run() error {
 		}
 
 	} else if cloud == "baremetal" {
+		if manageEtcd {
+			glog.Errorf("cannot manage etcd on baremetal - use external etcd-manager")
+			os.Exit(1)
+		}
+
 		if internalIP == nil {
 			ip, err := findInternalIP()
 			if err != nil {
@@ -186,7 +194,9 @@ func run() error {
 
 	var dnsProvider protokube.DNSProvider
 
-	if dnsProviderID == "gossip" {
+	if dnsProviderID == "none" {
+
+	} else if dnsProviderID == "gossip" {
 		dnsTarget := &gossipdns.HostsFile{
 			Path: path.Join(rootfs, "etc/hosts"),
 		}
@@ -306,6 +316,7 @@ func run() error {
 		InternalDNSSuffix:     dnsInternalSuffix,
 		InternalIP:            internalIP,
 		Kubernetes:            protokube.NewKubernetesContext(),
+		ManageEtcd:            manageEtcd,
 		Master:                master,
 		ModelDir:              modelDir,
 		PeerCA:                peerCA,
