@@ -216,7 +216,7 @@ func (c *VFSCAStore) buildPrivateKeyPath(name string, id string) vfs.Path {
 	return c.basedir.Join("private", name, id+".key")
 }
 
-func (c *VFSCAStore) parseKeysetYaml(data []byte) (*kops.Keyset, error) {
+func (c *VFSCAStore) parseKeysetYaml(data []byte) (*kops.Keyset, KeysetFormat, error) {
 	codecs := kopscodecs.Codecs
 	yaml, ok := runtime.SerializerInfoForMediaType(codecs.SupportedMediaTypes(), "application/yaml")
 	if !ok {
@@ -226,16 +226,21 @@ func (c *VFSCAStore) parseKeysetYaml(data []byte) (*kops.Keyset, error) {
 
 	defaultReadVersion := v1alpha2.SchemeGroupVersion.WithKind("Keyset")
 
-	object, _, err := decoder.Decode(data, &defaultReadVersion, nil)
+	object, gvk, err := decoder.Decode(data, &defaultReadVersion, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing keyset: %v", err)
+		return nil, "", fmt.Errorf("error parsing keyset: %v", err)
 	}
 
 	keyset, ok := object.(*kops.Keyset)
 	if !ok {
-		return nil, fmt.Errorf("object was not a keyset, was a %T", object)
+		return nil, "", fmt.Errorf("object was not a keyset, was a %T", object)
 	}
-	return keyset, nil
+
+	if gvk == nil {
+		return nil, "", fmt.Errorf("object did not have GroupVersionKind: %q", keyset.Name)
+	}
+
+	return keyset, KeysetFormat(gvk.Version), nil
 }
 
 // loadCertificatesBundle loads a keyset from the path
@@ -251,7 +256,7 @@ func (c *VFSCAStore) loadKeysetBundle(p vfs.Path) (*keyset, error) {
 		}
 	}
 
-	o, err := c.parseKeysetYaml(data)
+	o, format, err := c.parseKeysetYaml(data)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing bundle %q: %v", p, err)
 	}
@@ -261,6 +266,7 @@ func (c *VFSCAStore) loadKeysetBundle(p vfs.Path) (*keyset, error) {
 		return nil, fmt.Errorf("error mapping bundle %q: %v", p, err)
 	}
 
+	keyset.format = format
 	return keyset, nil
 }
 
@@ -416,6 +422,7 @@ func (c *VFSCAStore) loadCertificates(p vfs.Path, useBundle bool) (*keyset, erro
 		return nil, nil
 	}
 
+	keyset.format = KeysetFormatLegacy
 	keyset.primary = keyset.findPrimary()
 
 	return keyset, nil
@@ -452,36 +459,40 @@ func (c *VFSCAStore) CertificatePool(id string, createIfMissing bool) (*Certific
 
 }
 
-func (c *VFSCAStore) FindKeypair(id string) (*pki.Certificate, *pki.PrivateKey, error) {
-	cert, err := c.FindCert(id)
+func (c *VFSCAStore) FindKeypair(id string) (*pki.Certificate, *pki.PrivateKey, KeysetFormat, error) {
+	cert, certFormat, err := c.findCert(id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 
 	key, err := c.FindPrivateKey(id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 
-	return cert, key, nil
+	return cert, key, certFormat, nil
 }
 
 func (c *VFSCAStore) FindCert(name string) (*pki.Certificate, error) {
+	cert, _, err := c.findCert(name)
+	return cert, err
+}
+
+func (c *VFSCAStore) findCert(name string) (*pki.Certificate, KeysetFormat, error) {
 	var certs *keyset
 
 	var err error
 	p := c.buildCertificatePoolPath(name)
 	certs, err = c.loadCertificates(p, true)
 	if err != nil {
-		return nil, fmt.Errorf("error in 'FindCert' attempting to load cert %q: %v", name, err)
+		return nil, "", fmt.Errorf("error in 'FindCert' attempting to load cert %q: %v", name, err)
 	}
 
-	var cert *pki.Certificate
 	if certs != nil && certs.primary != nil {
-		cert = certs.primary.certificate
+		return certs.primary.certificate, certs.format, nil
 	}
 
-	return cert, nil
+	return nil, "", nil
 }
 
 func (c *VFSCAStore) FindCertificatePool(name string) (*CertificatePool, error) {
@@ -556,6 +567,10 @@ func (c *VFSCAStore) ListKeysets() ([]*kops.Keyset, error) {
 				continue
 			}
 
+			if tokens[1] == "keyset.yaml" {
+				continue
+			}
+
 			name := tokens[0]
 			keyset := keysets[name]
 			if keyset == nil {
@@ -616,6 +631,61 @@ func (c *VFSCAStore) ListSSHCredentials() ([]*kops.SSHCredential, error) {
 	return items, nil
 }
 
+// loadFullKeyset loads a keyset (certs and keys) by name, returning an error if not found
+func (c *VFSCAStore) loadFullKeyset(name string) (*kops.Keyset, error) {
+	certs, err := c.FindCertificateKeyset(name)
+	if err != nil {
+		return nil, err
+	}
+	if certs == nil {
+		return nil, fmt.Errorf("unable to find certificate %q", name)
+	}
+
+	pks, err := c.FindPrivateKeyset(name)
+	if err != nil {
+		return nil, err
+	}
+	if pks == nil {
+		return nil, fmt.Errorf("unable to find private keys %q", name)
+	}
+
+	// Merge the PrivateMaterial and the PublicMaterial
+	merged := *certs
+	keysetItems := make(map[string]*kops.KeysetItem)
+	for i := range merged.Spec.Keys {
+		keysetItems[merged.Spec.Keys[i].Id] = &merged.Spec.Keys[i]
+	}
+
+	for i := range pks.Spec.Keys {
+		ki := keysetItems[pks.Spec.Keys[i].Id]
+		if ki == nil {
+			merged.Spec.Keys = append(merged.Spec.Keys, pks.Spec.Keys[i])
+		} else {
+			ki.PrivateMaterial = pks.Spec.Keys[i].PrivateMaterial
+		}
+	}
+
+	return &merged, nil
+}
+
+// UpdateFormat implements Keystore::UpdateFormat
+func (c *VFSCAStore) UpdateFormat(name string, format KeysetFormat) error {
+	if format == KeysetFormatLegacy {
+		return fmt.Errorf("cannot downgrade to legacy format")
+	}
+
+	keyset, err := c.loadFullKeyset(name)
+	if err != nil {
+		return err
+	}
+
+	if err := writeKeyset(c.cluster, c.basedir, keyset); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // MirrorTo will copy keys to a vfs.Path, which is often easier for a machine to read
 func (c *VFSCAStore) MirrorTo(basedir vfs.Path) error {
 	if basedir.Path() == c.basedir.Path() {
@@ -628,8 +698,12 @@ func (c *VFSCAStore) MirrorTo(basedir vfs.Path) error {
 		return err
 	}
 
-	for _, keyset := range keysets {
-		if err := mirrorKeyset(c.cluster, basedir, keyset); err != nil {
+	for _, stub := range keysets {
+		keyset, err := c.loadFullKeyset(stub.Name)
+		if err != nil {
+			return err
+		}
+		if err := writeKeyset(c.cluster, basedir, keyset); err != nil {
 			return err
 		}
 	}
@@ -648,8 +722,8 @@ func (c *VFSCAStore) MirrorTo(basedir vfs.Path) error {
 	return nil
 }
 
-// mirrorKeyset writes keyset bundles for the certificates & privatekeys
-func mirrorKeyset(cluster *kops.Cluster, basedir vfs.Path, keyset *kops.Keyset) error {
+// writeKeyset writes keyset bundles for the certificates & privatekeys
+func writeKeyset(cluster *kops.Cluster, basedir vfs.Path, keyset *kops.Keyset) error {
 	primary := FindPrimary(keyset)
 	if primary == nil {
 		return fmt.Errorf("found keyset with no primary data: %s", keyset.Name)

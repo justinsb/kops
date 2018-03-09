@@ -33,6 +33,13 @@ const (
 	SecretNameSSHPrimary = "admin"
 )
 
+type KeysetFormat string
+
+const (
+	KeysetFormatLegacy   KeysetFormat = "legacy"
+	KeysetFormatV1Alpha2 KeysetFormat = "v1alpha2"
+)
+
 type KeystoreItem struct {
 	Type kops.KeysetType
 	Name string
@@ -44,7 +51,7 @@ type KeystoreItem struct {
 type Keystore interface {
 	// FindKeypair finds a cert & private key, returning nil where either is not found
 	// (if the certificate is found but not keypair, that is not an error: only the cert will be returned)
-	FindKeypair(name string) (*pki.Certificate, *pki.PrivateKey, error)
+	FindKeypair(name string) (*pki.Certificate, *pki.PrivateKey, KeysetFormat, error)
 
 	CreateKeypair(signer string, name string, template *x509.Certificate, privateKey *pki.PrivateKey) (*pki.Certificate, error)
 
@@ -53,6 +60,9 @@ type Keystore interface {
 
 	// MirrorTo will copy secrets to a vfs.Path, which is often easier for a machine to read
 	MirrorTo(basedir vfs.Path) error
+
+	// UpdateFormat will change the stored format of the named keyset
+	UpdateFormat(name string, format KeysetFormat) error
 }
 
 // HasVFSPath is implemented by keystore & other stores that use a VFS path as their backing store

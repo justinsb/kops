@@ -51,6 +51,8 @@ type Keypair struct {
 	Subject string `json:"subject"`
 	// Type the type of certificate i.e. CA, server, client etc
 	Type string `json:"type"`
+	// Format is the version the keypair is stored in
+	Format string
 }
 
 var _ fi.HasCheckExisting = &Keypair{}
@@ -73,7 +75,7 @@ func (e *Keypair) Find(c *fi.Context) (*Keypair, error) {
 		return nil, nil
 	}
 
-	cert, key, err := c.Keystore.FindKeypair(name)
+	cert, key, certFormat, err := c.Keystore.FindKeypair(name)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +99,7 @@ func (e *Keypair) Find(c *fi.Context) (*Keypair, error) {
 		AlternateNames: alternateNames,
 		Subject:        pkixNameToString(&cert.Subject),
 		Type:           buildTypeDescription(cert.Certificate),
+		Format:         string(certFormat),
 	}
 
 	actual.Signer = &Keypair{Subject: pkixNameToString(&cert.Certificate.Issuer)}
@@ -170,6 +173,7 @@ func (_ *Keypair) Render(c *fi.Context, a, e, changes *Keypair) error {
 		return err
 	}
 
+	changeStoredFormat := false
 	createCertificate := false
 	if a == nil {
 		createCertificate = true
@@ -180,6 +184,8 @@ func (_ *Keypair) Render(c *fi.Context, a, e, changes *Keypair) error {
 			createCertificate = true
 		} else if changes.Type != "" {
 			createCertificate = true
+		} else if changes.Format != "" {
+			changeStoredFormat = true
 		} else {
 			glog.Warningf("Ignoring changes in key: %v", fi.DebugAsJsonString(changes))
 		}
@@ -188,7 +194,7 @@ func (_ *Keypair) Render(c *fi.Context, a, e, changes *Keypair) error {
 	if createCertificate {
 		glog.V(2).Infof("Creating PKI keypair %q", name)
 
-		cert, privateKey, err := c.Keystore.FindKeypair(name)
+		cert, privateKey, _, err := c.Keystore.FindKeypair(name)
 		if err != nil {
 			return err
 		}
@@ -212,10 +218,25 @@ func (_ *Keypair) Render(c *fi.Context, a, e, changes *Keypair) error {
 			return err
 		}
 
-		glog.V(8).Infof("created certificate %v", cert)
+		_, _, createdFormat, err := c.Keystore.FindKeypair(name)
+		if err != nil {
+			return err
+		}
+
+		if string(createdFormat) != e.Format {
+			return fmt.Errorf("certificate was not created in expected format: actual=%q expected=%q", createdFormat, e.Format)
+		}
+
+		glog.V(8).Infof("created certificate with cn=%s", cert.Subject.CommonName)
 	}
 
 	// TODO: Check correct subject / flags
+
+	if changeStoredFormat {
+		if err := c.Keystore.UpdateFormat(name, fi.KeysetFormat(e.Format)); err != nil {
+			return fmt.Errorf("unable to update format: %v", err)
+		}
+	}
 
 	return nil
 }
