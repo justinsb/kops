@@ -29,6 +29,7 @@ import (
 	"k8s.io/kops/pkg/kubeconfig"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/nodeup/nodetasks"
+	"k8s.io/kops/util/pkg/vfs"
 )
 
 // NodeupModelContext is the context supplied the nodeup tasks
@@ -42,6 +43,7 @@ type NodeupModelContext struct {
 	KeyStore      fi.CAStore
 	NodeupConfig  *nodeup.Config
 	SecretStore   fi.SecretStore
+	ConfigBase    vfs.Path
 
 	kubernetesVersion semver.Version
 }

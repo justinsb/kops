@@ -1262,6 +1262,13 @@ func setOverrides(overrides []string, cluster *api.Cluster, instanceGroups []*ap
 			for _, etcd := range cluster.Spec.EtcdClusters {
 				etcd.Version = kv[1]
 			}
+		case "cluster.spec.etcdClusters[*].manager.image":
+			for _, etcd := range cluster.Spec.EtcdClusters {
+				if etcd.Manager == nil {
+					etcd.Manager = &api.EtcdManagerSpec{}
+				}
+				etcd.Manager.Image = kv[1]
+			}
 		default:
 			return fmt.Errorf("unhandled override: %q", override)
 		}

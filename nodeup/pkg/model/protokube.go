@@ -217,6 +217,9 @@ type ProtokubeFlags struct {
 	TLSCertFile               *string  `json:"tls-cert,omitempty" flag:"tls-cert"`
 	TLSKeyFile                *string  `json:"tls-key,omitempty" flag:"tls-key"`
 	Zone                      []string `json:"zone,omitempty" flag:"zone"`
+
+	// EtcdManagerManifests are the path(s) to the etcd-manager manifest to use, if we should use the etcd-manager
+	EtcdManagerManifests []string `json:"etcdManagerManifest,omitempty" flag:"etcd-manager-manifest,repeat"`
 }
 
 // ProtokubeFlags is responsible for building the command line flags for protokube
@@ -243,6 +246,13 @@ func (t *ProtokubeBuilder) ProtokubeFlags(k8sVersion semver.Version) (*Protokube
 		EtcdHearbeatInterval:      s(heartbeatInterval),
 		LogLevel:                  fi.Int32(4),
 		Master:                    b(t.IsMaster),
+	}
+
+	if t.NodeupConfig.EtcdManagerManifest {
+		f.EtcdManagerManifests = []string{
+			t.ConfigBase.Join("manifests/etcd/main.yaml").Path(),
+			t.ConfigBase.Join("manifests/etcd/events.yaml").Path(),
+		}
 	}
 
 	for _, e := range t.Cluster.Spec.EtcdClusters {

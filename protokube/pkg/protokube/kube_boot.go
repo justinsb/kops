@@ -17,12 +17,17 @@ limitations under the License.
 package protokube
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
+	"k8s.io/kops/util/pkg/vfs"
 	"k8s.io/kubernetes/pkg/util/mount"
 )
 
@@ -49,6 +54,14 @@ type KubeBoot struct {
 	DNS DNSProvider
 	// ModelDir is the model directory
 	ModelDir string
+	// Kubernetes is the context methods for kubernetes
+	Kubernetes *KubernetesContext
+	// Master indicates we are a master node
+	Master bool
+
+	// EtcdManagerManifest is set to the manifest(s) to use for running etcd-manager, when we should use etcd-manager
+	// This also disables built-in etcd-management
+	EtcdManagerManifests []string
 	// EtcdBackupImage is the image to use for backing up etcd
 	EtcdBackupImage string
 	// EtcdBackupStore is the VFS path to which we should backup etcd
@@ -73,10 +86,6 @@ type KubeBoot struct {
 	PeerCert string
 	// PeerKey is the path to a peer private key for etcd
 	PeerKey string
-	// Kubernetes is the context methods for kubernetes
-	Kubernetes *KubernetesContext
-	// Master indicates we are a master node
-	Master bool
 
 	volumeMounter   *VolumeMountController
 	etcdControllers map[string]*EtcdController
@@ -99,8 +108,62 @@ func (k *KubeBoot) RunSyncLoop() {
 	}
 }
 
+func writeManifest(key string, data []byte) error {
+	manifestPath := "/etc/kubernetes/manifests/" + key + ".manifest"
+
+	writeManifest := true
+	{
+		// See if the manifest has changed
+		existingManifest, err := ioutil.ReadFile(pathFor(manifestPath))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return fmt.Errorf("error reading manifest file %q: %v", manifestPath, err)
+			}
+		} else if bytes.Equal(existingManifest, data) {
+			writeManifest = false
+		} else {
+			glog.Infof("Need to update manifest file: %q", manifestPath)
+		}
+	}
+
+	if writeManifest {
+		if err := os.Remove(pathFor(manifestPath)); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("error removing manifest file (for strict creation) %q: %v", manifestPath, err)
+		}
+
+		if err := os.MkdirAll(pathFor(filepath.Dir(manifestPath)), 0755); err != nil {
+			return fmt.Errorf("error creating directories for manifest %q: %v", manifestPath, err)
+		}
+
+		if err := ioutil.WriteFile(pathFor(manifestPath), data, 0644); err != nil {
+			return fmt.Errorf("error writing manifest %q: %v", manifestPath, err)
+		}
+
+		glog.Infof("Updated manifest: %s", manifestPath)
+	}
+
+	return nil
+}
+
 func (k *KubeBoot) syncOnce() error {
-	if k.Master {
+	if k.Master && len(k.EtcdManagerManifests) != 0 {
+		for _, etcdManagerManifest := range k.EtcdManagerManifests {
+			p, err := vfs.Context.BuildVfsPath(etcdManagerManifest)
+			if err != nil {
+				return fmt.Errorf("error parsing path for etcd-manager manifest: %v", err)
+			}
+			data, err := p.ReadFile()
+			if err != nil {
+				return fmt.Errorf("error reading etcd-manager manifest: %v", err)
+			}
+
+			name := p.Base()
+			name = strings.TrimSuffix(name, filepath.Ext(name))
+			if err := writeManifest("etcd-"+name, data); err != nil {
+				return err
+			}
+		}
+	} else if k.Master {
 		// attempt to mount the volumes
 		volumes, err := k.volumeMounter.mountMasterVolumes()
 		if err != nil {

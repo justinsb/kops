@@ -33,3 +33,22 @@ func MarkPodAsCritical(pod *v1.Pod) {
 	}
 	pod.Spec.Tolerations = append(pod.Spec.Tolerations, toleration)
 }
+
+// MapEtcdHosts map the /etc/hosts file into the pod (useful for gossip DNS)
+func MapEtcdHosts(pod *v1.Pod, container *v1.Container) {
+	container.VolumeMounts = append(container.VolumeMounts, v1.VolumeMount{
+		Name:      "hosts",
+		MountPath: "/etc/hosts",
+		ReadOnly:  true,
+	})
+	hostPathFile := v1.HostPathFile
+	pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
+		Name: "hosts",
+		VolumeSource: v1.VolumeSource{
+			HostPath: &v1.HostPathVolumeSource{
+				Path: "/etc/hosts",
+				Type: &hostPathFile,
+			},
+		},
+	})
+}

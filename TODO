@@ -1,0 +1,28 @@
+Avoid race on xvdu (maybe just randomize, or add a hash of the clusterid?)
+Don't run etcd manifests through protokube at all
+
+
+Long term it would be nice to launch an etcd image, rather than relying on it being in /opt (?)
+
+
+
+curl -v http://127.0.0.1:4001/v2/keys
+* Hostname was NOT found in DNS cache
+*   Trying 127.0.0.1...
+* Connected to 127.0.0.1 (127.0.0.1) port 4001 (#0)
+> GET /v2/keys HTTP/1.1
+> User-Agent: curl/7.38.0
+> Host: 127.0.0.1:4001
+> Accept: */*
+> 
+< HTTP/1.1 200 OK
+< Content-Type: application/json
+< X-Etcd-Cluster-Id: 547a419a32b5a1fc
+< X-Etcd-Index: 371
+< X-Raft-Index: 625
+< X-Raft-Term: 3
+< Date: Mon, 23 Apr 2018 22:18:29 GMT
+< Content-Length: 178
+< 
+{"action":"get","node":{"dir":true,"nodes":[{"key":"/kope.io","dir":true,"modifiedIndex":4,"createdIndex":4},{"key":"/registry","dir":true,"modifiedIndex":7,"createdIndex":7}]}}
+* Connection #0 to host 127.0.0.1 left intact

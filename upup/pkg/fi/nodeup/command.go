@@ -184,6 +184,7 @@ func (c *NodeUpCommand) Run(out io.Writer) error {
 		InstanceGroup: c.instanceGroup,
 		IsMaster:      nodeTags.Has(TagMaster),
 		NodeupConfig:  c.config,
+		ConfigBase:    configBase,
 	}
 
 	if c.cluster.Spec.SecretStore != "" {

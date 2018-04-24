@@ -56,6 +56,17 @@ func main() {
 	os.Exit(0)
 }
 
+type stringSliceFlag []string
+
+func (v *stringSliceFlag) String() string {
+	return fmt.Sprintf("%v", *v)
+}
+
+func (v *stringSliceFlag) Set(value string) error {
+	*v = append(*v, value)
+	return nil
+}
+
 // run is responsible for running the protokube service controller
 func run() error {
 	var zones []string
@@ -89,6 +100,9 @@ func run() error {
 	flags.StringVar(&etcdElectionTimeout, "etcd-election-timeout", etcdElectionTimeout, "time in ms for an election to timeout")
 	flags.StringVar(&etcdHeartbeatInterval, "etcd-heartbeat-interval", etcdHeartbeatInterval, "time in ms of a heartbeat interval")
 	flags.StringVar(&gossipSecret, "gossip-secret", gossipSecret, "Secret to use to secure gossip")
+
+	var etcdManagerManifests stringSliceFlag
+	flag.Var(&etcdManagerManifests, "etcd-manager-manifest", "Set to use the etcd-manager to manage etcd")
 
 	// Trick to avoid 'logging before flag.Parse' warning
 	flag.CommandLine.Parse([]string{})
@@ -320,6 +334,7 @@ func run() error {
 		ApplyTaints:           applyTaints,
 		Channels:              channels,
 		DNS:                   dnsProvider,
+		EtcdManagerManifests:  etcdManagerManifests,
 		EtcdBackupImage:       etcdBackupImage,
 		EtcdBackupStore:       etcdBackupStore,
 		EtcdImageSource:       etcdImageSource,
