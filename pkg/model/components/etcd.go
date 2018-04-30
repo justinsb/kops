@@ -40,7 +40,7 @@ func (b *EtcdOptionsBuilder) BuildOptions(o interface{}) error {
 
 	// @check the version are set and if not preset the defaults
 	for _, x := range spec.EtcdClusters {
-		// @TODO if nothing is set, set the defaults. At a late date once we have a way of detecting a 'new' cluster
+		// @TODO if nothing is set, set the defaults. At a later date once we have a way of detecting a 'new' cluster
 		// we can default all clusters to v3
 		if x.Version == "" {
 			x.Version = DefaultEtcdVersion
@@ -51,14 +51,18 @@ func (b *EtcdOptionsBuilder) BuildOptions(o interface{}) error {
 	for _, c := range spec.EtcdClusters {
 		image := c.Image
 		if image == "" {
-			image = fmt.Sprintf("k8s.gcr.io/etcd:%s", c.Version)
+			if c.Manager != nil {
+				image = fmt.Sprintf("k8s.gcr.io/etcd:%s", c.Version)
+			}
 		}
 
-		image, err := b.Context.AssetBuilder.RemapImage(image)
-		if err != nil {
-			return fmt.Errorf("unable to remap container %q: %v", image, err)
+		if image != "" {
+			image, err := b.Context.AssetBuilder.RemapImage(image)
+			if err != nil {
+				return fmt.Errorf("unable to remap container %q: %v", image, err)
+			}
+			c.Image = image
 		}
-		c.Image = image
 	}
 
 	// remap backup manager images
@@ -68,14 +72,37 @@ func (b *EtcdOptionsBuilder) BuildOptions(o interface{}) error {
 		}
 		image := c.Backups.Image
 		if image == "" {
-			image = fmt.Sprintf(DefaultBackupImage)
+			if c.Manager != nil {
+				image = fmt.Sprintf(DefaultBackupImage)
+			}
 		}
 
-		image, err := b.Context.AssetBuilder.RemapImage(image)
-		if err != nil {
-			return fmt.Errorf("unable to remap container %q: %v", image, err)
+		if image != "" {
+			image, err := b.Context.AssetBuilder.RemapImage(image)
+			if err != nil {
+				return fmt.Errorf("unable to remap container %q: %v", image, err)
+			}
+			c.Backups.Image = image
 		}
-		c.Backups.Image = image
+	}
+
+	// remap etcd manager images
+	for _, c := range spec.EtcdClusters {
+		if c.Manager == nil {
+			continue
+		}
+		image := c.Manager.Image
+		if image == "" {
+			//	image = fmt.Sprintf(DefaultManagerImage)
+		}
+
+		if image != "" {
+			image, err := b.Context.AssetBuilder.RemapImage(image)
+			if err != nil {
+				return fmt.Errorf("unable to remap container %q: %v", image, err)
+			}
+			c.Manager.Image = image
+		}
 	}
 
 	return nil
