@@ -465,7 +465,7 @@ func (x *ConvertKubeupCluster) Upgrade() error {
 		}
 	}
 
-	err = registry.CreateClusterConfig(x.Clientset, cluster, x.InstanceGroups)
+	err = registry.CreateClusterConfig(x.Clientset, cluster, x.InstanceGroups, nil)
 	if err != nil {
 		return fmt.Errorf("error writing updated configuration: %v", err)
 	}

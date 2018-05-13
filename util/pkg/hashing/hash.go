@@ -124,6 +124,10 @@ func (ha HashAlgorithm) Hash(r io.Reader) (*Hash, error) {
 	return &Hash{Algorithm: ha, HashValue: hasher.Sum(nil)}, nil
 }
 
+func (ha HashAlgorithm) HashBytes(data []byte) (*Hash, error) {
+	return ha.Hash(bytes.NewReader(data))
+}
+
 func (ha HashAlgorithm) HashFile(p string) (*Hash, error) {
 	f, err := os.OpenFile(p, os.O_RDONLY, 0)
 	if err != nil {

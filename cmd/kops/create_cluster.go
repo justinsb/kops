@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kops"
 	"k8s.io/kops/cmd/kops/util"
+	"k8s.io/kops/pkg/addon/wellknown"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/model"
 	"k8s.io/kops/pkg/apis/kops/registry"
@@ -104,6 +105,9 @@ type CreateClusterOptions struct {
 
 	// The DNS type to use (public/private)
 	DNSType string
+
+	// KubeDNS is the kube-dns implementation to use (CoreDNS or KubeDNS)
+	KubeDNS string
 
 	// Enable/Disable Bastion Host complete setup
 	Bastion bool
@@ -313,6 +317,7 @@ func NewCmdCreateCluster(f *util.Factory, out io.Writer) *cobra.Command {
 
 	// DNS
 	cmd.Flags().StringVar(&options.DNSType, "dns", options.DNSType, "DNS hosted zone to use: public|private. Default is 'public'.")
+	cmd.Flags().StringVar(&options.KubeDNS, "kube-dns", options.KubeDNS, "KubeDNS implementation to use")
 
 	// Bastion
 	cmd.Flags().BoolVar(&options.Bastion, "bastion", options.Bastion, "Pass the --bastion flag to enable a bastion instance group. Only applies to private topology.")
@@ -968,6 +973,13 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 		c.DNSType = string(api.DNSTypePublic)
 	}
 
+	if c.KubeDNS != "" {
+		if cluster.Spec.KubeDNS == nil {
+			cluster.Spec.KubeDNS = &api.KubeDNSConfig{}
+		}
+		cluster.Spec.KubeDNS.Provider = c.KubeDNS
+	}
+
 	if cluster.Spec.Topology == nil {
 		cluster.Spec.Topology = &api.TopologySpec{}
 	}
@@ -1076,6 +1088,11 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 		fullInstanceGroups = append(fullInstanceGroups, fullGroup)
 	}
 
+	addons, err := wellknown.BuildAddons(fullCluster)
+	if err != nil {
+		return err
+	}
+
 	err = validation.DeepValidate(fullCluster, fullInstanceGroups, true)
 	if err != nil {
 		return err
@@ -1091,6 +1108,11 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 			group.ObjectMeta.Labels[api.LabelClusterName] = cluster.ObjectMeta.Name
 			obj = append(obj, group)
 		}
+
+		for _, addon := range addons {
+			obj = append(obj, addon)
+		}
+
 		switch c.Output {
 		case OutputYaml:
 			if err := fullOutputYAML(out, obj...); err != nil {
@@ -1108,7 +1130,7 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 	}
 
 	// Note we perform as much validation as we can, before writing a bad config
-	err = registry.CreateClusterConfig(clientset, cluster, fullInstanceGroups)
+	err = registry.CreateClusterConfig(clientset, cluster, fullInstanceGroups, addons)
 	if err != nil {
 		return fmt.Errorf("error writing updated configuration: %v", err)
 	}

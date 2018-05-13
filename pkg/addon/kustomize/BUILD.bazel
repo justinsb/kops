@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "kustomize.go",
+        "memoizing_loader.go",
+        "urlloader.go",
+    ],
+    importpath = "k8s.io/kops/pkg/addon/kustomize",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/golang/glog:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/app:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/resource:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/util:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/loader:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "kustomize_test.go",
+        "urlloader_test.go",
+    ],
+    embed = [":go_default_library"],
+    deps = [
+        "//pkg/diff:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/util/fs:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/loader:go_default_library",
+    ],
+)

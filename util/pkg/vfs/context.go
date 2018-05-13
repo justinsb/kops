@@ -139,6 +139,10 @@ func (c *VFSContext) BuildVfsPath(p string) (Path, error) {
 		return c.buildOSSPath(p)
 	}
 
+	if strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") {
+		return c.buildHTTPPath(p)
+	}
+
 	return nil, fmt.Errorf("unknown / unhandled path type: %q", p)
 }
 
@@ -250,6 +254,18 @@ func (c *VFSContext) buildS3Path(p string) (*S3Path, error) {
 
 	s3path := newS3Path(c.s3Context, u.Scheme, bucket, u.Path, true)
 	return s3path, nil
+}
+
+func (c *VFSContext) buildHTTPPath(p string) (*HTTPPath, error) {
+	u, err := url.Parse(p)
+	if err != nil {
+		return nil, fmt.Errorf("invalid http path: %q", p)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("invalid http path: %q", p)
+	}
+
+	return newHTTPPath(u), nil
 }
 
 func (c *VFSContext) buildDOPath(p string) (*S3Path, error) {

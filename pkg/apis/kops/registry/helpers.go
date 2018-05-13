@@ -19,11 +19,12 @@ package registry
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/client/simple"
 )
 
-func CreateClusterConfig(clientset simple.Clientset, cluster *api.Cluster, groups []*api.InstanceGroup) error {
+func CreateClusterConfig(clientset simple.Clientset, cluster *api.Cluster, groups []*api.InstanceGroup, addons []*corev1.ConfigMap) error {
 	// Check for instancegroup Name duplicates before writing
 	{
 		names := map[string]bool{}
@@ -47,6 +48,13 @@ func CreateClusterConfig(clientset simple.Clientset, cluster *api.Cluster, group
 		_, err = clientset.InstanceGroupsFor(cluster).Create(ig)
 		if err != nil {
 			return fmt.Errorf("error writing updated instancegroup configuration: %v", err)
+		}
+	}
+
+	for _, addon := range addons {
+		_, err = clientset.AddonsFor(cluster).Create(addon)
+		if err != nil {
+			return fmt.Errorf("error writing updated addon configuration: %v", err)
 		}
 	}
 

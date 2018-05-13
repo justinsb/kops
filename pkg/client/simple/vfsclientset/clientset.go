@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
 	kopsinternalversion "k8s.io/kops/pkg/client/clientset_generated/clientset/typed/kops/internalversion"
@@ -72,6 +73,10 @@ func (c *VFSClientset) ConfigBaseFor(cluster *kops.Cluster) (vfs.Path, error) {
 // InstanceGroupsFor implements the InstanceGroupsFor method of simple.Clientset for a VFS-backed state store
 func (c *VFSClientset) InstanceGroupsFor(cluster *kops.Cluster) kopsinternalversion.InstanceGroupInterface {
 	return newInstanceGroupVFS(c, cluster)
+}
+
+func (c *VFSClientset) AddonsFor(cluster *kops.Cluster) corev1client.ConfigMapInterface {
+	return newAddonsVFS(c, cluster)
 }
 
 func (c *VFSClientset) SecretStore(cluster *kops.Cluster) (fi.SecretStore, error) {

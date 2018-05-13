@@ -43,19 +43,29 @@ func init() {
 	corev1.AddToScheme(Scheme)
 }
 
-func encoder() runtime.Encoder {
-	yaml, ok := runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), "application/yaml")
+func encoder(mediaType string) runtime.Encoder {
+	enc, ok := runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), mediaType)
 	if !ok {
-		glog.Fatalf("no YAML serializer registered")
+		glog.Fatalf("no serializer registered for media type %q", mediaType)
 	}
 	gv := corev1.SchemeGroupVersion
-	return Codecs.EncoderForVersion(yaml.Serializer, gv)
+	return Codecs.EncoderForVersion(enc.Serializer, gv)
 }
 
 // ToVersionedYaml encodes the object to YAML
 func ToVersionedYaml(obj runtime.Object) ([]byte, error) {
+	return Serialize(obj, "application/yaml")
+}
+
+// ToVersionedJSON encodes the object to JSON
+func ToVersionedJSON(obj runtime.Object) ([]byte, error) {
+	return Serialize(obj, "application/json")
+}
+
+// Serialize encodes the object to the specified mediaType (application/json or application/yaml)
+func Serialize(obj runtime.Object, mediaType string) ([]byte, error) {
 	var w bytes.Buffer
-	err := encoder().Encode(obj, &w)
+	err := encoder(mediaType).Encode(obj, &w)
 	if err != nil {
 		return nil, fmt.Errorf("error encoding %T: %v", obj, err)
 	}

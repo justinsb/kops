@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/kops/cmd/kops/util"
 	api "k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/k8scodecs"
 	"k8s.io/kops/pkg/kopscodecs"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
@@ -200,10 +201,8 @@ func writeYAMLSep(out io.Writer) error {
 	return nil
 }
 
-type marshalFunc func(obj runtime.Object) ([]byte, error)
-
-func marshalToWriter(obj runtime.Object, marshal marshalFunc, w io.Writer) error {
-	b, err := marshal(obj)
+func marshalToWriter(obj runtime.Object, mediaType string, w io.Writer) error {
+	b, err := marshal(obj, mediaType)
 	if err != nil {
 		return err
 	}
@@ -215,19 +214,19 @@ func marshalToWriter(obj runtime.Object, marshal marshalFunc, w io.Writer) error
 }
 
 // obj must be a pointer to a marshalable object
-func marshalYaml(obj runtime.Object) ([]byte, error) {
-	y, err := kopscodecs.ToVersionedYaml(obj)
+func marshal(obj runtime.Object, mediaType string) ([]byte, error) {
+	k := obj.GetObjectKind()
+	if k.GroupVersionKind().Kind == "ConfigMap" {
+		y, err := k8scodecs.Serialize(obj, mediaType)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling object: %v", err)
+		}
+		return y, nil
+	}
+
+	y, err := kopscodecs.Serialize(obj, mediaType)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling yaml: %v", err)
+		return nil, fmt.Errorf("error marshaling object: %v", err)
 	}
 	return y, nil
-}
-
-// obj must be a pointer to a marshalable object
-func marshalJSON(obj runtime.Object) ([]byte, error) {
-	j, err := kopscodecs.ToVersionedJSON(obj)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling json: %v", err)
-	}
-	return j, nil
 }

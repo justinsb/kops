@@ -26,6 +26,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/golang/glog"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kopsbase "k8s.io/kops"
 	"k8s.io/kops/pkg/apis/kops"
@@ -88,6 +89,8 @@ type ApplyClusterCmd struct {
 	Cluster *kops.Cluster
 
 	InstanceGroups []*kops.InstanceGroup
+
+	Addons []*corev1.ConfigMap
 
 	// NodeUpSource is the location from which we download nodeup
 	NodeUpSource string
@@ -494,6 +497,7 @@ func (c *ApplyClusterCmd) Run() error {
 			l.Builders = append(l.Builders,
 				&BootstrapChannelBuilder{
 					cluster:      cluster,
+					addons:       c.Addons,
 					Lifecycle:    &clusterLifecycle,
 					templates:    templates,
 					assetBuilder: assetBuilder,

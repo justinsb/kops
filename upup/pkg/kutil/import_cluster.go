@@ -488,7 +488,7 @@ func (x *ImportCluster) ImportAWSCluster() error {
 		fullInstanceGroups = append(fullInstanceGroups, full)
 	}
 
-	err = registry.CreateClusterConfig(x.Clientset, cluster, fullInstanceGroups)
+	err = registry.CreateClusterConfig(x.Clientset, cluster, fullInstanceGroups, nil)
 	if err != nil {
 		return err
 	}

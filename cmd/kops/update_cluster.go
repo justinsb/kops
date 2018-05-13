@@ -27,6 +27,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kops/cmd/kops/util"
 	"k8s.io/kops/pkg/apis/kops"
@@ -241,11 +242,23 @@ func RunUpdateCluster(f *util.Factory, clusterName string, out io.Writer, c *Upd
 		}
 	}
 
+	var addons []*corev1.ConfigMap
+	{
+		list, err := clientset.AddonsFor(cluster).List(metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		for i := range list.Items {
+			addons = append(addons, &list.Items[i])
+		}
+	}
+
 	applyCmd := &cloudup.ApplyClusterCmd{
 		Clientset:          clientset,
 		Cluster:            cluster,
 		DryRun:             isDryrun,
 		InstanceGroups:     instanceGroups,
+		Addons:             addons,
 		MaxTaskDuration:    c.MaxTaskDuration,
 		Models:             strings.Split(c.Models, ","),
 		OutDir:             c.OutDir,

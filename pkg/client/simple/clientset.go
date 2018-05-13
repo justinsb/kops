@@ -18,6 +18,7 @@ package simple
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kops/pkg/apis/kops"
 	kopsinternalversion "k8s.io/kops/pkg/client/clientset_generated/clientset/typed/kops/internalversion"
 	"k8s.io/kops/upup/pkg/fi"
@@ -40,7 +41,7 @@ type Clientset interface {
 	// ConfigBaseFor returns the vfs path where we will read configuration information from
 	ConfigBaseFor(cluster *kops.Cluster) (vfs.Path, error)
 
-	// InstanceGroupsFor returns the InstanceGroupInterface bounds to the namespace for a particular Cluster
+	// InstanceGroupsFor returns the InstanceGroupInterface bound to the namespace for a particular Cluster
 	InstanceGroupsFor(cluster *kops.Cluster) kopsinternalversion.InstanceGroupInterface
 
 	// SecretStore builds the secret store for the specified cluster
@@ -54,4 +55,7 @@ type Clientset interface {
 
 	// DeleteCluster deletes all the state for the specified cluster
 	DeleteCluster(cluster *kops.Cluster) error
+
+	// AddonsFor returns the ConfigMapInterface for storing addons as ConfigMaps, bound to the namespace for a particular Cluster
+	AddonsFor(cluster *kops.Cluster) corev1.ConfigMapInterface
 }

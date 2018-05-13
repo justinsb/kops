@@ -22,6 +22,8 @@ import (
 	"path"
 
 	"github.com/golang/glog"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
 	"k8s.io/kops/pkg/apis/nodeup"
@@ -73,6 +75,17 @@ func (b *Builder) Build(cluster *kops.Cluster, ig *kops.InstanceGroup) (*Data, e
 		err = utils.YamlUnmarshal(b, fullCluster)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing Cluster %q: %v", p, err)
+		}
+	}
+
+	var addons []*corev1.ConfigMap
+	{
+		list, err := b.Clientset.AddonsFor(cluster).List(metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		for i := range list.Items {
+			addons = append(addons, &list.Items[i])
 		}
 	}
 
@@ -130,6 +143,7 @@ func (b *Builder) Build(cluster *kops.Cluster, ig *kops.InstanceGroup) (*Data, e
 			Cluster:        cluster,
 			Clientset:      b.Clientset,
 			InstanceGroups: []*kops.InstanceGroup{ig},
+			Addons:         addons,
 			Phase:          phase,
 		}
 

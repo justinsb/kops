@@ -1456,6 +1456,24 @@
   revision = "f442ecb314a3679150c272e2b9713d8deed5955d"
 
 [[projects]]
+  branch = "master"
+  name = "k8s.io/kubectl"
+  packages = [
+    "pkg/kustomize/app",
+    "pkg/kustomize/configmapandsecret/util",
+    "pkg/kustomize/constants",
+    "pkg/kustomize/hash",
+    "pkg/kustomize/internal/error",
+    "pkg/kustomize/resource",
+    "pkg/kustomize/transformers",
+    "pkg/kustomize/types",
+    "pkg/kustomize/util",
+    "pkg/kustomize/util/fs",
+    "pkg/loader"
+  ]
+  revision = "9541fb7c4fd2f8d61cad87fedcf76e3fef7f4df9"
+
+[[projects]]
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/api/events",
@@ -1679,6 +1697,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2e3d6ddfd1017a940526237cadd8a968d6e8170af9dac833b2a94bd8ffc4646f"
+  inputs-digest = "5269679cdc21baab8ca59c8465442aefb78b746efcafade90dbb099fb5b72dad"
   solver-name = "gps-cdcl"
   solver-version = 1

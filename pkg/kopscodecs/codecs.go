@@ -62,28 +62,33 @@ func decoder() runtime.Decoder {
 
 // ToVersionedYaml encodes the object to YAML
 func ToVersionedYaml(obj runtime.Object) ([]byte, error) {
-	return ToVersionedYamlWithVersion(obj, v1alpha2.SchemeGroupVersion)
+	return Serialize(obj, "application/yaml")
 }
 
 // ToVersionedYamlWithVersion encodes the object to YAML, in a specified API version
 func ToVersionedYamlWithVersion(obj runtime.Object, version runtime.GroupVersioner) ([]byte, error) {
-	var w bytes.Buffer
-	err := encoder(version, "application/yaml").Encode(obj, &w)
-	if err != nil {
-		return nil, fmt.Errorf("error encoding %T: %v", obj, err)
-	}
-	return w.Bytes(), nil
+	return SerializeWithVersion(obj, "application/yaml", version)
 }
 
 // ToVersionedJSON encodes the object to JSON
 func ToVersionedJSON(obj runtime.Object) ([]byte, error) {
-	return ToVersionedJSONWithVersion(obj, v1alpha2.SchemeGroupVersion)
+	return Serialize(obj, "application/json")
 }
 
 // ToVersionedJSONWithVersion encodes the object to JSON, in a specified API version
 func ToVersionedJSONWithVersion(obj runtime.Object, version runtime.GroupVersioner) ([]byte, error) {
+	return SerializeWithVersion(obj, "application/json", version)
+}
+
+// Serialize encodes to the object to the specified mediaType in the default version
+func Serialize(obj runtime.Object, mediaType string) ([]byte, error) {
+	return SerializeWithVersion(obj, mediaType, v1alpha2.SchemeGroupVersion)
+}
+
+// SerializeWithVersion encodes the object to the specified mediaType, in a specified API version
+func SerializeWithVersion(obj runtime.Object, mediaType string, version runtime.GroupVersioner) ([]byte, error) {
 	var w bytes.Buffer
-	err := encoder(version, "application/json").Encode(obj, &w)
+	err := encoder(version, mediaType).Encode(obj, &w)
 	if err != nil {
 		return nil, fmt.Errorf("error encoding %T: %v", obj, err)
 	}

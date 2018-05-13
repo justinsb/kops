@@ -24,6 +24,7 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
 	"k8s.io/kops/pkg/apis/kops/validation"
@@ -86,6 +87,12 @@ func (c *RESTClientset) ListClusters(options metav1.ListOptions) (*kops.ClusterL
 func (c *RESTClientset) InstanceGroupsFor(cluster *kops.Cluster) kopsinternalversion.InstanceGroupInterface {
 	namespace := restNamespaceForClusterName(cluster.Name)
 	return c.KopsClient.InstanceGroups(namespace)
+}
+
+func (c *RESTClientset) AddonsFor(cluster *kops.Cluster) corev1client.ConfigMapInterface {
+	// TODO: implement once we figure out ConfigMap vs a custom type
+	glog.Fatalf("AddonsFor not yet implemnted")
+	return nil
 }
 
 func (c *RESTClientset) SecretStore(cluster *kops.Cluster) (fi.SecretStore, error) {

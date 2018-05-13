@@ -229,7 +229,7 @@ func fullOutputJSON(out io.Writer, args ...runtime.Object) error {
 				return err
 			}
 		}
-		if err := marshalToWriter(arg, marshalJSON, out); err != nil {
+		if err := marshalToWriter(arg, "application/json", out); err != nil {
 			return err
 		}
 	}
@@ -252,7 +252,7 @@ func fullOutputYAML(out io.Writer, args ...runtime.Object) error {
 				return fmt.Errorf("error writing to stdout: %v", err)
 			}
 		}
-		if err := marshalToWriter(obj, marshalYaml, out); err != nil {
+		if err := marshalToWriter(obj, "application/yaml", out); err != nil {
 			return err
 		}
 	}

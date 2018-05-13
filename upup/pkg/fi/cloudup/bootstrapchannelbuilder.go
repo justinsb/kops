@@ -19,7 +19,10 @@ package cloudup
 import (
 	"fmt"
 
+	"github.com/golang/glog"
+	corev1 "k8s.io/api/core/v1"
 	channelsapi "k8s.io/kops/channels/pkg/api"
+	"k8s.io/kops/pkg/addon"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/featureflag"
@@ -27,11 +30,13 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/fitasks"
 	"k8s.io/kops/upup/pkg/fi/utils"
+	"k8s.io/kops/util/pkg/hashing"
 )
 
 // BootstrapChannelBuilder is responsible for handling the addons in channels
 type BootstrapChannelBuilder struct {
 	cluster      *kops.Cluster
+	addons       []*corev1.ConfigMap
 	Lifecycle    *fi.Lifecycle
 	templates    *templates.Templates
 	assetBuilder *assets.AssetBuilder
@@ -46,20 +51,7 @@ func (b *BootstrapChannelBuilder) Build(c *fi.ModelBuilderContext) error {
 		return err
 	}
 
-	addonsYAML, err := utils.YamlMarshal(addons)
-	if err != nil {
-		return fmt.Errorf("error serializing addons yaml: %v", err)
-	}
-
-	name := b.cluster.ObjectMeta.Name + "-addons-bootstrap"
 	tasks := c.Tasks
-
-	tasks[name] = &fitasks.ManagedFile{
-		Contents:  fi.WrapResource(fi.NewBytesResource(addonsYAML)),
-		Lifecycle: b.Lifecycle,
-		Location:  fi.String("addons/bootstrap-channel.yaml"),
-		Name:      fi.String(name),
-	}
 
 	for key, manifest := range manifests {
 		name := b.cluster.ObjectMeta.Name + "-addons-" + key
@@ -74,6 +66,7 @@ func (b *BootstrapChannelBuilder) Build(c *fi.ModelBuilderContext) error {
 			return fmt.Errorf("error reading manifest %s: %v", manifest, err)
 		}
 
+		glog.Infof("manifest: %s", string(manifestBytes))
 		manifestBytes, err = b.assetBuilder.RemapManifest(manifestBytes)
 		if err != nil {
 			return fmt.Errorf("error remapping manifest %s: %v", manifest, err)
@@ -87,7 +80,116 @@ func (b *BootstrapChannelBuilder) Build(c *fi.ModelBuilderContext) error {
 		}
 	}
 
+	bundles, err := b.buildBundles()
+	if err != nil {
+		return err
+	}
+	for _, bundle := range bundles {
+		// Addon prefix avoids collisions
+		key := "addon-" + bundle.Name() //"coredns.addons.k8s.io"
+		version := bundle.Version()
+
+		name := b.cluster.ObjectMeta.Name + "-addons-" + key
+
+		manifestBytes, err := bundle.Manifest()
+		if err != nil {
+			return fmt.Errorf("error building manifest %s: %v", key, err)
+		}
+
+		glog.Infof("manifest: %s", string(manifestBytes))
+		manifestBytes, err = b.assetBuilder.RemapManifest(manifestBytes)
+		if err != nil {
+			return fmt.Errorf("error remapping manifest %s: %v", key, err)
+		}
+
+		hash, err := hashing.HashAlgorithmMD5.HashBytes(manifestBytes)
+		if err != nil {
+			return fmt.Errorf("error hashing manifest: %v", err)
+		}
+		id := hash.Hex()
+
+		addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
+			Name:     fi.String(key),
+			Version:  fi.String(version),
+			Selector: bundle.Selector(), //map[string]string{"k8s-addon": key},
+			Manifest: fi.String(key + "/manifest.yaml"),
+			Id:       id,
+		})
+
+		tasks[name] = &fitasks.ManagedFile{
+			Contents:  fi.WrapResource(fi.NewBytesResource(manifestBytes)),
+			Lifecycle: b.Lifecycle,
+			Location:  fi.String("addons/" + key + "/manifest.yaml"),
+			Name:      fi.String(name),
+		}
+	}
+
+	addonsYAML, err := utils.YamlMarshal(addons)
+	if err != nil {
+		return fmt.Errorf("error serializing addons yaml: %v", err)
+	}
+	name := b.cluster.ObjectMeta.Name + "-addons-bootstrap"
+	tasks[name] = &fitasks.ManagedFile{
+		Contents:  fi.WrapResource(fi.NewBytesResource(addonsYAML)),
+		Lifecycle: b.Lifecycle,
+		Location:  fi.String("addons/bootstrap-channel.yaml"),
+		Name:      fi.String(name),
+	}
+
 	return nil
+}
+
+func (b *BootstrapChannelBuilder) buildBundles() ([]*addon.Bundle, error) {
+	var bundles []*addon.Bundle
+	for _, a := range b.addons {
+		bundle, err := addon.Parse(a, a.Name)
+		if err != nil {
+			return nil, err
+		}
+		bundles = append(bundles, bundle)
+	}
+
+	var kubednsBundle *addon.Bundle
+
+	for _, bundle := range bundles {
+		if bundle.HasObjectMatchingSelector(map[string]string{"k8s-app": "kube-dns"}) {
+			if kubednsBundle != nil {
+				return nil, fmt.Errorf("found multiple kube-dns addons")
+			}
+			kubednsBundle = bundle
+		}
+	}
+
+	kubeDNS := b.cluster.Spec.KubeDNS
+	if kubeDNS == nil {
+		kubeDNS = &kops.KubeDNSConfig{}
+	}
+	if kubeDNS.Provider == "CoreDNS" {
+		if kubednsBundle == nil {
+			// TODO: how do we make this easy?
+			return nil, fmt.Errorf("coredns addon not found")
+		}
+
+		if kubeDNS.Domain != "cluster.local" {
+			// Because CoreDNS currently uses its own DSL which is a bit of a pain to kustomize
+			return nil, fmt.Errorf("kops currently only supports ClusterDNSDomain of 'cluster.local' when using CoreDNS")
+		}
+
+		serviceIP := &corev1.Service{}
+		serviceIP.Namespace = "kube-system"
+		serviceIP.Name = "kube-dns"
+		serviceIP.Spec.ClusterIP = kubeDNS.ServerIP
+
+		kubednsBundle.AddPatch("service-ip", serviceIP)
+	} else {
+		if kubednsBundle != nil {
+			// TODO: Should we allow this?
+			// TODO: Should adding the coredns bundle automatically replace (existing) kube-dns?
+			return nil, fmt.Errorf("coredns bundle is found, but the DNS provider is not CoreDNS")
+		}
+	}
+
+	return bundles, nil
 }
 
 func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[string]string, error) {
@@ -171,25 +273,26 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 	}
 
 	if kubeDNS.Provider == "CoreDNS" {
-		{
-			key := "coredns.addons.k8s.io"
-			version := "1.0.6"
+		/*	{
+				key := "coredns.addons.k8s.io"
+				version := "1.0.6"
 
-			{
-				location := key + "/k8s-1.6.yaml"
-				id := "k8s-1.6"
+				{
+					location := key + "/k8s-1.6.yaml"
+					id := "k8s-1.6"
 
-				addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
-					Name:              fi.String(key),
-					Version:           fi.String(version),
-					Selector:          map[string]string{"k8s-addon": key},
-					Manifest:          fi.String(location),
-					KubernetesVersion: ">=1.6.0",
-					Id:                id,
-				})
-				manifests[key+"-"+id] = "addons/" + location
+					addons.Spec.Addons = append(addons.Spec.Addons, &channelsapi.AddonSpec{
+						Name:              fi.String(key),
+						Version:           fi.String(version),
+						Selector:          map[string]string{"k8s-addon": key},
+						Manifest:          fi.String(location),
+						KubernetesVersion: ">=1.6.0",
+						Id:                id,
+					})
+					manifests[key+"-"+id] = "addons/" + location
+				}
 			}
-		}
+		*/
 	}
 
 	{

@@ -6,6 +6,7 @@ go_library(
         "context.go",
         "fs.go",
         "gsfs.go",
+        "httpfs.go",
         "k8scontext.go",
         "k8sfs.go",
         "memfs.go",

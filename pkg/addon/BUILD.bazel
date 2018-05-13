@@ -1,0 +1,33 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["bundle.go"],
+    importpath = "k8s.io/kops/pkg/addon",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/addon/channel:go_default_library",
+        "//pkg/addon/kustomize:go_default_library",
+        "//pkg/k8scodecs:go_default_library",
+        "//util/pkg/vfs:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
+        "//vendor/gopkg.in/yaml.v2:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/resource:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/types:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/util:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/kustomize/util/fs:go_default_library",
+        "//vendor/k8s.io/kubectl/pkg/loader:go_default_library",
+    ],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = ["bundle_test.go"],
+    embed = [":go_default_library"],
+    deps = [
+        "//pkg/addon/kustomize:go_default_library",
+        "//pkg/diff:go_default_library",
+    ],
+)
