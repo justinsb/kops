@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"k8s.io/helm/pkg/strvals"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
@@ -127,7 +128,7 @@ func runToolBoxTemplate(f *util.Factory, out io.Writer, options *toolboxTemplate
 	// @step: expand the list of templates into a list of files to render
 	var templates []string
 	for _, x := range options.templatePath {
-		list, err := expandFiles(utils.ExpandPath(x))
+		list, err := expandFiles(utils.ExpandPath(x), OnlyKnownExtensions)
 		if err != nil {
 			return fmt.Errorf("unable to expand the template: %s, error: %s", x, err)
 		}
@@ -136,7 +137,7 @@ func runToolBoxTemplate(f *util.Factory, out io.Writer, options *toolboxTemplate
 
 	snippets := make(map[string]string, 0)
 	for _, x := range options.snippetsPath {
-		list, err := expandFiles(utils.ExpandPath(x))
+		list, err := expandFiles(utils.ExpandPath(x), IgnoreTempFiles)
 		if err != nil {
 			return fmt.Errorf("unable to expand the snippets: %s, error: %s", x, err)
 		}
@@ -207,6 +208,24 @@ func runToolBoxTemplate(f *util.Factory, out io.Writer, options *toolboxTemplate
 	}
 
 	return nil
+}
+
+// MatchKnownExtensions matches (only) files that have a known extension
+func MatchKnownExtensions(f os.FileInfo) bool {
+	ext := filepath.Extension(f.Name())
+
+	var fileExtensions = []string{".json", ".yaml", ".yml"}
+
+	for _, s := range fileExtensions {
+		if s == ext {
+			return true
+		}
+	}
+
+	// Log because this is a behavioural change
+	glog.Infof("ignoring file because of extension %s", f.Name())
+
+	return false
 }
 
 // newTemplateContext is responsible for loadding the --values and build a context for the template
@@ -280,7 +299,7 @@ func mergeValues(dest map[string]interface{}, src map[string]interface{}) map[st
 }
 
 // expandFiles is responsible for resolving any references to directories
-func expandFiles(path string) ([]string, error) {
+func expandFiles(path string, filter func(f os.FileInfo) bool) ([]string, error) {
 	// @check if the path is a directory, if not we can return straight away
 	stat, err := os.Stat(path)
 	if err != nil {
@@ -296,7 +315,9 @@ func expandFiles(path string) ([]string, error) {
 		if f.IsDir() {
 			return nil
 		}
-		list = append(list, path)
+		if predicate(f) {
+			list = append(list, path)
+		}
 
 		return nil
 	}); err != nil {
