@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2016 The Kubernetes Authors.
+# Copyright 2018 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,18 @@ function cleanup {
   rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
+
+mkdir -p docs/apireference/openapi-spec/
+
+go run ./hack/make-swagger/main.go > docs/apireference/openapi-spec/swagger.json
+
+mkdir -p docs/apireference/static_includes/
+touch docs/apireference/static_includes/_overview.md
+
+~/k8s/bin/gen-apidocs --build-operations=false --use-tags=true --allow-errors --config-dir=docs/apireference
+
+
+exit 0
 
 mkdir -p ${WORK_DIR}/go/
 ln -s ${GOPATH}/src/k8s.io/kops/vendor/ ${WORK_DIR}/go/src

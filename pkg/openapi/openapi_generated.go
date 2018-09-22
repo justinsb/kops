@@ -26748,6 +26748,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"useRawManifest": {
+							SchemaProps: spec.SchemaProps{
+								Description: "UseRawManifest indicates that the contents of Manifest should be used as the contents of the systemd unit, unmodified. Before and Requires are ignored when used together with this value (and validation shouldn't allow them to be set)",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
 					},
 				},
 			},
@@ -27523,13 +27530,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
-						"authenticationTokenWebhook": {
-							SchemaProps: spec.SchemaProps{
-								Description: "AuthenticationTokenWebhook enables bearer token authentication on kubelet.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
 						"authenticationTokenWebhookConfigFile": {
 							SchemaProps: spec.SchemaProps{
 								Description: "File with webhook configuration for token authentication in kubeconfig format. The API server will query the remote service to determine authentication for bearer tokens.",
@@ -27727,6 +27727,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Description: "AllocateNodeCIDRs enables CIDRs for Pods to be allocated and, if ConfigureCloudRoutes is true, to be set on the cloud provider.",
 								Type:        []string{"boolean"},
 								Format:      "",
+							},
+						},
+						"nodeCIDRMaskSize": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeCIDRMaskSize set the size for the mask of the nodes.",
+								Type:        []string{"integer"},
+								Format:      "int32",
 							},
 						},
 						"configureCloudRoutes": {
@@ -28605,6 +28612,19 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Description: "RootDir is the directory path for managing kubelet files (volume mounts,etc)",
 								Type:        []string{"string"},
 								Format:      "",
+							},
+						},
+						"authenticationTokenWebhook": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AuthenticationTokenWebhook uses the TokenReview API to determine authentication for bearer tokens.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"authenticationTokenWebhookCacheTtl": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AuthenticationTokenWebhook sets the duration to cache responses from the webhook token authenticator. Default is 2m. (default 2m0s)",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 							},
 						},
 					},
@@ -31200,6 +31220,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
+						"useRawManifest": {
+							SchemaProps: spec.SchemaProps{
+								Description: "UseRawManifest indicates that the contents of Manifest should be used as the contents of the systemd unit, unmodified. Before and Requires are ignored when used together with this value (and validation shouldn't allow them to be set)",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
 					},
 				},
 			},
@@ -32129,13 +32156,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Format:      "",
 							},
 						},
-						"authenticationTokenWebhook": {
-							SchemaProps: spec.SchemaProps{
-								Description: "AuthenticationTokenWebhook enables bearer token authentication on kubelet.",
-								Type:        []string{"boolean"},
-								Format:      "",
-							},
-						},
 						"authenticationTokenWebhookConfigFile": {
 							SchemaProps: spec.SchemaProps{
 								Description: "File with webhook configuration for token authentication in kubeconfig format. The API server will query the remote service to determine authentication for bearer tokens.",
@@ -32333,6 +32353,13 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Description: "AllocateNodeCIDRs enables CIDRs for Pods to be allocated and, if ConfigureCloudRoutes is true, to be set on the cloud provider.",
 								Type:        []string{"boolean"},
 								Format:      "",
+							},
+						},
+						"nodeCIDRMaskSize": {
+							SchemaProps: spec.SchemaProps{
+								Description: "NodeCIDRMaskSize set the size for the mask of the nodes.",
+								Type:        []string{"integer"},
+								Format:      "int32",
 							},
 						},
 						"configureCloudRoutes": {
@@ -33211,6 +33238,19 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 								Description: "RootDir is the directory path for managing kubelet files (volume mounts,etc)",
 								Type:        []string{"string"},
 								Format:      "",
+							},
+						},
+						"authenticationTokenWebhook": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AuthenticationTokenWebhook uses the TokenReview API to determine authentication for bearer tokens.",
+								Type:        []string{"boolean"},
+								Format:      "",
+							},
+						},
+						"authenticationTokenWebhookCacheTtl": {
+							SchemaProps: spec.SchemaProps{
+								Description: "AuthenticationTokenWebhook sets the duration to cache responses from the webhook token authenticator. Default is 2m. (default 2m0s)",
+								Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Duration"),
 							},
 						},
 					},

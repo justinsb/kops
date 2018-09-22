@@ -614,6 +614,8 @@ apimachinery-codegen:
 		 --go-header-file "hack/boilerplate/boilerplate.go.txt"
 	${GOPATH}/bin/client-gen  ${API_OPTIONS} --clientset-name="clientset" --input-base k8s.io/kops/pkg/apis/ --input="kops/,kops/v1alpha1,kops/v1alpha2" --clientset-path k8s.io/kops/pkg/client/clientset_generated/ \
 		 --go-header-file "hack/boilerplate/boilerplate.go.txt"
+	${GOPATH}/bin/openapi-gen ${API_OPTIONS} --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha1 --v=0 --output-file-base=zz_generated.openapi --go-header-file "hack/boilerplate/boilerplate.go.txt" --output-package k8s.io/kops/pkg/apis/kops/v1alpha1
+	${GOPATH}/bin/openapi-gen ${API_OPTIONS} --input-dirs k8s.io/kops/pkg/apis/kops/v1alpha2 --v=0 --output-file-base=zz_generated.openapi --go-header-file "hack/boilerplate/boilerplate.go.txt" --output-package k8s.io/kops/pkg/apis/kops/v1alpha2
 
 .PHONY: verify-apimachinery
 verify-apimachinery:

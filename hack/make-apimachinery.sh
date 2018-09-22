@@ -40,3 +40,6 @@ cp ${WORK_DIR}/go/bin/defaulter-gen ${GOPATH}/bin/
 GOPATH=${WORK_DIR}/go/ go install k8s.io/code-generator/cmd/client-gen/
 cp ${WORK_DIR}/go/bin/client-gen ${GOPATH}/bin/
 
+GOPATH=${WORK_DIR}/go/ go install k8s.io/code-generator/cmd/openapi-gen/
+cp ${WORK_DIR}/go/bin/openapi-gen ${GOPATH}/bin/
+

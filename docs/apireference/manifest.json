@@ -1,0 +1,13 @@
+{
+  "table_of_contents": {},
+  "docs": [
+    {
+      "filename": "_definitions.md"
+    },
+    {
+      "filename": "_oldversions.md"
+    }
+  ],
+  "title": "Kubernetes Resource Reference Docs",
+  "copyright": "\u003ca href=\"https://github.com/kubernetes/kubernetes\"\u003eCopyright 2016 The Kubernetes Authors.\u003c/a\u003e"
+}
