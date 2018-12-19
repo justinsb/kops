@@ -23,7 +23,7 @@ func resolveChannel(channel string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("invalid base channel location: %q", kops.DefaultChannelBase)
 		}
-		klog.V(4).Infof("resolving %q against default channel location %q", channel, kops.DefaultChannelBase)
+		glog.V(4).Infof("resolving %q against default channel location %q", channel, kops.DefaultChannelBase)
 		u = base.ResolveReference(u)
 	}
 
