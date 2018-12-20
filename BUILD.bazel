@@ -13,6 +13,24 @@ gazelle(
     prefix = "k8s.io/kops",
 )
 
+# nogo performs static code analysis / verification
+load("@io_bazel_rules_go//go:def.bzl", "nogo")
+
+nogo(
+    name = "nogo",
+    deps = [
+        "@org_golang_x_tools//go/analysis/passes/unusedresult:go_tool_library",
+        "@io_k8s_sigs_kwality//analysis/gofmt",
+        "@io_k8s_sigs_kwality//analysis/boilerplate",
+        "@io_k8s_sigs_kwality//analysis/spell",
+    ],
+    config ="nogo.json",
+    #vet = True,
+    visibility = ["//visibility:public"],  # must have public visibility
+)
+
+
+
 go_library(
     name = "go_default_library",
     srcs = [
