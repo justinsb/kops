@@ -112,7 +112,7 @@ func (e *Archive) Find(c *fi.Context) (*Archive, error) {
 
 	state := &Archive{}
 	if err := json.Unmarshal(stateBytes, state); err != nil {
-		glog.Warningf("error unmarshalling archive state %s: %v", localStateFile, err)
+		glog.Warningf("error unmarshaling archive state %s: %v", localStateFile, err)
 		// We can just reinstall
 		return nil, nil
 	}
@@ -181,7 +181,7 @@ func (_ *Archive) RenderLocal(t *local.LocalTarget, a, e, changes *Archive) erro
 
 		state, err := json.MarshalIndent(e, "", "  ")
 		if err != nil {
-			return fmt.Errorf("error marshalling archive state: %v", err)
+			return fmt.Errorf("error marshaling archive state: %v", err)
 		}
 
 		if err := ioutil.WriteFile(localStateFile, state, 0644); err != nil {
