@@ -101,11 +101,27 @@ dpkg_list(
     ],
 )
 
+
 # We use the prebuilt utils.tar.gz containing socat & conntrack, building it in bazel is really painful
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 http_file(
     name = "utils_tar_gz",
     urls = ["https://kubeupv2.s3.amazonaws.com/kops/1.11.0-alpha.1/linux/amd64/utils.tar.gz"],
     sha256 = "74ff5d81ba62f7a153da1138ae0890594867816bcc9fc40cfe1c96fe06110d43",
+)
+
+
+
+
+
+
+# socat
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive(
+    name = "socat",
+    urls = ["http://www.dest-unreach.org/socat/download/socat-1.7.3.2.tar.gz"],
+    sha256 = "ce3efc17e3e544876ebce7cd6c85b3c279fda057b2857fcaaf67b9ab8bdaf034",
+    strip_prefix = "socat-1.7.3.2/",
+    build_file = "socat.BUILD",
 )
 
