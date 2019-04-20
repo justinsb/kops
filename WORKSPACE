@@ -45,6 +45,13 @@ load(
 container_repositories()
 
 load(
+    "@io_bazel_rules_docker//go:image.bzl",
+    _go_image_repos = "repositories",
+)
+
+_go_image_repos()
+
+load(
     "@io_bazel_rules_docker//container:container.bzl",
     "container_pull",
 )

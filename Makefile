@@ -440,25 +440,13 @@ nodeup-dist:
 	docker cp nodeup-build-${UNIQUE}:/go/src/k8s.io/kops/.build/local/nodeup .build/dist/
 	(${SHASUMCMD} .build/dist/nodeup | cut -d' ' -f1) > .build/dist/nodeup.sha1
 
-.PHONY: dns-controller-gocode
-dns-controller-gocode:
-	go install ${GCFLAGS} -tags 'peer_name_alternative peer_name_hash' ${LDFLAGS}"${EXTRA_LDFLAGS} -X main.BuildVersion=${DNS_CONTROLLER_TAG}" k8s.io/kops/dns-controller/cmd/dns-controller
-
-.PHONY: dns-controller-builder-image
-dns-controller-builder-image:
-	docker build -t dns-controller-builder images/dns-controller-builder
-
-.PHONY: dns-controller-build-in-docker
-dns-controller-build-in-docker: dns-controller-builder-image
-	docker run -t -e HOST_UID=${UID} -e HOST_GID=${GID} -v `pwd`:/src dns-controller-builder /onbuild.sh
-
-.PHONY: dns-controller-image
-dns-controller-image: dns-controller-build-in-docker
-	docker build -t ${DOCKER_REGISTRY}/dns-controller:${DNS_CONTROLLER_TAG}  -f images/dns-controller/Dockerfile .
+.PHONY: dns-controller
+dns-controller:
+	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //dns-controller/...
 
 .PHONY: dns-controller-push
-dns-controller-push: dns-controller-image
-	docker push ${DOCKER_REGISTRY}/dns-controller:${DNS_CONTROLLER_TAG}
+dns-controller-push:
+	DOCKER_REGISTRY=${DOCKER_REGISTRY} DNS_CONTROLLER_TAG=${DNS_CONTROLLER_TAG} bazel run //dns-controller:push-image
 
 # --------------------------------------------------
 # static utils
@@ -686,14 +674,6 @@ bazel-crossbuild-nodeup:
 .PHONY: bazel-crossbuild-protokube
 bazel-crossbuild-protokube:
 	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //protokube/...
-
-.PHONY: bazel-crossbuild-dns-controller
-bazel-crossbuild-dns-controller:
-	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //dns-controller/...
-
-.PHONY: bazel-crossbuild-dns-controller-image
-bazel-crossbuild-dns-controller-image:
-	bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //images:dns-controller.tar
 
 .PHONY: bazel-crossbuild-protokube-image
 bazel-crossbuild-protokube-image:

@@ -1,0 +1,33 @@
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+    "container_bundle",
+    "container_push",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+container_image(
+    name = "image",
+    base = "@go_image_base//image",
+    cmd = ["/usr/bin/dns-controller"],
+    directory = "/usr/bin/",
+    files = [
+        "//dns-controller/cmd/dns-controller",
+    ],
+)
+
+container_push(
+    name = "push-image",
+    format = "Docker",
+    image = ":image",
+    registry = "{STABLE_DOCKER_REGISTRY}",
+    repository = "{STABLE_DOCKER_IMAGE_PREFIX}dns-controller",
+    tag = "{STABLE_DNSCONTROLLER_TAG}",
+)
+
+# ca-certificates: Needed to talk to EC2 API
+#RUN apt-get update && apt-get install --yes ca-certificates \
+#  && apt-get clean \
+#  && rm -rf /var/lib/apt/lists/*
+
