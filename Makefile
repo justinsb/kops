@@ -46,6 +46,14 @@ BAZEL_OPTIONS?=
 API_OPTIONS?=
 GCFLAGS?=
 
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+  BAZEL_DIR=linux_amd64_stripped
+endif
+ifeq ($(UNAME_S),Darwin)
+  BAZEL_DIR=darwin_amd64_stripped
+endif
+
 # See http://stackoverflow.com/questions/18136918/how-to-get-current-relative-directory-of-your-makefile
 MAKEDIR:=$(strip $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))"))
 
@@ -64,9 +72,6 @@ DNS_CONTROLLER_TAG=1.15.0-alpha.1
 # TODO: just invoke tools/get_workspace_status.sh?
 KOPS_RELEASE_VERSION:=$(shell grep 'KOPS_RELEASE_VERSION\s*=' version.go | awk '{print $$3}' | sed -e 's_"__g')
 KOPS_CI_VERSION:=$(shell grep 'KOPS_CI_VERSION\s*=' version.go | awk '{print $$3}' | sed -e 's_"__g')
-
-# kops local location
-KOPS                 = ${LOCAL}/kops
 
 # kops source root directory (without trailing /)
 KOPS_ROOT           ?= $(patsubst %/,%,$(abspath $(dir $(firstword $(MAKEFILE_LIST)))))
@@ -132,8 +137,13 @@ ifdef DEBUGGABLE
 endif
 
 .PHONY: kops-install # Install kops to local $GOPATH/bin
-kops-install: gobindata-tool ${BINDATA_TARGETS}
+kops-install: ${BINDATA_TARGETS}
 	go install ${GCFLAGS} ${EXTRA_BUILDFLAGS} ${LDFLAGS}"-X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA} ${EXTRA_LDFLAGS}" k8s.io/kops/cmd/kops/
+
+.PHONY: kops-install # Install kops to local $GOPATH/bin, using bazel
+kops-install-bazel: ${BINDATA_TARGETS}
+	bazel build //cmd/kops
+	cp bazel-bin/cmd/kops/${BAZEL_DIR}/kops ${GOPATH_1ST}/bin
 
 .PHONY: channels-install # Install channels to local $GOPATH/bin
 channels-install: ${CHANNELS}
@@ -145,7 +155,7 @@ all-install: all kops-install channels-install
 	cp ${PROTOKUBE} ${GOPATH_1ST}/bin
 
 .PHONY: all
-all: ${KOPS} ${PROTOKUBE} ${NODEUP} ${CHANNELS}
+all: kops ${PROTOKUBE} ${NODEUP} ${CHANNELS}
 
 .PHONY: help
 help: # Show this help
@@ -180,21 +190,12 @@ clean: # Remove build directory and bindata-generated files
 	if test -e ${BUILD}; then rm -rfv ${BUILD}; fi
 
 .PHONY: kops
-kops: ${KOPS}
-
-.PHONY: ${KOPS}
-${KOPS}: ${BINDATA_TARGETS}
+kops: ${BINDATA_TARGETS}
 	go build ${GCFLAGS} ${EXTRA_BUILDFLAGS} ${LDFLAGS}"-X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA} ${EXTRA_LDFLAGS}" -o $@ k8s.io/kops/cmd/kops/
 
 ${GOBINDATA}:
 	mkdir -p ${LOCAL}
 	go build ${GCFLAGS} ${EXTRA_BUILDFLAGS} ${LDFLAGS}"${EXTRA_LDFLAGS}" -o $@ k8s.io/kops/vendor/github.com/jteeuwen/go-bindata/go-bindata
-
-.PHONY: gobindata-tool
-gobindata-tool: ${GOBINDATA}
-
-.PHONY: kops-gobindata
-kops-gobindata: gobindata-tool ${BINDATA_TARGETS}
 
 UPUP_MODELS_BINDATA_SOURCES:=$(shell find upup/models/ | egrep -v "upup/models/bindata.go")
 upup/models/bindata.go: ${GOBINDATA} ${UPUP_MODELS_BINDATA_SOURCES}
@@ -221,7 +222,7 @@ check-builds-in-go111:
 	docker run -v ${GOPATH_1ST}/src/k8s.io/kops:/go/src/k8s.io/kops golang:1.11 make -C /go/src/k8s.io/kops ci
 
 .PHONY: codegen
-codegen: kops-gobindata
+codegen: gobindata
 	go install k8s.io/kops/upup/tools/generators/...
 	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/cloudup/awstasks
 	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/cloudup/gcetasks
@@ -257,37 +258,18 @@ crossbuild-nodeup-in-docker:
 	docker run --name=nodeup-build-${UNIQUE} -e STATIC_BUILD=yes -e VERSION=${VERSION} -v ${MAKEDIR}:/go/src/k8s.io/kops golang:${GOVERSION} make -C /go/src/k8s.io/kops/ crossbuild-nodeup
 	docker cp nodeup-build-${UNIQUE}:/go/.build .
 
-.PHONY: ${DIST}/darwin/amd64/kops
-${DIST}/darwin/amd64/kops: ${BINDATA_TARGETS}
-	mkdir -p ${DIST}
-	GOOS=darwin GOARCH=amd64 go build ${GCFLAGS} -a ${EXTRA_BUILDFLAGS} -o $@ ${LDFLAGS}"${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/kops
-
-.PHONY: ${DIST}/linux/amd64/kops
-${DIST}/linux/amd64/kops: ${BINDATA_TARGETS}
-	mkdir -p ${DIST}
-	GOOS=linux GOARCH=amd64 go build ${GCFLAGS} -a ${EXTRA_BUILDFLAGS} -o $@ ${LDFLAGS}"${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/kops
-
-.PHONY: ${DIST}/windows/amd64/kops.exe
-${DIST}/windows/amd64/kops.exe: ${BINDATA_TARGETS}
-	mkdir -p ${DIST}
-	GOOS=windows GOARCH=amd64 go build ${GCFLAGS} -a ${EXTRA_BUILDFLAGS} -o $@ ${LDFLAGS}"${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/kops
-
-
 .PHONY: crossbuild
-crossbuild: ${DIST}/windows/amd64/kops.exe ${DIST}/darwin/amd64/kops ${DIST}/linux/amd64/kops
-
-.PHONY: crossbuild-in-docker
-crossbuild-in-docker:
-	docker pull golang:${GOVERSION} # Keep golang image up to date
-	docker run --name=kops-build-${UNIQUE} -e STATIC_BUILD=yes -e VERSION=${VERSION} -v ${MAKEDIR}:/go/src/k8s.io/kops golang:${GOVERSION} make -C /go/src/k8s.io/kops/ crossbuild
-	docker start kops-build-${UNIQUE}
-	docker exec kops-build-${UNIQUE} chown -R ${UID}:${GID} /go/src/k8s.io/kops/.build
-	docker cp kops-build-${UNIQUE}:/go/src/k8s.io/kops/.build .
-	docker kill kops-build-${UNIQUE}
-	docker rm kops-build-${UNIQUE}
+crossbuild:
+	mkdir -p ${DIST}
+	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/kops/...
+	cp bazel-bin/cmd/kops/darwin_amd64_pure_stripped/kops ${DIST}/darwin/amd64/kops
+	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/kops/...
+	cp bazel-bin/cmd/kops/linux_amd64_pure_stripped/kops ${DIST}/linux/amd64/kops
+	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/kops/...
+	cp bazel-bin/cmd/kops/windows_amd64_pure_stripped/kops.exe ${DIST}/windows/amd64/kops.exe
 
 .PHONY: kops-dist
-kops-dist: crossbuild-in-docker
+kops-dist: crossbuild
 	mkdir -p ${DIST}
 	(${SHASUMCMD} ${DIST}/darwin/amd64/kops | cut -d' ' -f1) > ${DIST}/darwin/amd64/kops.sha1
 	(${SHASUMCMD} ${DIST}/linux/amd64/kops | cut -d' ' -f1) > ${DIST}/linux/amd64/kops.sha1
@@ -657,16 +639,6 @@ bazel-test:
 bazel-build:
 	bazel build --features=pure //cmd/... //pkg/... //channels/... //nodeup/... //protokube/... //dns-controller/... //util/...
 
-.PHONY: bazel-build-cli
-bazel-build-cli:
-	bazel build --features=pure //cmd/kops/...
-
-.PHONY: bazel-crossbuild-kops
-bazel-crossbuild-kops:
-	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:darwin_amd64 //cmd/kops/...
-	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/kops/...
-	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:windows_amd64 //cmd/kops/...
-
 .PHONY: bazel-crossbuild-nodeup
 bazel-crossbuild-nodeup:
 	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/nodeup/...
@@ -746,7 +718,7 @@ bazel-protokube-export:
 	(${SHASUMCMD} ${BAZELIMAGES}/protokube.tar.gz | cut -d' ' -f1) > ${BAZELIMAGES}/protokube.tar.gz.sha1
 
 .PHONY: bazel-version-dist
-bazel-version-dist: bazel-crossbuild-nodeup bazel-crossbuild-kops bazel-protokube-export bazel-utils-dist
+bazel-version-dist: bazel-crossbuild-nodeup crossbuild bazel-protokube-export bazel-utils-dist
 	rm -rf ${BAZELUPLOAD}
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/darwin/amd64/
