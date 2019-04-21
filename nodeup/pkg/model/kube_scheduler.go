@@ -156,6 +156,8 @@ func (b *KubeSchedulerBuilder) buildPod() (*v1.Pod, error) {
 			"--logtostderr=false", //https://github.com/kubernetes/klog/issues/60
 			"--alsologtostderr",
 			"--log-file=/var/log/kube-scheduler.log")
+
+		setHostPathMappingType(pod, "logfile", v1.HostPathFileOrCreate)
 	} else {
 		container.Command = exec.WithTee(
 			"/usr/local/bin/kube-scheduler",

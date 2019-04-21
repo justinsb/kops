@@ -119,6 +119,22 @@ func addHostPathMapping(pod *v1.Pod, container *v1.Container, name, path string)
 	return &container.VolumeMounts[len(container.VolumeMounts)-1]
 }
 
+// setHostPathMappingType sets the Type on the specified hostPath mapping
+func setHostPathMappingType(pod *v1.Pod, name string, hostPathType v1.HostPathType) {
+	for i := range pod.Spec.Volumes {
+		vol := &pod.Spec.Volumes[i]
+		if vol.Name == name {
+			if vol.HostPath == nil {
+				glog.Warningf("volume %q was not of type hostPath", name)
+			} else {
+				vol.HostPath.Type = &hostPathType
+				return
+			}
+		}
+	}
+	glog.Warningf("volume %q was not found", name)
+}
+
 // addHostPathVolume is shorthand for mapping a host path into a container
 func addHostPathVolume(pod *v1.Pod, container *v1.Container, hostPath v1.HostPathVolumeSource, volumeMount v1.VolumeMount) {
 	vol := v1.Volume{
