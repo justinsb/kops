@@ -35,7 +35,6 @@ PROTOKUBE=$(LOCAL)/protokube
 UPLOAD=$(BUILD)/upload
 BAZELBUILD=$(GOPATH_1ST)/src/k8s.io/kops/.bazelbuild
 BAZELDIST=$(BAZELBUILD)/dist
-BAZELIMAGES=$(BAZELDIST)/images
 BAZELUPLOAD=$(BAZELBUILD)/upload
 UID:=$(shell id -u)
 GID:=$(shell id -g)
@@ -360,38 +359,17 @@ push-gce-run: push
 push-aws-run: push
 	ssh -t ${TARGET} sudo SKIP_PACKAGE_UPDATE=1 /tmp/nodeup --conf=/var/cache/kubernetes-install/kube_env.yaml --v=8
 
-.PHONY: ${PROTOKUBE}
-${PROTOKUBE}:
-	go build ${GCFLAGS} -o $@ -tags 'peer_name_alternative peer_name_hash' k8s.io/kops/protokube/cmd/protokube
-
 .PHONY: protokube
-protokube: ${PROTOKUBE}
-
-.PHONY: protokube-builder-image
-protokube-builder-image:
-	docker build -t protokube-builder images/protokube-builder
-
-.PHONY: protokube-build-in-docker
-protokube-build-in-docker: protokube-builder-image
-	mkdir -p ${IMAGES} # We have to create the directory first, so docker doesn't mess up the ownership of the dir
-	docker run -t -e VERSION=${VERSION} -e HOST_UID=${UID} -e HOST_GID=${GID} -v `pwd`:/src protokube-builder /onbuild.sh
-
-.PHONY: protokube-image
-protokube-image: protokube-build-in-docker
-	docker build -t protokube:${PROTOKUBE_TAG} -f images/protokube/Dockerfile .
+protokube:
+	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //protokube/...
 
 .PHONY: protokube-export
-protokube-export: protokube-image
-	docker save protokube:${PROTOKUBE_TAG} > ${IMAGES}/protokube.tar
-	gzip --force --best ${IMAGES}/protokube.tar
+protokube-export:
+	mkdir -p ${IMAGES}
+	bazel build --action_env=PROTOKUBE_TAG=${PROTOKUBE_TAG} --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //images:protokube.tar
+	cp -fp bazel-bin/images/protokube.tar ${IMAGES}/protokube.tar
+	gzip --force ${IMAGES}/protokube.tar
 	(${SHASUMCMD} ${IMAGES}/protokube.tar.gz | cut -d' ' -f1) > ${IMAGES}/protokube.tar.gz.sha1
-
-# protokube-push is no longer used (we upload a docker image tar file to S3 instead),
-# but we're keeping it around in case it is useful for development etc
-.PHONY: protokube-push
-protokube-push: protokube-image
-	docker tag protokube:${PROTOKUBE_TAG} ${DOCKER_REGISTRY}/protokube:${PROTOKUBE_TAG}
-	docker push ${DOCKER_REGISTRY}/protokube:${PROTOKUBE_TAG}
 
 .PHONY: nodeup
 nodeup: ${BINDATA_TARGETS}
@@ -400,7 +378,7 @@ nodeup: ${BINDATA_TARGETS}
 .PHONY: nodeup-dist
 nodeup-dist: crossbuild-nodeup
 	mkdir -p .build/dist
-	cp -f bazel-bin/cmd/nodeup/linux_amd64_pure_stripped/nodeup .build/dist/nodeup
+	cp -fp bazel-bin/cmd/nodeup/linux_amd64_pure_stripped/nodeup .build/dist/nodeup
 	(${SHASUMCMD} .build/dist/nodeup | cut -d' ' -f1) > .build/dist/nodeup.sha1
 
 .PHONY: dns-controller
@@ -620,15 +598,6 @@ bazel-test:
 bazel-build:
 	bazel build --features=pure //cmd/... //pkg/... //channels/... //nodeup/... //protokube/... //dns-controller/... //util/...
 
-
-.PHONY: bazel-crossbuild-protokube
-bazel-crossbuild-protokube:
-	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //protokube/...
-
-.PHONY: bazel-crossbuild-protokube-image
-bazel-crossbuild-protokube-image:
-	bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //images:protokube.tar
-
 .PHONY: bazel-crossbuild-kube-discovery-image
 bazel-crossbuild-kube-discovery-image:
 	bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //images:kube-discovery.tar
@@ -687,16 +656,8 @@ push-node-authorizer:
 	docker tag bazel/node-authorizer/images:node-authorizer ${DOCKER_REGISTRY}/node-authorizer:${DOCKER_TAG}
 	docker push ${DOCKER_REGISTRY}/node-authorizer:${DOCKER_TAG}
 
-.PHONY: bazel-protokube-export
-bazel-protokube-export:
-	mkdir -p ${BAZELIMAGES}
-	bazel build --action_env=PROTOKUBE_TAG=${PROTOKUBE_TAG} --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //images:protokube.tar
-	cp -fp bazel-bin/images/protokube.tar ${BAZELIMAGES}/protokube.tar
-	gzip --force --fast ${BAZELIMAGES}/protokube.tar
-	(${SHASUMCMD} ${BAZELIMAGES}/protokube.tar.gz | cut -d' ' -f1) > ${BAZELIMAGES}/protokube.tar.gz.sha1
-
 .PHONY: bazel-version-dist
-bazel-version-dist: crossbuild-nodeup crossbuild bazel-protokube-export bazel-utils-dist
+bazel-version-dist: crossbuild-nodeup crossbuild protokube-export bazel-utils-dist
 	rm -rf ${BAZELUPLOAD}
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/darwin/amd64/
@@ -705,8 +666,8 @@ bazel-version-dist: crossbuild-nodeup crossbuild bazel-protokube-export bazel-ut
 	mkdir -p ${BAZELUPLOAD}/utils/${VERSION}/linux/amd64/
 	cp bazel-bin/cmd/nodeup/linux_amd64_pure_stripped/nodeup ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup
 	(${SHASUMCMD} ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup | cut -d' ' -f1) > ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup.sha1
-	cp ${BAZELIMAGES}/protokube.tar.gz ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz
-	cp ${BAZELIMAGES}/protokube.tar.gz.sha1 ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz.sha1
+	cp ${IMAGES}/protokube.tar.gz ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz
+	cp ${IMAGES}/protokube.tar.gz.sha1 ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz.sha1
 	cp bazel-bin/cmd/kops/linux_amd64_pure_stripped/kops ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops
 	(${SHASUMCMD} ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops | cut -d' ' -f1) > ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops.sha1
 	cp bazel-bin/cmd/kops/darwin_amd64_pure_stripped/kops ${BAZELUPLOAD}/kops/${VERSION}/darwin/amd64/kops
@@ -757,10 +718,10 @@ dev-upload-nodeup: crossbuild-nodeup
 
 # dev-upload-protokube uploads protokube to GCS
 .PHONY: dev-upload-protokube
-dev-upload-protokube: bazel-protokube-export # Upload kops to GCS
+dev-upload-protokube: protokube-export # Upload kops to GCS
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/images/
-	cp -fp ${BAZELIMAGES}/protokube.tar.gz ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz
-	cp -fp ${BAZELIMAGES}/protokube.tar.gz.sha1 ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz.sha1
+	cp -fp ${IMAGES}/protokube.tar.gz ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz
+	cp -fp ${IMAGES}/protokube.tar.gz.sha1 ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz.sha1
 	${UPLOAD} ${BAZELUPLOAD}/ ${UPLOAD_DEST}
 
 # dev-copy-utils copies utils from a recent release
