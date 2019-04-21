@@ -90,6 +90,8 @@ KOPS_VERSION=`bazel run //cmd/kops version -- --short`
 export KOPS_BASE_URL=https://${GCS_BUCKET_NAME}.storage.googleapis.com/kops/${KOPS_VERSION}/
 ```
 
+export DNSCONTROLLER_IMAGE=justinsb/dns-controller:1.15.0-alpha.1
+
 You can create a cluster using `kops create cluster <clustername> --zones us-east-1b`
 
 Then follow the test directions above.
