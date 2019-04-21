@@ -82,7 +82,7 @@ func (b *KubeSchedulerBuilder) Build(c *fi.ModelBuilderContext) error {
 			Path:        "/var/log/kube-scheduler.log",
 			Contents:    fi.NewStringResource(""),
 			Type:        nodetasks.FileType_File,
-			Mode:        s("0400"),
+			Mode:        s("0600"),
 			IfNotExists: true,
 		})
 	}
