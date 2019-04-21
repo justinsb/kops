@@ -150,9 +150,7 @@ channels-install: ${CHANNELS}
 	cp ${CHANNELS} ${GOPATH_1ST}/bin
 
 .PHONY: all-install # Install all kops project binaries
-all-install: all kops-install channels-install
-	cp ${NODEUP} ${GOPATH_1ST}/bin
-	cp ${PROTOKUBE} ${GOPATH_1ST}/bin
+all-install: kops-install channels-install
 
 .PHONY: all
 all: kops ${PROTOKUBE} ${NODEUP} ${CHANNELS}
@@ -244,19 +242,9 @@ hooks: # Install Git hooks
 test: ${BINDATA_TARGETS}  # Run tests locally
 	go test -v ${TESTABLE_PACKAGES}
 
-.PHONY: ${DIST}/linux/amd64/nodeup
-${DIST}/linux/amd64/nodeup: ${BINDATA_TARGETS}
-	mkdir -p ${DIST}
-	GOOS=linux GOARCH=amd64 go build ${GCFLAGS} -a ${EXTRA_BUILDFLAGS} -o $@ ${LDFLAGS}"${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" k8s.io/kops/cmd/nodeup
-
 .PHONY: crossbuild-nodeup
-crossbuild-nodeup: ${DIST}/linux/amd64/nodeup
-
-.PHONY: crossbuild-nodeup-in-docker
-crossbuild-nodeup-in-docker:
-	docker pull golang:${GOVERSION} # Keep golang image up to date
-	docker run --name=nodeup-build-${UNIQUE} -e STATIC_BUILD=yes -e VERSION=${VERSION} -v ${MAKEDIR}:/go/src/k8s.io/kops golang:${GOVERSION} make -C /go/src/k8s.io/kops/ crossbuild-nodeup
-	docker cp nodeup-build-${UNIQUE}:/go/.build .
+crossbuild-nodeup:
+	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/nodeup/...
 
 .PHONY: crossbuild
 crossbuild:
@@ -406,20 +394,13 @@ protokube-push: protokube-image
 	docker push ${DOCKER_REGISTRY}/protokube:${PROTOKUBE_TAG}
 
 .PHONY: nodeup
-nodeup: ${NODEUP}
-
-.PHONY: ${NODEUP}
-${NODEUP}: ${BINDATA_TARGETS}
-	go build ${GCFLAGS} ${EXTRA_BUILDFLAGS} ${LDFLAGS}"${EXTRA_LDFLAGS} -X k8s.io/kops.Version=${VERSION} -X k8s.io/kops.GitVersion=${GITSHA}" -o $@ k8s.io/kops/cmd/nodeup
+nodeup: ${BINDATA_TARGETS}
+	bazel build //cmd/nodeup
 
 .PHONY: nodeup-dist
-nodeup-dist:
-	mkdir -p ${DIST}
-	docker pull golang:${GOVERSION} # Keep golang image up to date
-	docker run --name=nodeup-build-${UNIQUE} -e STATIC_BUILD=yes -e VERSION=${VERSION} -v ${MAKEDIR}:/go/src/k8s.io/kops golang:${GOVERSION} make -C /go/src/k8s.io/kops/ nodeup
-	docker start nodeup-build-${UNIQUE}
-	docker exec nodeup-build-${UNIQUE} chown -R ${UID}:${GID} /go/src/k8s.io/kops/.build
-	docker cp nodeup-build-${UNIQUE}:/go/src/k8s.io/kops/.build/local/nodeup .build/dist/
+nodeup-dist: crossbuild-nodeup
+	mkdir -p .build/dist
+	cp -f bazel-bin/cmd/nodeup/linux_amd64_pure_stripped/nodeup .build/dist/nodeup
 	(${SHASUMCMD} .build/dist/nodeup | cut -d' ' -f1) > .build/dist/nodeup.sha1
 
 .PHONY: dns-controller
@@ -639,9 +620,6 @@ bazel-test:
 bazel-build:
 	bazel build --features=pure //cmd/... //pkg/... //channels/... //nodeup/... //protokube/... //dns-controller/... //util/...
 
-.PHONY: bazel-crossbuild-nodeup
-bazel-crossbuild-nodeup:
-	bazel build --features=pure --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/nodeup/...
 
 .PHONY: bazel-crossbuild-protokube
 bazel-crossbuild-protokube:
@@ -661,7 +639,7 @@ bazel-crossbuild-node-authorizer-image:
 
 .PHONY: bazel-push
 # Will always push a linux-based build up to the server
-bazel-push: bazel-crossbuild-nodeup
+bazel-push: crossbuild-nodeup
 	ssh ${TARGET} touch /tmp/nodeup
 	ssh ${TARGET} chmod +w /tmp/nodeup
 	scp -C bazel-bin/cmd/nodeup/linux_amd64_pure_stripped/nodeup  ${TARGET}:/tmp/
@@ -718,7 +696,7 @@ bazel-protokube-export:
 	(${SHASUMCMD} ${BAZELIMAGES}/protokube.tar.gz | cut -d' ' -f1) > ${BAZELIMAGES}/protokube.tar.gz.sha1
 
 .PHONY: bazel-version-dist
-bazel-version-dist: bazel-crossbuild-nodeup crossbuild bazel-protokube-export bazel-utils-dist
+bazel-version-dist: crossbuild-nodeup crossbuild bazel-protokube-export bazel-utils-dist
 	rm -rf ${BAZELUPLOAD}
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/darwin/amd64/
@@ -771,7 +749,7 @@ update-machine-types:
 
 # dev-upload-nodeup uploads nodeup to GCS
 .PHONY: dev-upload-nodeup
-dev-upload-nodeup: bazel-crossbuild-nodeup
+dev-upload-nodeup: crossbuild-nodeup
 	mkdir -p ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/
 	cp -fp bazel-bin/cmd/nodeup/linux_amd64_pure_stripped/nodeup ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup
 	(${SHASUMCMD} ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup | cut -d' ' -f1) > ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup.sha1
