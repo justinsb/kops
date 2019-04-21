@@ -11,6 +11,7 @@ spec:
       type: Public
   authorization:
     rbac: {}
+  bundle: 1.0.20190421
   channel: stable
   cloudProvider: aws
   configBase: memfs://tests/private.example.com

@@ -5,7 +5,6 @@ load(
     "container_image",
     "container_bundle",
 )
-
 load("@package_bundle//file:packages.bzl", "packages")
 
 container_image(
