@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Generate deepcopy for apis
+//go:generate go run ../../../vendor/k8s.io/code-generator/cmd/deepcopy-gen/main.go -O zz_generated.deepcopy -i ./... -h ../../../hack/boilerplate/boilerplate.go.txt
+
 // +k8s:deepcopy-gen=package,register
 
 // +groupName=kops.k8s.io
