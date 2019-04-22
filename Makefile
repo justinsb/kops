@@ -738,3 +738,7 @@ dev-copy-utils:
 .PHONY: dev-upload
 dev-upload: dev-upload-nodeup dev-upload-protokube dev-copy-utils
 	echo "Done"
+
+.PHONY: crds
+crds:
+	go run vendor/sigs.k8s.io/controller-tools/cmd/controller-gen/main.go crd --apis-path pkg/apis/kops/v1alpha2 --domain k8s.io
