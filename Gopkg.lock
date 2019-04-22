@@ -1469,7 +1469,11 @@
 [[projects]]
   digest = "1:5c8e30a40644c03c864f2a9e3d32b6346ab05c8cafafd1833954c3957abcb160"
   name = "k8s.io/apiextensions-apiserver"
-  packages = ["pkg/features"]
+  packages = [
+    "pkg/apis/apiextensions",
+    "pkg/apis/apiextensions/v1beta1",
+    "pkg/features",
+  ]
   pruneopts = "UT"
   revision = "475668423e9f8feb5e3cc53f37bfeb1ce37f2ce5"
   version = "kubernetes-1.13.5"
@@ -2185,6 +2189,24 @@
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:77a19ea61ca4e01817ad2bc3e91689c5097b4b439668127d1fb5d8b95c3aca03"
+  name = "sigs.k8s.io/controller-tools"
+  packages = [
+    "cmd/controller-gen",
+    "pkg/crd/generator",
+    "pkg/crd/util",
+    "pkg/internal/codegen",
+    "pkg/internal/codegen/parse",
+    "pkg/internal/general",
+    "pkg/rbac",
+    "pkg/util",
+    "pkg/webhook",
+  ]
+  pruneopts = "UT"
+  revision = "b8adde9bc6d7f3fba449d306613a9daed23676c8"
+  version = "v0.1.10"
+
+[[projects]]
   digest = "1:96f9b7c99c55e6063371088376d57d398f42888dedd08ab5d35065aba11e3965"
   name = "vbom.ml/util"
   packages = ["sortorder"]
@@ -2402,6 +2424,7 @@
     "k8s.io/kubernetes/pkg/util/mount",
     "k8s.io/kubernetes/pkg/util/nsenter",
     "k8s.io/utils/exec",
+    "sigs.k8s.io/controller-tools/cmd/controller-gen",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
