@@ -173,7 +173,6 @@ func (o *CreateClusterOptions) InitDefaults() {
 	o.Yes = false
 	o.Target = cloudup.TargetDirect
 	o.Models = strings.Join(cloudup.CloudupModels, ",")
-	o.Networking = "kubenet"
 	o.Channel = api.DefaultChannel
 	o.Topology = api.TopologyPublic
 	o.DNSType = string(api.DNSTypePublic)
@@ -320,7 +319,7 @@ func NewCmdCreateCluster(f *util.Factory, out io.Writer) *cobra.Command {
 
 	cmd.Flags().StringVar(&options.Image, "image", options.Image, "Image to use for all instances.")
 
-	cmd.Flags().StringVar(&options.Networking, "networking", "kubenet", "Networking mode to use.  kubenet (default), classic, external, kopeio-vxlan (or kopeio), weave, flannel-vxlan (or flannel), flannel-udp, calico, canal, kube-router, romana, amazon-vpc-routed-eni, cilium, cni.")
+	cmd.Flags().StringVar(&options.Networking, "networking", options.Networking, "Networking mode to use.  kubenet (default), classic, external, kopeio-vxlan (or kopeio), weave, flannel-vxlan (or flannel), flannel-udp, calico, canal, kube-router, romana, amazon-vpc-routed-eni, cilium, cni, gce (default for gce).")
 
 	cmd.Flags().StringVar(&options.DNSZone, "dns-zone", options.DNSZone, "DNS hosted zone to use (defaults to longest matching zone)")
 	cmd.Flags().StringVar(&options.OutDir, "out", options.OutDir, "Path to write any local output")
@@ -527,6 +526,16 @@ func RunCreateCluster(f *util.Factory, out io.Writer, c *CreateClusterOptions) e
 				return fmt.Errorf("must specify --zones or --cloud")
 			}
 			return fmt.Errorf("unable to infer CloudProvider from Zones (is there a typo in --zones?)")
+		}
+	}
+
+	// Default networking
+	if c.Networking == "" {
+		switch api.CloudProviderID(cluster.Spec.CloudProvider) {
+		case api.CloudProviderGCE:
+			c.Networking = "gce"
+		default:
+			c.Networking = "kubenet"
 		}
 	}
 
