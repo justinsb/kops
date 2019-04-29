@@ -24,8 +24,23 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/fitasks"
 	"k8s.io/kops/util/pkg/vfs"
+)
 
-	"k8s.io/apiserver/pkg/authentication/user"
+// Copied from k8s.io/apiserver, to avoid vendoring
+// well-known user and group names
+const (
+	SystemPrivilegedGroup = "system:masters"
+	NodesGroup            = "system:nodes"
+	AllUnauthenticated    = "system:unauthenticated"
+	AllAuthenticated      = "system:authenticated"
+
+	Anonymous     = "system:anonymous"
+	APIServerUser = "system:apiserver"
+
+	// core kubernetes process identities
+	KubeProxy             = "system:kube-proxy"
+	KubeControllerManager = "system:kube-controller-manager"
+	KubeScheduler         = "system:kube-scheduler"
 )
 
 // PKIModelBuilder configures PKI keypairs, as well as tokens
@@ -60,7 +75,7 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			c.AddTask(&fitasks.Keypair{
 				Name:      fi.String("kubelet"),
 				Lifecycle: b.Lifecycle,
-				Subject:   "o=" + user.NodesGroup + ",cn=kubelet",
+				Subject:   "o=" + NodesGroup + ",cn=kubelet",
 				Type:      "client",
 				Signer:    defaultCA,
 				Format:    format,
@@ -84,7 +99,7 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		t := &fitasks.Keypair{
 			Name:      fi.String("kube-scheduler"),
 			Lifecycle: b.Lifecycle,
-			Subject:   "cn=" + user.KubeScheduler,
+			Subject:   "cn=" + KubeScheduler,
 			Type:      "client",
 			Signer:    defaultCA,
 			Format:    format,
@@ -96,7 +111,7 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		t := &fitasks.Keypair{
 			Name:      fi.String("kube-proxy"),
 			Lifecycle: b.Lifecycle,
-			Subject:   "cn=" + user.KubeProxy,
+			Subject:   "cn=" + KubeProxy,
 			Type:      "client",
 			Signer:    defaultCA,
 			Format:    format,
@@ -108,7 +123,7 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		t := &fitasks.Keypair{
 			Name:      fi.String("kube-controller-manager"),
 			Lifecycle: b.Lifecycle,
-			Subject:   "cn=" + user.KubeControllerManager,
+			Subject:   "cn=" + KubeControllerManager,
 			Type:      "client",
 			Signer:    defaultCA,
 			Format:    format,
@@ -203,7 +218,7 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		t := &fitasks.Keypair{
 			Name:      fi.String("kubecfg"),
 			Lifecycle: b.Lifecycle,
-			Subject:   "o=" + user.SystemPrivilegedGroup + ",cn=kubecfg",
+			Subject:   "o=" + SystemPrivilegedGroup + ",cn=kubecfg",
 			Type:      "client",
 			Signer:    defaultCA,
 			Format:    format,
@@ -250,7 +265,7 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		t := &fitasks.Keypair{
 			Name:      fi.String("kops"),
 			Lifecycle: b.Lifecycle,
-			Subject:   "o=" + user.SystemPrivilegedGroup + ",cn=kops",
+			Subject:   "o=" + SystemPrivilegedGroup + ",cn=kops",
 			Type:      "client",
 			Signer:    defaultCA,
 			Format:    format,

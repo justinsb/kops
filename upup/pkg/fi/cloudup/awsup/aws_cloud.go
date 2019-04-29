@@ -51,7 +51,6 @@ import (
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/resources/spotinst"
 	"k8s.io/kops/upup/pkg/fi"
-	k8s_aws "k8s.io/kubernetes/pkg/cloudprovider/providers/aws"
 )
 
 // By default, aws-sdk-go only retries 3 times, which doesn't give
@@ -173,7 +172,7 @@ type awsCloudImplementation struct {
 
 type RegionDelayers struct {
 	mutex      sync.Mutex
-	delayerMap map[string]*k8s_aws.CrossRequestRetryDelay
+	delayerMap map[string]*CrossRequestRetryDelay
 }
 
 var _ fi.Cloud = &awsCloudImplementation{}
@@ -194,7 +193,7 @@ func NewAWSCloud(region string, tags map[string]string) (AWSCloud, error) {
 		c := &awsCloudImplementation{
 			region: region,
 			regionDelayers: &RegionDelayers{
-				delayerMap: make(map[string]*k8s_aws.CrossRequestRetryDelay),
+				delayerMap: make(map[string]*CrossRequestRetryDelay),
 			},
 		}
 
@@ -312,13 +311,13 @@ func (c *awsCloudImplementation) addHandlers(regionName string, h *request.Handl
 // However, this throttle is intended only as a last resort.  When we observe
 // this throttling, we need to address the root cause (e.g. add a delay to a
 // controller retry loop)
-func (c *awsCloudImplementation) getCrossRequestRetryDelay(regionName string) *k8s_aws.CrossRequestRetryDelay {
+func (c *awsCloudImplementation) getCrossRequestRetryDelay(regionName string) *CrossRequestRetryDelay {
 	c.regionDelayers.mutex.Lock()
 	defer c.regionDelayers.mutex.Unlock()
 
 	delayer, found := c.regionDelayers.delayerMap[regionName]
 	if !found {
-		delayer = k8s_aws.NewCrossRequestRetryDelay()
+		delayer = NewCrossRequestRetryDelay()
 		c.regionDelayers.delayerMap[regionName] = delayer
 	}
 	return delayer

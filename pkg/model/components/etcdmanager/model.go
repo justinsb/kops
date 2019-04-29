@@ -33,6 +33,7 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/bundles"
+	"k8s.io/kops/pkg/client/clientset_generated/clientset/scheme"
 	"k8s.io/kops/pkg/dns"
 	"k8s.io/kops/pkg/flagbuilder"
 	"k8s.io/kops/pkg/k8scodecs"
@@ -153,7 +154,7 @@ func (b *EtcdManagerBuilder) buildManifest(etcdCluster *kops.EtcdClusterSpec) (*
 // parseManifest parses a set of objects from a []byte
 func parseManifest(data []byte) ([]runtime.Object, error) {
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
-	deser := scheme.Codecs.UniversalDeserializer()
+	deser := k8scodecs.Codecs.UniversalDeserializer()
 
 	var objects []runtime.Object
 

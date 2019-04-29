@@ -60,20 +60,6 @@ type Cmd interface {
 	SetStdin(in io.Reader)
 	SetStdout(out io.Writer)
 	SetStderr(out io.Writer)
-<<<<<<< HEAD
-=======
-	SetEnv(env []string)
-
-	// StdoutPipe and StderrPipe for getting the process' Stdout and Stderr as
-	// Readers
-	StdoutPipe() (io.ReadCloser, error)
-	StderrPipe() (io.ReadCloser, error)
-
-	// Start and Wait are for running a process non-blocking
-	Start() error
-	Wait() error
-
->>>>>>> vendor
 	// Stops the command by sending SIGTERM. It is not guaranteed the
 	// process will stop before this function returns. If the process is not
 	// responding, an internal timer function will send a SIGKILL to force
@@ -135,33 +121,6 @@ func (cmd *cmdWrapper) SetStderr(out io.Writer) {
 	cmd.Stderr = out
 }
 
-<<<<<<< HEAD
-=======
-func (cmd *cmdWrapper) SetEnv(env []string) {
-	cmd.Env = env
-}
-
-func (cmd *cmdWrapper) StdoutPipe() (io.ReadCloser, error) {
-	r, err := (*osexec.Cmd)(cmd).StdoutPipe()
-	return r, handleError(err)
-}
-
-func (cmd *cmdWrapper) StderrPipe() (io.ReadCloser, error) {
-	r, err := (*osexec.Cmd)(cmd).StderrPipe()
-	return r, handleError(err)
-}
-
-func (cmd *cmdWrapper) Start() error {
-	err := (*osexec.Cmd)(cmd).Start()
-	return handleError(err)
-}
-
-func (cmd *cmdWrapper) Wait() error {
-	err := (*osexec.Cmd)(cmd).Wait()
-	return handleError(err)
-}
-
->>>>>>> vendor
 // Run is part of the Cmd interface.
 func (cmd *cmdWrapper) Run() error {
 	err := (*osexec.Cmd)(cmd).Run()

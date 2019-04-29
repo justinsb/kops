@@ -29,8 +29,6 @@ import (
 	"k8s.io/klog"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apiserver/pkg/authentication/user"
-
 	"k8s.io/kops/nodeup/pkg/distros"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/flagbuilder"
@@ -45,6 +43,11 @@ import (
 const (
 	// containerizedMounterHome is the path where we install the containerized mounter (on ContainerOS)
 	containerizedMounterHome = "/home/kubernetes/containerized_mounter"
+)
+
+// Copied from https://github.com/kubernetes/apiserver/blob/master/pkg/authentication/user/user.go to avoid vendoring
+const (
+	NodesGroup = "system:nodes"
 )
 
 // KubeletBuilder installs kubelet
@@ -597,7 +600,7 @@ func (b *KubeletBuilder) buildMasterKubeletKubeconfig() (*nodetasks.File, error)
 
 	template.Subject = pkix.Name{
 		CommonName:   fmt.Sprintf("system:node:%s", nodeName),
-		Organization: []string{user.NodesGroup},
+		Organization: []string{NodesGroup},
 	}
 
 	// https://tools.ietf.org/html/rfc5280#section-4.2.1.3

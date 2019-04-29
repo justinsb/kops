@@ -25,7 +25,17 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awstasks"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
-	"k8s.io/kubernetes/pkg/cloudprovider/providers/aws"
+)
+
+// Well-known constants copied from https://github.com/kubernetes/kubernetes/blob/master/pkg/cloudprovider/providers/aws/aws.go to avoid vendoring
+const (
+	// TagNameSubnetInternalELB is the tag name used on a subnet to designate that
+	// it should be used for internal ELBs
+	TagNameSubnetInternalELB = "kubernetes.io/role/internal-elb"
+
+	// TagNameSubnetPublicELB is the tag name used on a subnet to designate that
+	// it should be used for internet ELBs
+	TagNameSubnetPublicELB = "kubernetes.io/role/elb"
 )
 
 // NetworkModelBuilder configures network objects
@@ -205,10 +215,10 @@ func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext) error {
 
 			switch subnetSpec.Type {
 			case kops.SubnetTypePublic, kops.SubnetTypeUtility:
-				tags[aws.TagNameSubnetPublicELB] = "1"
+				tags[TagNameSubnetPublicELB] = "1"
 
 			case kops.SubnetTypePrivate:
-				tags[aws.TagNameSubnetInternalELB] = "1"
+				tags[TagNameSubnetInternalELB] = "1"
 
 			default:
 				klog.V(2).Infof("unable to properly tag subnet %q because it has unknown type %q. Load balancers may be created in incorrect subnets", subnetSpec.Name, subnetSpec.Type)

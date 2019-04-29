@@ -18,6 +18,7 @@ limitations under the License.
 package clouddns
 
 import (
+	"fmt"
 	"io"
 
 	"cloud.google.com/go/compute/metadata"
@@ -31,7 +32,6 @@ import (
 	"k8s.io/kops/dnsprovider/pkg/dnsprovider"
 	"k8s.io/kops/dnsprovider/pkg/dnsprovider/providers/google/clouddns/internal"
 	"k8s.io/kops/dnsprovider/pkg/dnsprovider/providers/google/clouddns/internal/stubs"
-	"k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
 )
 
 const (
@@ -68,7 +68,9 @@ func newCloudDns(config io.Reader) (*Interface, error) {
 			projectID = cfg.Global.ProjectID
 		}
 		if cfg.Global.TokenURL != "" {
-			tokenSource = gce.NewAltTokenSource(cfg.Global.TokenURL, cfg.Global.TokenBody)
+			// This introduces a very messy chain of dependencies, and is unused...
+			return nil, fmt.Errorf("Alternative TokenURL is not supported")
+			//tokenSource = gce.NewAltTokenSource(cfg.Global.TokenURL, cfg.Global.TokenBody)
 		}
 	}
 	return CreateInterface(projectID, tokenSource)

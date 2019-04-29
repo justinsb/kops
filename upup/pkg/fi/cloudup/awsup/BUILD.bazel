@@ -11,6 +11,7 @@ go_library(
         "machine_types.go",
         "mock_aws_cloud.go",
         "request_logger.go",
+        "retry_handler.go",
         "status.go",
     ],
     importpath = "k8s.io/kops/upup/pkg/fi/cloudup/awsup",
@@ -44,10 +45,10 @@ go_library(
         "//vendor/github.com/aws/aws-sdk-go/service/iam/iamiface:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/service/route53:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go/service/route53/route53iface:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/util/sets:go_default_library",
         "//vendor/k8s.io/klog:go_default_library",
-        "//vendor/k8s.io/kubernetes/pkg/cloudprovider/providers/aws:go_default_library",
     ],
 )
 

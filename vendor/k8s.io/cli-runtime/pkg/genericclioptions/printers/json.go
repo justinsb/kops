@@ -25,7 +25,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"sigs.k8s.io/yaml"
+	"github.com/ghodss/yaml"
 )
 
 // JSONPrinter is an implementation of ResourcePrinter which outputs an object as JSON.
