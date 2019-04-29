@@ -10,10 +10,10 @@ required = [
   "k8s.io/code-generator/cmd/defaulter-gen",
 
   # Needed for docs generation
-  "k8s.io/kube-openapi/cmd/openapi-gen",
-  "github.com/kubernetes-incubator/apiserver-builder/cmd/apiserver-boot",
-  "github.com/kubernetes-incubator/apiserver-builder/cmd/apiregister-gen",
-  "github.com/kubernetes-incubator/reference-docs/gen-apidocs",
+  #"k8s.io/code-generator/cmd/openapi-gen",
+  #"github.com/kubernetes-incubator/apiserver-builder/cmd/apiserver-boot",
+  #"github.com/kubernetes-incubator/apiserver-builder/cmd/apiregister-gen",
+  #"github.com/kubernetes-incubator/reference-docs/gen-apidocs",
 
   # Needed for bazel generation / verification
   "github.com/bazelbuild/bazel-gazelle/cmd/gazelle",
@@ -59,12 +59,18 @@ required = [
 [[override]]
   name = "k8s.io/api"
   version = "kubernetes-1.13.5"
+<<<<<<< HEAD
 [[override]]
   name = "k8s.io/gengo"
   revision = "51747d6e00da1fc578d5a333a93bb2abcbce7a95" # version specified in 1.13.5
 [[override]]
   name = "k8s.io/utils"
   revision = "66066c83e385e385ccc3c964b44fd7dcd413d0ed" # version specified in 1.13.5
+=======
+[[override]]
+  name = "k8s.io/utils"
+  revision = "21c4ce38f2a793ec01e925ddc31216500183b773" # Latest
+>>>>>>> misc gopkg
 [[override]]
   name = "k8s.io/kube-openapi"
   revision = "c59034cc13d587f5ef4e85ca0ade0c1866ae8e1d" # version specified in 1.13.5
@@ -83,6 +89,18 @@ required = [
 [[override]]
   name = "k8s.io/kubernetes"
   version = "v1.13.5"
+<<<<<<< HEAD
+=======
+[[override]]
+  name = "sigs.k8s.io/controller-runtime"
+  version = "v0.1.10"
+[[override]]
+  name = "github.com/go-logr/logr"
+  version = "v0.1.0"
+[[override]]
+  name = "github.com/digitalocean/godo"
+  revision = "v1.13.0"
+>>>>>>> misc gopkg
 
 # Needed for docs generation
 [[override]]
@@ -400,9 +418,6 @@ required = [
 [[override]]
   name = "github.com/coreos/pkg"
   revision = "fa29b1d70f0beaddd4c7021607cc3c3be8ce94b8"
-[[override]]
-  name = "github.com/digitalocean/godo"
-  revision = "34840385860db94c88d044571153b6a200ca40b2"
 [[override]]
   name = "github.com/docker/engine-api"
   revision = "dea108d3aa0c67d7162a3fd8aa65f38a430019fd"
