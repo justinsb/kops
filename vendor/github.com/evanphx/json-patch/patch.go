@@ -14,6 +14,7 @@ const (
 	eAry
 )
 
+<<<<<<< HEAD
 var (
 	// SupportNegativeIndices decides whether to support non-standard practice of
 	// allowing negative indices to mean indices starting at the end of an array.
@@ -23,6 +24,9 @@ var (
 	// "copy" operations in a patch.
 	AccumulatedCopySizeLimit int64 = 0
 )
+=======
+var SupportNegativeIndices bool = true
+>>>>>>> vendor
 
 type lazyNode struct {
 	raw   *json.RawMessage
