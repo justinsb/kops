@@ -1,0 +1,25 @@
+#!/bin/bash -ex
+
+set -o pipefail
+
+PR=$1
+BASE=`git rev-parse --abbrev-ref HEAD`
+
+shas=`curl https://api.github.com/repos/kubernetes/kops/pulls/${PR}/commits  | jq -r .[].sha`
+
+BRANCH="cherrypick_${PR}_${BASE}"
+
+git checkout -b ${BRANCH}
+for sha in $shas; do
+  git cherry-pick $sha
+done
+
+git push ${USER}
+
+cat <<EOF | hub pull-request -F - -b ${BASE}
+Cherry pick of #${PR} onto ${BASE}
+
+Cherry pick of #${PR}
+EOF
+
+git checkout ${BASE}

@@ -721,12 +721,12 @@ func (d *clusterDiscoveryGCE) listSubnets() ([]*resources.Resource, error) {
 	err = c.Compute().Subnetworks.List(c.Project(), c.Region()).Pages(ctx, func(page *compute.SubnetworkList) error {
 		for _, o := range page.Items {
 			if !d.matchesClusterName(o.Name) {
-				glog.V(8).Infof("skipping Subnet with name %q", o.Name)
+				klog.V(8).Infof("skipping Subnet with name %q", o.Name)
 				continue
 			}
 
 			if !subnetworkUrls[o.SelfLink] {
-				glog.Warningf("skipping subnetwork %q because it didn't match any instance template", o.SelfLink)
+				klog.Warningf("skipping subnetwork %q because it didn't match any instance template", o.SelfLink)
 				continue
 			}
 
@@ -738,7 +738,7 @@ func (d *clusterDiscoveryGCE) listSubnets() ([]*resources.Resource, error) {
 				Obj:     o,
 			}
 
-			glog.V(4).Infof("found resource: %s", o.SelfLink)
+			klog.V(4).Infof("found resource: %s", o.SelfLink)
 			resourceTrackers = append(resourceTrackers, resourceTracker)
 		}
 		return nil
@@ -754,7 +754,7 @@ func deleteSubnet(cloud fi.Cloud, r *resources.Resource) error {
 	c := cloud.(gce.GCECloud)
 	o := r.Obj.(*compute.Subnetwork)
 
-	glog.V(2).Infof("deleting GCE subnetwork %s", o.SelfLink)
+	klog.V(2).Infof("deleting GCE subnetwork %s", o.SelfLink)
 	u, err := gce.ParseGoogleCloudURL(o.SelfLink)
 	if err != nil {
 		return err
@@ -763,7 +763,7 @@ func deleteSubnet(cloud fi.Cloud, r *resources.Resource) error {
 	op, err := c.Compute().Subnetworks.Delete(u.Project, u.Region, u.Name).Do()
 	if err != nil {
 		if gce.IsNotFound(err) {
-			glog.Infof("subnetwork not found, assuming deleted: %q", o.SelfLink)
+			klog.Infof("subnetwork not found, assuming deleted: %q", o.SelfLink)
 			return nil
 		}
 		return fmt.Errorf("error deleting subnetwork %s: %v", o.SelfLink, err)

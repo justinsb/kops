@@ -24,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/golang/glog"
 	"k8s.io/klog"
 )
 
@@ -97,7 +96,7 @@ func (c *CrossRequestRetryDelay) AfterRetry(r *request.Request) {
 	if awsError.Code() == "RequestLimitExceeded" {
 		c.backoff.ReportError()
 		//recordAWSThrottlesMetric(operationName(r))
-		glog.Warningf("Got RequestLimitExceeded error on AWS request (%s)",
+		klog.Warningf("Got RequestLimitExceeded error on AWS request (%s)",
 			describeRequest(r))
 	}
 }

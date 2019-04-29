@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/kops/pkg/apis/kops"
@@ -39,7 +39,7 @@ func resolveChannel(channel string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("invalid base channel location: %q", kops.DefaultChannelBase)
 		}
-		glog.V(4).Infof("resolving %q against default channel location %q", channel, kops.DefaultChannelBase)
+		klog.V(4).Infof("resolving %q against default channel location %q", channel, kops.DefaultChannelBase)
 		u = base.ResolveReference(u)
 	}
 
@@ -68,7 +68,7 @@ func loadBundleManifest(clusterSpec *kops.ClusterSpec, bundleLocation string) ([
 
 		tokens := strings.Split(bundleLocation, ".")
 		s := "bundles/" + tokens[0] + "/" + bundleLocation
-		glog.V(4).Infof("resolving %q against channel location %q", s, channel)
+		klog.V(4).Infof("resolving %q against channel location %q", s, channel)
 		q, err := url.Parse(s)
 		if err != nil {
 			return nil, "", fmt.Errorf("invalid channel: %q", s)
@@ -77,7 +77,7 @@ func loadBundleManifest(clusterSpec *kops.ClusterSpec, bundleLocation string) ([
 	}
 
 	resolved := u.String()
-	glog.V(2).Infof("loading bundle from %q", resolved)
+	klog.V(2).Infof("loading bundle from %q", resolved)
 	contents, err := vfs.Context.ReadFile(resolved)
 	if err != nil {
 		return nil, "", fmt.Errorf("error reading bundle %q: %v", resolved, err)
@@ -102,7 +102,7 @@ func loadComponent(clusterSpec *kops.ClusterSpec, baseLocation string, component
 	u := base.ResolveReference(q)
 
 	resolved := u.String()
-	glog.V(2).Infof("loading bundle from %q", resolved)
+	klog.V(2).Infof("loading bundle from %q", resolved)
 	contents, err := vfs.Context.ReadFile(resolved)
 	if err != nil {
 		return nil, fmt.Errorf("error reading bundle %q: %v", resolved, err)

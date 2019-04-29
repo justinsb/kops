@@ -125,14 +125,14 @@ func setHostPathMappingType(pod *v1.Pod, name string, hostPathType v1.HostPathTy
 		vol := &pod.Spec.Volumes[i]
 		if vol.Name == name {
 			if vol.HostPath == nil {
-				glog.Warningf("volume %q was not of type hostPath", name)
+				klog.Warningf("volume %q was not of type hostPath", name)
 			} else {
 				vol.HostPath.Type = &hostPathType
 				return
 			}
 		}
 	}
-	glog.Warningf("volume %q was not found", name)
+	klog.Warningf("volume %q was not found", name)
 }
 
 // addHostPathVolume is shorthand for mapping a host path into a container

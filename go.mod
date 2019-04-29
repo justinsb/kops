@@ -73,7 +73,6 @@ require (
 	github.com/go-openapi/validate v0.19.0 // indirect
 	github.com/gobuffalo/envy v1.6.2 // indirect
 	github.com/gogo/protobuf v1.2.1
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/golang/protobuf v1.2.0
 	github.com/golangplus/bytes v0.0.0-20160111154220-45c989fe5450 // indirect

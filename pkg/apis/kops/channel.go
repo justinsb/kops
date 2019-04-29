@@ -345,12 +345,12 @@ func (c *Channel) FindBundleVersion(kubernetesVersion semver.Version) *BundleVer
 		if release.KubernetesVersion != "" {
 			versionRange, err := semver.ParseRange(release.KubernetesVersion)
 			if err != nil {
-				glog.Warningf("cannot parse KubernetesVersion=%q", release.KubernetesVersion)
+				klog.Warningf("cannot parse KubernetesVersion=%q", release.KubernetesVersion)
 				continue
 			}
 
 			if !versionRange(kubernetesVersion) {
-				glog.V(2).Infof("kubernetes version %q does not match range: %s", kubernetesVersion, release.KubernetesVersion)
+				klog.V(2).Infof("kubernetes version %q does not match range: %s", kubernetesVersion, release.KubernetesVersion)
 				continue
 			}
 		}
@@ -358,12 +358,12 @@ func (c *Channel) FindBundleVersion(kubernetesVersion semver.Version) *BundleVer
 	}
 
 	if len(matches) == 0 {
-		glog.V(2).Infof("no matching releases for %v", kubernetesVersion)
+		klog.V(2).Infof("no matching releases for %v", kubernetesVersion)
 		return nil
 	}
 
 	if len(matches) != 1 {
-		glog.Warningf("multiple matching releases for %v", kubernetesVersion)
+		klog.Warningf("multiple matching releases for %v", kubernetesVersion)
 	}
 	return matches[0]
 }
