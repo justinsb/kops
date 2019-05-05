@@ -79,7 +79,7 @@ require (
 	github.com/golangplus/fmt v0.0.0-20150411045040-2a5d6d7d2995 // indirect
 	github.com/golangplus/testing v0.0.0-20180327235837-af21d9c3145e // indirect
 	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c // indirect
-	github.com/google/cadvisor v0.31.0
+	github.com/google/cadvisor v0.31.0 // indirect
 	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/google/go-querystring v0.0.0-20170111101155-53e6ce116135 // indirect
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf // indirect
@@ -102,7 +102,7 @@ require (
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/jpillora/backoff v0.0.0-20170918002102-8eab2debe79d
 	github.com/json-iterator/go v1.1.5 // indirect
-	github.com/jteeuwen/go-bindata v0.0.0-20151023091102-a0ff2567cfb7 // indirect
+	github.com/jteeuwen/go-bindata v0.0.0-20151023091102-a0ff2567cfb7
 	github.com/kr/fs v0.0.0-20131111012553-2788f0dbd169 // indirect
 	github.com/kubernetes-incubator/apiserver-builder v0.0.0-20180328231559-e809ac2f9f0c // indirect
 	github.com/kubernetes-incubator/reference-docs v0.0.0-20180403034118-8fadf91876cc // indirect
