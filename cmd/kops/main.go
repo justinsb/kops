@@ -19,9 +19,13 @@ package main // import "k8s.io/kops/cmd/kops"
 import (
 	"fmt"
 	"os"
+
+	"k8s.io/klog"
 )
 
 func main() {
+	klog.InitFlags(nil)
+
 	Execute()
 }
 
