@@ -249,7 +249,7 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster *kops.EtcdClusterSpec) (*v1.Po
 			return nil, err
 		}
 
-		parsed, err := bundles.ParseToTypedObjects(component, scheme.Scheme)
+		parsed, err := bundles.ParseToTypedObjects(component, k8scodecs.Scheme)
 		if err != nil {
 			return nil, err
 		}
