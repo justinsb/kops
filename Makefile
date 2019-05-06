@@ -430,6 +430,25 @@ dep-ensure: dep-prereqs
 	rm -rf vendor/github.com/docker/docker/contrib/
 	make gazelle
 
+.PHONY: gomod
+gomod:
+	GO111MODULE=on go mod vendor
+	# Switch weavemesh to use peer_name_hash - bazel rule-go doesn't support build tags yet
+	rm vendor/github.com/weaveworks/mesh/peer_name_mac.go
+	sed -i -e 's/peer_name_hash/!peer_name_mac/g' vendor/github.com/weaveworks/mesh/peer_name_hash.go
+	# Remove all bazel build files that were vendored and regenerate (we assume they are go-gettable)
+	find vendor/ -name "BUILD" -delete
+	find vendor/ -name "BUILD.bazel" -delete
+	# Remove recursive symlinks that really confuse bazel
+	#rm -rf vendor/github.com/coreos/etcd/cmd/
+	#rm -rf vendor/github.com/jteeuwen/go-bindata/testdata/
+	# Remove depenencies that dep just can't figure out
+	#rm -rf vendor/k8s.io/code-generator/cmd/set-gen/
+	#rm -rf vendor/k8s.io/code-generator/cmd/go-to-protobuf/
+	#rm -rf vendor/k8s.io/code-generator/cmd/import-boss/
+	#rm -rf vendor/github.com/docker/docker/contrib/
+	bazel run //:gazelle
+
 
 .PHONY: gofmt
 gofmt:
