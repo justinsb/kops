@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 
+	dnsmsg "github.com/coredns/coredns/plugin/etcd/msg"
 	etcdc "github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 	"k8s.io/klog"
