@@ -403,6 +403,8 @@ k8s.io/cli-runtime v0.0.0-20190325194458-f2b4781c3ae1 h1:yIrGaL3GC1eoxtkSXoNMHKz
 k8s.io/cli-runtime v0.0.0-20190325194458-f2b4781c3ae1/go.mod h1:qWnH3/b8sp/l7EvlDh7ulDU3UWA4P4N1NFbEEP791tM=
 k8s.io/client-go v2.0.0-alpha.0.0.20190307161346-7621a5ebb88b+incompatible h1:SBpo3pl4emC76nXrrQB25cUzPngCnfzwthOsvcvgsVM=
 k8s.io/client-go v2.0.0-alpha.0.0.20190307161346-7621a5ebb88b+incompatible/go.mod h1:7vJpHMYJwNQCWgzmNV+VYUl1zCObLyodBc8nIyt8L5s=
+k8s.io/client-go v10.0.0+incompatible h1:F1IqCqw7oMBzDkqlcBymRq1450wD0eNqLE9jzUrIi34=
+k8s.io/client-go v10.0.0+incompatible/go.mod h1:7vJpHMYJwNQCWgzmNV+VYUl1zCObLyodBc8nIyt8L5s=
 k8s.io/code-generator v0.0.0-20180823001027-3dcf91f64f63/go.mod h1:MYiN+ZJZ9HkETbgVZdWw2AsuAi9PZ4V80cwfuf2axe8=
 k8s.io/csi-api v0.0.0-20181011073329-55e69c84e236/go.mod h1:GH854hXKH+vaEO06X/DMiE/o3rVO1aw8dXJJpP7awjA=
 k8s.io/gengo v0.0.0-20180702041517-fdcf9f9480fd/go.mod h1:ezvh/TsK7cY6rbqRK0oQQ8IAqLxYwwyPxAX1Pzy0ii0=

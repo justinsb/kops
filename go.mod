@@ -10,6 +10,19 @@ replace github.com/ugorgi/go => github.com/ugorji/go v1.1.1
 
 replace github.com/ugorgi/go/codec => github.com/ugorji/go v1.1.1
 
+//  We pin some versions
+// replace k8s.io/client-go => k8s.io/client-go v10.0.0
+replace k8s.io/client-go => k8s.io/client-go v10.0.0+incompatible
+
+// replace k8s.io/api => k8s.io/api kubernetes-1.13.5
+replace k8s.io/api => k8s.io/api v0.0.0-20190222213804-5cb15d344471
+
+// replace k8s.io/apimachinery => k8s.io/apimachinery kubernetes-1.13.5
+replace k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20190221213512-86fb29eff628
+
+// replace k8s.io/kubernetes => k8s.io/kubernetes v1.13.5
+replace k8s.io/kubernetes => k8s.io/kubernetes v1.13.5
+
 require (
 	bitbucket.org/ww/goautoneg v0.0.0-20120707110453-75cd24fc2f2c // indirect
 	cloud.google.com/go v0.34.0
