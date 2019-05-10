@@ -14,6 +14,7 @@
 
 
 DOCKER_REGISTRY?=gcr.io/must-override
+DOCKER_IMAGE_PREFIX?=$(USER)/
 S3_BUCKET?=s3://must-override/
 UPLOAD_DEST?=$(S3_BUCKET)
 GCS_LOCATION?=gs://must-override
@@ -387,7 +388,7 @@ dns-controller:
 
 .PHONY: dns-controller-push
 dns-controller-push:
-	DOCKER_REGISTRY=${DOCKER_REGISTRY} DNS_CONTROLLER_TAG=${DNS_CONTROLLER_TAG} bazel run //dns-controller:push-image
+	DOCKER_REGISTRY=${DOCKER_REGISTRY} DOCKER_IMAGE_PREFIX=${DOCKER_IMAGE_PREFIX} DNS_CONTROLLER_TAG=${DNS_CONTROLLER_TAG} bazel run //dns-controller:push-image
 
 # --------------------------------------------------
 # static utils

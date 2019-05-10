@@ -90,7 +90,15 @@ KOPS_VERSION=`bazel run //cmd/kops version -- --short`
 export KOPS_BASE_URL=https://${GCS_BUCKET_NAME}.storage.googleapis.com/kops/${KOPS_VERSION}/
 ```
 
-export DNSCONTROLLER_IMAGE=justinsb/dns-controller:1.15.0-alpha.1
+```bash
+KOPS_VERSION=`bazel run //cmd/kops version -- --short`
+export DOCKER_IMAGE_PREFIX=${USER}/
+export DOCKER_REGISTRY=
+make dns-controller-push
+export DNSCONTROLLER_IMAGE=${DOCKER_IMAGE_PREFIX}dns-controller:${KOPS_VERSION}
+
+```
+
 
 You can create a cluster using `kops create cluster <clustername> --zones us-east-1b`
 
