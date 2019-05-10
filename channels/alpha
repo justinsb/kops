@@ -116,4 +116,4 @@ spec:
     requiredVersion: 1.7.1
     kubernetesVersion: 1.4.12
   bundles:
-  - bundle: 1.0.20190421
+  - bundle: 1.0.20190509

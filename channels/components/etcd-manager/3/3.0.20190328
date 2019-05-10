@@ -2,7 +2,7 @@ apiVersion: bundle.gke.io/v1alpha1
 kind: Component
 spec:
   componentName: etcd-manager
-  version: 1.0.20190421
+  version: 3.0.20190328
   objects:
   - apiVersion: v1
     kind: Pod

@@ -3,4 +3,4 @@ kind: ComponentSet
 spec:
   components:
   - componentName: etcd-manager
-    version: 3.0.20190328
+    version: 3.0.20190509
