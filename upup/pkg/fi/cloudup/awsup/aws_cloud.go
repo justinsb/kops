@@ -90,6 +90,7 @@ const (
 	WellKnownAccountCoreOS             = "595879546273"
 	WellKnownAccountAmazonSystemLinux2 = "137112412989"
 	WellKnownAccountUbuntu             = "099720109477"
+	WellKnownAccountDebian             = "379101102735"
 )
 
 type AWSCloud interface {
@@ -1174,6 +1175,8 @@ func resolveImage(ec2Client ec2iface.EC2API, name string) (*ec2.Image, error) {
 				owner = WellKnownAccountKopeio
 			case "coreos.com":
 				owner = WellKnownAccountCoreOS
+			case "debian.org":
+				owner = WellKnownAccountDebian
 			case "redhat.com":
 				owner = WellKnownAccountRedhat
 			case "amazon.com":
