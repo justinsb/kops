@@ -59,7 +59,7 @@ container_image(
 )
 
 container_bundle(
-    name = "protokube",
+    name = "protokube-bundle",
     images = {
         "protokube:{STABLE_PROTOKUBE_TAG}": "protokube-image",
     },
@@ -87,15 +87,5 @@ container_image(
     directory = "/usr/bin/",
     files = [
         "//kube-discovery/cmd/kube-discovery",
-    ],
-)
-
-container_image(
-    name = "kops-controller",
-    base = "@distroless_base//image",
-    cmd = ["/usr/bin/kops-controller"],
-    directory = "/usr/bin/",
-    files = [
-        "//cmd/kops-controller",
     ],
 )
