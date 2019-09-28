@@ -58,3 +58,12 @@ container_bundle(
         "{STABLE_DOCKER_IMAGE_PREFIX}kops-controller:{STABLE_KOPS_CONTROLLER_TAG}": "image",
     },
 )
+
+genrule(
+    name = "image-bundle-tar-gz",
+    srcs = [
+        "image-bundle.tar",
+    ],
+    outs = ["image-bundle.tar.gz"],
+    cmd = "gzip -c --fast $(location image-bundle.tar) > $@",
+)

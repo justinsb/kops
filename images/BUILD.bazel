@@ -63,7 +63,15 @@ container_bundle(
     images = {
         "protokube:{STABLE_PROTOKUBE_TAG}": "protokube-image",
     },
-    stamp = True,
+)
+
+genrule(
+    name = "protokube-bundle-tar-gz",
+    srcs = [
+        "protokube-bundle.tar",
+    ],
+    outs = ["protokube-bundle.tar.gz"],
+    cmd = "gzip -c --fast $(location protokube-bundle.tar) > $@",
 )
 
 load("//tools:gzip.bzl", "gzip")
