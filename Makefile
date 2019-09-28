@@ -833,12 +833,9 @@ bazel-version-dist: bazel-crossbuild-nodeup bazel-crossbuild-kops bazel-kops-con
 	cp bazel-bin/cmd/nodeup/linux_amd64_pure_stripped/nodeup ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup
 	tools/sha1 ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup.sha1
 	tools/sha256 ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/nodeup.sha256
-	cp ${BAZELIMAGES}/protokube.tar.gz ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz
-	cp ${BAZELIMAGES}/protokube.tar.gz.sha1 ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz.sha1
-	cp ${BAZELIMAGES}/protokube.tar.gz.sha256 ${BAZELUPLOAD}/kops/${VERSION}/images/protokube.tar.gz.sha256
-	cp ${BAZELIMAGES}/kops-controller.tar.gz ${BAZELUPLOAD}/kops/${VERSION}/images/kops-controller.tar.gz
-	cp ${BAZELIMAGES}/kops-controller.tar.gz.sha1 ${BAZELUPLOAD}/kops/${VERSION}/images/kops-controller.tar.gz.sha1
-	cp ${BAZELIMAGES}/kops-controller.tar.gz.sha256 ${BAZELUPLOAD}/kops/${VERSION}/images/kops-controller.tar.gz.sha256
+	cp ${BAZELIMAGES}/protokube.tar.* ${BAZELUPLOAD}/kops/${VERSION}/images/
+	cp ${BAZELIMAGES}/kops-controller.tar.* ${BAZELUPLOAD}/kops/${VERSION}/images/
+	cp ${BAZELIMAGES}/dns-controller.tar.* ${BAZELUPLOAD}/kops/${VERSION}/images/
 	cp bazel-bin/cmd/kops/linux_amd64_pure_stripped/kops ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops
 	tools/sha1 ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops.sha1
 	tools/sha256 ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops ${BAZELUPLOAD}/kops/${VERSION}/linux/amd64/kops.sha256
