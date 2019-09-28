@@ -806,6 +806,15 @@ bazel-kops-controller-export:
 	tools/sha1 ${BAZELIMAGES}/kops-controller.tar.gz ${BAZELIMAGES}/kops-controller.tar.gz.sha1
 	tools/sha256 ${BAZELIMAGES}/kops-controller.tar.gz ${BAZELIMAGES}/kops-controller.tar.gz.sha256
 
+.PHONY: bazel-kops-controller-export
+bazel-kops-controller-export:
+	mkdir -p ${BAZELIMAGES}
+	DOCKER_REGISTRY=${DOCKER_REGISTRY} DOCKER_IMAGE_PREFIX=${DOCKER_IMAGE_PREFIX} KOPS_CONTROLLER_TAG=${KOPS_CONTROLLER_TAG} bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //cmd/kops-controller:image.tar
+	cp -fp bazel-bin/cmd/kops-controller/image.tar ${BAZELIMAGES}/kops-controller.tar
+	gzip --force --fast ${BAZELIMAGES}/kops-controller.tar
+	(${SHASUMCMD} ${BAZELIMAGES}/kops-controller.tar.gz | cut -d' ' -f1) > ${BAZELIMAGES}/kops-controller.tar.gz.sha1
+	(${SHA256SUMCMD} ${BAZELIMAGES}/kops-controller.tar.gz | cut -d' ' -f1) > ${BAZELIMAGES}/kops-controller.tar.gz.sha256
+
 .PHONY: bazel-version-dist
 bazel-version-dist: bazel-crossbuild-nodeup bazel-crossbuild-kops bazel-kops-controller-export bazel-protokube-export bazel-utils-dist
 	rm -rf ${BAZELUPLOAD}
