@@ -65,39 +65,45 @@ container_bundle(
     },
 )
 
-genrule(
-    name = "image-bundle-tar-gz",
-    srcs = [
-        "image-bundle.tar",
-    ],
-    outs = ["image-bundle.tar.gz"],
-    cmd = "gzip -c --fast $(location image-bundle.tar) > $@",
-)
+#genrule(
+#    name = "image-bundle-tar-gz",
+#    srcs = [
+#        "image-bundle.tar",
+#    ],
+#    outs = ["image-bundle.tar.gz"],
+#    cmd = "gzip -c --fast $(location image-bundle.tar) > $@",
+#)
 
-genrule(
-    name = "image-bundle-tar-gz-sha1",
-    srcs = [
-        ":image-bundle-tar-gz",
-    ],
-    outs = ["image-bundle.tar.gz.sha1"],
-    cmd = "./$(location //hack/bazel:sha1) $(location :image-bundle-tar-gz) $@",
-    tools = [ "//hack/bazel:sha1" ],
-)
+#genrule(
+#    name = "image-bundle-tar-gz-sha1",
+#    srcs = [
+#        ":image-bundle-tar-gz",
+#    ],
+#    outs = ["image-bundle.tar.gz.sha1"],
+#    cmd = "./$(location //hack/bazel:sha1) $(location :image-bundle-tar-gz) $@",
+#    tools = [ "//hack/bazel:sha1" ],
+#)
 
-genrule(
-    name = "image-bundle-tar-gz-sha256",
-    srcs = [
-        ":image-bundle-tar-gz",
-    ],
-    outs = ["image-bundle.tar.gz.sha256"],
-    cmd = "./$(location //hack/bazel:sha256) $(location :image-bundle-tar-gz) $@",
-    tools = [ "//hack/bazel:sha256" ],
-)
+#genrule(
+#    name = "image-bundle-tar-gz-sha256",
+#    srcs = [
+#        ":image-bundle-tar-gz",
+#    ],
+#    outs = ["image-bundle.tar.gz.sha256"],
+#    cmd = "./$(location //hack/bazel:sha256) $(location :image-bundle-tar-gz) $@",
+#    tools = [ "//hack/bazel:sha256" ],
+#)
 
+load("//hack/bazel:gzip.bzl", "gzip")
+
+gzip(
+    name = "image-bundle.tar.gz",
+    src = ":image-bundle.tar",
+)
 
 load("//hack/bazel:hash.bzl", "hashes")
 
 hashes(
-    name = "image-bundle-tar-gz-hashes",
-    src = ":image-bundle-tar-gz",
+    name = "image-bundle.tar.gz.hashes",
+    src = ":image-bundle.tar.gz",
 )

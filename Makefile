@@ -817,10 +817,10 @@ bazel-kops-controller-export:
 .PHONY: bazel-dns-controller-export
 bazel-dns-controller-export:
 	mkdir -p ${BAZELIMAGES}
-	DOCKER_REGISTRY="" DOCKER_IMAGE_PREFIX="kope/" DNS_CONTROLLER_TAG=${DNS_CONTROLLER_TAG} bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //dns-controller/cmd/dns-controller:image-bundle.tar.gz //dns-controller/cmd/dns-controller:image-bundle.tar.gz.sha1 //dns-controller/cmd/dns-controller:image-bundle.tar.gz.sha256
-	cp -fp bazel-bin/dns-controller/cmd/dns-controller/image-bundle.tar.gz ${BAZELIMAGES}/dns-controller.tar.gz
-	cp -fp bazel-bin/dns-controller/cmd/dns-controller/image-bundle.tar.gz.sha1 ${BAZELIMAGES}/dns-controller.tar.gz.sha1
-	cp -fp bazel-bin/dns-controller/cmd/dns-controller/image-bundle.tar.gz.sha256 ${BAZELIMAGES}/dns-controller.tar.gz.sha256
+	DOCKER_REGISTRY="" DOCKER_IMAGE_PREFIX="kope/" DNS_CONTROLLER_TAG=${DNS_CONTROLLER_TAG} bazel build --platforms=@io_bazel_rules_go//go/toolchain:linux_amd64 //dns-controller/cmd/dns-controller:*
+	cp -fp bazel-bin/dns-controller/cmd/dns-controller/bazel-out/k8-fastbuild/bin/dns-controller/cmd/dns-controller/image-bundle.tar.gz ${BAZELIMAGES}/dns-controller.tar.gz
+	cp -fp bazel-bin/dns-controller/cmd/dns-controller/bazel-out/k8-fastbuild/bin/dns-controller/cmd/dns-controller/bazel-out/k8-fastbuild/bin/dns-controller/cmd/dns-controller/image-bundle.tar.gz.sha1 ${BAZELIMAGES}/dns-controller.tar.gz.sha1
+	cp -fp bazel-bin/dns-controller/cmd/dns-controller/bazel-out/k8-fastbuild/bin/dns-controller/cmd/dns-controller/bazel-out/k8-fastbuild/bin/dns-controller/cmd/dns-controller/image-bundle.tar.gz.sha256 ${BAZELIMAGES}/dns-controller.tar.gz.sha256
 
 .PHONY: bazel-version-dist
 bazel-version-dist: bazel-crossbuild-nodeup bazel-crossbuild-kops bazel-kops-controller-export bazel-protokube-export bazel-utils-dist
