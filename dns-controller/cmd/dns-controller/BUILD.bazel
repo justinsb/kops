@@ -73,3 +73,23 @@ genrule(
     outs = ["image-bundle.tar.gz"],
     cmd = "gzip -c --fast $(location image-bundle.tar) > $@",
 )
+
+genrule(
+    name = "image-bundle-tar-gz-sha1",
+    srcs = [
+        ":image-bundle-tar-gz",
+    ],
+    outs = ["image-bundle.tar.gz.sha1"],
+    cmd = "./$(location //hack/bazel:sha1) $(location :image-bundle-tar-gz) $@",
+    tools = [ "//hack/bazel:sha1" ],
+)
+
+genrule(
+    name = "image-bundle-tar-gz-sha256",
+    srcs = [
+        ":image-bundle-tar-gz",
+    ],
+    outs = ["image-bundle.tar.gz.sha256"],
+    cmd = "./$(location //hack/bazel:sha256) $(location :image-bundle-tar-gz) $@",
+    tools = [ "//hack/bazel:sha256" ],
+)
