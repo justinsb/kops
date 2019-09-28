@@ -29,3 +29,15 @@ workspace_binary(
     name = "gofmt",
     cmd = "@go_sdk//:bin/gofmt",
 )
+
+
+load("//hack/bazel:create_dir.bzl", "create_dir")
+
+create_dir(
+    name = "output-dir",
+    files = {
+      "//dns-controller/cmd/dns-controller:image-bundle.tar.gz": "the-gz",
+      "//dns-controller/cmd/dns-controller:image-bundle.tar.gz.hashes.sha1": "the-sha1",
+      "//dns-controller/cmd/dns-controller:image-bundle.tar.gz.hashes.sha256": "the-sha256",
+   },
+)

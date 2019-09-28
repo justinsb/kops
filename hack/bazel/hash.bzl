@@ -1,7 +1,8 @@
 def _impl(ctx):
     in_file = ctx.file.src
 
-    out_sha1 = ctx.actions.declare_file("%s.sha1" % in_file.path)
+    basename = ctx.attr.name
+    out_sha1 = ctx.actions.declare_file("%s.sha1" % basename)
     ctx.actions.run(
         executable = ctx.executable._cmd_sha1,
         outputs = [out_sha1],
@@ -9,7 +10,7 @@ def _impl(ctx):
         arguments = [in_file.path, out_sha1.path],
     )
 
-    out_sha256 = ctx.actions.declare_file("%s.sha256" % in_file.path)
+    out_sha256 = ctx.actions.declare_file("%s.sha256" % basename)
     ctx.actions.run(
         executable = ctx.executable._cmd_sha256,
         #tools = ctx.attr._cmd_sha256.files,
@@ -38,5 +39,12 @@ hashes = rule(
             executable = True,
             cfg = "host",
         ),
+    },
+    # It looks like we have to do this so that we can reference these outputs in other files
+    # Not entirely sure why, as we can just generate everything ... maybe a bazel bug?
+    outputs = {
+        #"md5": "%{src.path}.md5",
+        "sha1": "%{name}.sha1",
+        "sha256": "%{name}.sha256",
     },
 )
