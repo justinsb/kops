@@ -31,3 +31,45 @@ go_binary(
     embed = [":go_default_library"],
     visibility = ["//visibility:public"],
 )
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+    "container_push",
+    "container_bundle",
+)
+
+container_image(
+    name = "image",
+    base = "@distroless_base//image",
+    cmd = ["/usr/bin/dns-controller"],
+    directory = "/usr/bin/",
+    files = [
+        "dns-controller",
+    ],
+)
+
+container_push(
+    name = "push-image",
+    format = "Docker",
+    image = ":image",
+    registry = "{STABLE_DOCKER_REGISTRY}",
+    repository = "{STABLE_DOCKER_IMAGE_PREFIX}dns-controller",
+    tag = "{STABLE_DNS_CONTROLLER_TAG}",
+)
+
+container_bundle(
+    name = "image-bundle",
+    images = {
+        "{STABLE_DOCKER_IMAGE_PREFIX}dns-controller:{STABLE_DNS_CONTROLLER_TAG}": "image",
+    },
+)
+
+genrule(
+    name = "image-bundle-tar-gz",
+    srcs = [
+        "image-bundle.tar",
+    ],
+    outs = ["image-bundle.tar.gz"],
+    cmd = "gzip -c --fast $(location image-bundle.tar) > $@",
+)
