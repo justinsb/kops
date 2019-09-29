@@ -25,12 +25,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog"
-	kopsv1alpha2 "k8s.io/kops/cmd/kops-controller/api/v1alpha2"
 	"k8s.io/kops/cmd/kops-controller/controllers"
+	kopsapi "k8s.io/kops/pkg/apis/kops/v1alpha2"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	// +kubebuilder:scaffold:imports
 
+	"k8s.io/client-go/dynamic"
 	"k8s.io/klog/klogr"
 	"k8s.io/kops/pkg/nodeidentity"
 	nodeidentityaws "k8s.io/kops/pkg/nodeidentity/aws"
@@ -47,7 +48,7 @@ var (
 
 func init() {
 
-	_ = kopsv1alpha2.AddToScheme(scheme)
+	_ = kopsapi.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -57,6 +58,16 @@ type Options struct {
 }
 
 func main() {
+	err := run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	} else {
+		os.Exit(0)
+	}
+}
+
+func run() error {
 	klog.InitFlags(nil)
 
 	var metricsAddr string
@@ -74,8 +85,7 @@ func main() {
 	ctrl.SetLogger(klogr.New())
 
 	if err := buildScheme(); err != nil {
-		setupLog.Error(err, "error building scheme")
-		os.Exit(1)
+		return fmt.Errorf("error building scheme: %v", err)
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -84,28 +94,25 @@ func main() {
 		LeaderElection:     enableLeaderElection,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		return fmt.Errorf("unable to create manager: %v", err)
 	}
 
-	if err := addNodeController(mgr, &opt); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NodeController")
-		os.Exit(1)
+	//if err := addNodeController(mgr, &opt); err != nil {
+	//	return fmt.Errorf("unable to add NodeController: %v", err)
+	//}
+
+	if err := addInstanceGroupController(mgr, &opt); err != nil {
+		return fmt.Errorf("unable to add InstanceGroup controller: %v", err)
 	}
-	if err = (&controllers.InstanceGroupReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("InstanceGroup"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "InstanceGroup")
-		os.Exit(1)
-	}
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		return fmt.Errorf("unable to start manager: %v", err)
 	}
+
+	return nil
 }
 
 func buildScheme() error {
@@ -152,6 +159,23 @@ func addNodeController(mgr manager.Manager, opt *Options) error {
 		return err
 	}
 	if err := nodeController.SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addInstanceGroupController(mgr manager.Manager, opt *Options) error {
+	dynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return fmt.Errorf("error building client: %v", err)
+	}
+
+	if err := (&controllers.InstanceGroupReconciler{
+		DynamicClient: dynamicClient,
+		Client:        mgr.GetClient(),
+		Log:           ctrl.Log.WithName("controllers").WithName("InstanceGroup"),
+	}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 

@@ -14,6 +14,7 @@ limitations under the License.
 package clusterapi
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -34,7 +35,7 @@ type Builder struct {
 	Clientset simple.Clientset
 }
 
-func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj *kopsv1alpha2.InstanceGroup) (*unstructured.Unstructured, error) {
+func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj *kopsv1alpha2.InstanceGroup) ([]*unstructured.Unstructured, error) {
 	cluster := &kops.Cluster{}
 	{
 		if err := kopscodecs.Scheme.Convert(clusterObj, cluster, nil); err != nil {
@@ -86,12 +87,12 @@ func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj
 
 	bootstrapScript := model.BootstrapScript{}
 
-	nodeupLocation, nodeupHash, err := cloudup.NodeUpLocation(assetBuilder)
+	nodeupAsset, err := cloudup.NodeUpAsset(assetBuilder)
 	if err != nil {
 		return nil, err
 	}
-	bootstrapScript.NodeUpSource = nodeupLocation.String()
-	bootstrapScript.NodeUpSourceHash = nodeupHash.Hex()
+	bootstrapScript.NodeUpSource = strings.Join(nodeupAsset.Locations, ",")
+	bootstrapScript.NodeUpSourceHash = nodeupAsset.Hash.Hex()
 	bootstrapScript.NodeUpConfigBuilder = func(ig *kops.InstanceGroup) (*nodeup.Config, error) {
 		return nodeupConfig, err
 	}
@@ -123,21 +124,24 @@ func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj
 	gce.Cluster = cluster
 	gce.Region = region
 
-	volumeSize, err := gce.VolumeSize(ig)
+	// TODO: We should move this into the gcemodel package, and reuse the existing logic
+	volumeSize, err := gce.GetVolumeSize(ig)
 	if err != nil {
 		return nil, err
 	}
-	volumeType := gce.VolumeType(ig)
+	// TODO: Support volumeType
+	//volumeType := gce.GetVolumeType(ig)
 
-	// TODO: We should move this into the gcemodel package, and reuse the existing logic
-	disks := []map[string]interface{}{
-		{
-			"initializeParams": map[string]interface{}{
-				"diskSizeGb": volumeSize,
-				"diskType":   volumeType,
+	/*
+		disks := []map[string]interface{}{
+			{
+				"initializeParams": map[string]interface{}{
+					"diskSizeGb": volumeSize,
+					"diskType":   volumeType,
+				},
 			},
-		},
-	}
+		}
+	*/
 
 	// TODO	CanIPForward
 	//t.CanIPForward = fi.Bool(false)
@@ -162,14 +166,10 @@ func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj
 		networkInterfaces = append(networkInterfaces, ni)
 	}
 
-	instanceMetadata := []map[string]interface{}{
+	additionalMetadata := []map[string]interface{}{
 		{
 			"key":   "cluster-name",
 			"value": cluster.Name,
-		},
-		{
-			"key":   "startup-script",
-			"value": scriptString,
 		},
 	}
 
@@ -188,11 +188,11 @@ func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj
 
 	machineType := ig.Spec.MachineType
 
-	instanceTags := []string{}
+	additionalNetworkTags := []string{}
 	roles := []string{}
 	switch ig.Spec.Role {
 	case kops.InstanceGroupRoleNode:
-		instanceTags = append(instanceTags, gce.GCETagForRole(kops.InstanceGroupRoleNode))
+		additionalNetworkTags = append(additionalNetworkTags, gce.GCETagForRole(kops.InstanceGroupRoleNode))
 		roles = append(roles, "Node")
 
 	default:
@@ -200,12 +200,14 @@ func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj
 	}
 
 	email := "default"
-	serviceAccounts := []map[string]interface{}{
-		{"email": email},
+	serviceAccount := map[string]interface{}{
+		"email": email,
+		// TODO: scopes?
 	}
 
 	image := ig.Spec.Image
 	// Expand known short-forms
+	// TODO: Move this logic into GCP provider
 	{
 		tokens := strings.Split(image, "/")
 		if len(tokens) == 2 {
@@ -213,64 +215,118 @@ func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj
 		}
 	}
 
-	providerSpec := map[string]interface{}{
-		"apiVersion":        "gceproviderconfig/v1alpha1",
-		"kind":              "GCEProviderConfig",
-		"roles":             roles,
-		"zone":              zone,
-		"machineType":       machineType,
-		"networkInterfaces": networkInterfaces,
-		"disks":             disks,
-		"image":             image,
-		"instanceTags":      instanceTags,
-		"serviceAccounts":   serviceAccounts,
-		"instanceMetadata":  instanceMetadata,
-	}
+	// TODO: The GCPMachine name doesn't match the Machine name, which is just confusing.
 
-	return buildMachineDeployment(cluster, ig, providerSpec)
-}
+	/*
+		providerSpec := map[string]interface{}{
+			"apiVersion":        "gceproviderconfig/v1alpha1",
+			"kind":              "GCEProviderConfig",
+			"roles":             roles,
+			"zone":              zone,
+			"machineType":       machineType,
+			"networkInterfaces": networkInterfaces,
+			"disks":             disks,
+			"image":             image,
+			"instanceTags":      instanceTags,
+			"serviceAccounts":   serviceAccounts,
+			"instanceMetadata":  instanceMetadata,
+		}
+	*/
 
-func buildMachineDeployment(cluster *kops.Cluster, ig *kops.InstanceGroup, providerSpec map[string]interface{}) (*unstructured.Unstructured, error) {
-	u := &unstructured.Unstructured{}
+	var machineTemplate *unstructured.Unstructured
+	{
+		u := &unstructured.Unstructured{}
 
-	u.SetAPIVersion("cluster.k8s.io/v1alpha1")
-	u.SetKind("MachineDeployment")
-	u.SetName(ig.Name)
-	u.SetNamespace(ig.Namespace)
+		u.SetAPIVersion("infrastructure.cluster.x-k8s.io/v1alpha2")
+		u.SetKind("GCPMachineTemplate")
+		u.SetName(ig.Name)
+		u.SetNamespace(ig.Namespace)
 
-	// TODO: We need MaxSize & MinSize?
-	replicas := ig.Spec.MaxSize
+		// TODO: We should support instances on GCP without a public IP
+		// (I think we need to set up a NAT gateway)
+		publicIP := true
 
-	versions := map[string]interface{}{
-		// Annoyingly, kubelet version is required by the schema.
-		"kubelet": cluster.Spec.KubernetesVersion,
-	}
-
-	labels := map[string]string{
-		"kops.k8s.io/instancegroup": ig.Name,
-	}
-
-	template := map[string]interface{}{
-		"metadata": map[string]interface{}{
-			"labels": labels,
-		},
-		"spec": map[string]interface{}{
-			"versions": versions,
-			"providerSpec": map[string]interface{}{
-				"value": providerSpec,
+		template := map[string]interface{}{
+			"spec": map[string]interface{}{
+				"instanceType":          machineType,
+				"zone":                  zone,
+				"image":                 image,
+				"rootDeviceSize":        volumeSize,
+				"serviceAccount":        serviceAccount,
+				"publicIP":              &publicIP,
+				"additionalNetworkTags": additionalNetworkTags,
+				"additionalMetadata":    additionalMetadata,
 			},
-		},
+		}
+
+		spec := map[string]interface{}{
+			"template": template,
+		}
+
+		u.Object["spec"] = spec
+		machineTemplate = u
 	}
 
-	spec := map[string]interface{}{
-		"replicas": replicas,
-		"selector": map[string]interface{}{
-			"matchLabels": labels,
-		},
-		"template": template,
+	// For reasons not entirely clear, we resolve the cluster from the machine using this label
+	// TODO: Use owner refs if available?
+	clusterName := clusterObj.Name
+	clusterName = strings.ReplaceAll(clusterName, ".", "-")
+
+	// TODO: GCP shouldn't use the cluster name for the GCP resources ... what about sanitization
+
+	// TODO: Should the provider encode this?  Not clear whether the data is supposed to be pre-encoded.
+	bootstrapData := base64.StdEncoding.EncodeToString([]byte(scriptString))
+
+	// TODO: GCP provider requires this, but actually only requires it when we aren't using a custom image
+	version := "1.16.0"
+
+	var machineDeployment *unstructured.Unstructured
+	{
+		u := &unstructured.Unstructured{}
+
+		u.SetAPIVersion("cluster.x-k8s.io/v1alpha2")
+		u.SetKind("MachineDeployment")
+		u.SetName(ig.Name)
+		u.SetNamespace(ig.Namespace)
+
+		// TODO: We need MaxSize & MinSize?
+		replicas := ig.Spec.MaxSize
+
+		labels := map[string]string{
+			"kops.k8s.io/instancegroup":     ig.Name,
+			"cluster.x-k8s.io/cluster-name": clusterName,
+		}
+
+		template := map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"labels": labels,
+			},
+			"spec": map[string]interface{}{
+				"bootstrap": map[string]interface{}{
+					"data": bootstrapData,
+				},
+				"infrastructureRef": map[string]interface{}{
+					"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha2",
+					"kind":       "GCPMachineTemplate",
+					"name":       ig.Name,
+					"namespace":  ig.Namespace,
+				},
+				"version": version,
+			},
+		}
+
+		spec := map[string]interface{}{
+			"replicas": replicas,
+			"selector": map[string]interface{}{
+				"matchLabels": labels,
+			},
+			"template": template,
+		}
+
+		u.Object["spec"] = spec
+
+		machineDeployment = u
 	}
 
-	u.Object["spec"] = spec
-
-	return u, nil
+	return []*unstructured.Unstructured{machineTemplate, machineDeployment}, nil
 }

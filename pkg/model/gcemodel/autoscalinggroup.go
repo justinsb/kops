@@ -23,7 +23,6 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/model"
-	"k8s.io/kops/pkg/model/defaults"
 	"k8s.io/kops/pkg/model/iam"
 	nodeidentitygce "k8s.io/kops/pkg/nodeidentity/gce"
 	"k8s.io/kops/upup/pkg/fi"
@@ -57,17 +56,11 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		// InstanceTemplate
 		var instanceTemplate *gcetasks.InstanceTemplate
 		{
-			volumeSize := fi.Int32Value(ig.Spec.RootVolumeSize)
-			if volumeSize == 0 {
-				volumeSize, err = defaults.DefaultInstanceGroupVolumeSize(ig.Spec.Role)
-				if err != nil {
-					return err
-				}
+			volumeSize, err := b.GetVolumeSize(ig)
+			if err != nil {
+				return err
 			}
-			volumeType := fi.StringValue(ig.Spec.RootVolumeType)
-			if volumeType == "" {
-				volumeType = DefaultVolumeType
-			}
+			volumeType := b.GetVolumeType(ig)
 
 			namePrefix := gce.LimitedLengthName(name, gcetasks.InstanceTemplateNamePrefixMaxLength)
 

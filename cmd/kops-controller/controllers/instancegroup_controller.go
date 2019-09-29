@@ -18,18 +18,25 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	clusterapi "k8s.io/kops/cmd/kops-controller/pkg/clusterapi"
+	api "k8s.io/kops/pkg/apis/kops/v1alpha2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	kopsv1alpha2 "k8s.io/kops/cmd/kops-controller/api/v1alpha2"
 )
 
 // InstanceGroupReconciler reconciles a InstanceGroup object
 type InstanceGroupReconciler struct {
 	client.Client
-	Log logr.Logger
+	Log           logr.Logger
+	DynamicClient dynamic.Interface
 }
 
 // +kubebuilder:rbac:groups=kops.kops.k8s.io,resources=instancegroups,verbs=get;list;watch;create;update;patch;delete
@@ -40,9 +47,9 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	// Fetch the InstanceGroup instance
 	instance := &api.InstanceGroup{}
-	err := r.Get(ctx, request.NamespacedName, instance)
+	err := r.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
 			// For additional cleanup logic use finalizers.
 			return ctrl.Result{}, nil
@@ -59,57 +66,75 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	b := &clusterapi.Builder{
 		//	ClientSet: todo,
 	}
-	md, err := b.BuildMachineDeployment(cluster, instance)
+	objects, err := b.BuildMachineDeployment(cluster, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateMachineDeployment(md); err != nil {
-		return ctrl.Result{}, err
+	for _, obj := range objects {
+		if err := r.updateObject(obj); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *ReconcileInstanceGroup) updateMachineDeployment(md *unstructured.Unstructured) error {
-	gvr := schema.GroupVersionResource{
-		Group:    "cluster.k8s.io",
-		Version:  "v1alpha2",
-		Resource: "machinedeployments",
+func (r *InstanceGroupReconciler) updateObject(obj *unstructured.Unstructured) error {
+	gvk := obj.GetObjectKind().GroupVersionKind()
+
+	var resource string
+
+	switch gvk.Group + ":" + gvk.Kind {
+	case "cluster.x-k8s.io:MachineDeployment":
+		resource = "machinedeployments"
+	case "infrastructure.cluster.x-k8s.io:GCPMachineTemplate":
+		resource = "gcpmachinetemplates"
+	default:
+		return fmt.Errorf("unsupported gvk: %v", gvk)
 	}
-	namespace := md.GetNamespace()
-	name := md.GetName()
-	res := r.dynamicClient.Resource(gvr).Namespace(namespace)
+
+	gvr := schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: resource,
+	}
+	namespace := obj.GetNamespace()
+	name := obj.GetName()
+	res := r.DynamicClient.Resource(gvr).Namespace(namespace)
 	existing, err := res.Get(name, metav1.GetOptions{})
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			existing = nil
 		} else {
-			return fmt.Errorf("error getting machindeployment %s/%s: %v", namespace, name, err)
+			return fmt.Errorf("error getting %s %s/%s: %v", gvk.Kind, namespace, name, err)
 		}
 	}
 	if existing == nil {
 		var opts metav1.CreateOptions
-		if _, err := res.Create(md, opts); err != nil {
-			return fmt.Errorf("error creating machindeployment %s/%s: %v", namespace, name, err)
+		if _, err := res.Create(obj, opts); err != nil {
+			return fmt.Errorf("error creating %s %s/%s: %v", gvk.Kind, namespace, name, err)
 		}
 		return nil
 	}
 
-	existing.Object["spec"] = md.Object["spec"]
+	// We could do some better logic in here based on the Kind
+	existing.Object["spec"] = obj.Object["spec"]
+
+	// TODO: Skip update if no changes
 
 	if _, err := res.Update(existing, metav1.UpdateOptions{}); err != nil {
-		return fmt.Errorf("error updating machindeployment %s/%s: %v", namespace, name, err)
+		return fmt.Errorf("error updating %s %s/%s: %v", gvk.Kind, namespace, name, err)
 	}
 
 	return nil
 }
 
-func (r *ReconcileInstanceGroup) getCluster(ctx context.Context, ig *api.InstanceGroup) (*api.Cluster, error) {
+func (r *InstanceGroupReconciler) getCluster(ctx context.Context, ig *api.InstanceGroup) (*api.Cluster, error) {
 	clusters := &api.ClusterList{}
 	var opts client.ListOptions
 	opts.Namespace = ig.Namespace
-	err := r.List(ctx, &opts, clusters)
+	err := r.List(ctx, clusters, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching clusters: %v", err)
 	}
@@ -128,6 +153,6 @@ func (r *ReconcileInstanceGroup) getCluster(ctx context.Context, ig *api.Instanc
 
 func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&kopsv1alpha2.InstanceGroup{}).
+		For(&api.InstanceGroup{}).
 		Complete(r)
 }
