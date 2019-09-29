@@ -90,7 +90,7 @@ require (
 	github.com/ghodss/yaml v0.0.0-20180820084758-c7ce16629ff4
 	github.com/go-ini/ini v1.25.4
 	github.com/go-logr/logr v0.1.0
-	github.com/gogo/protobuf v1.1.1
+	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.2
 	github.com/google/uuid v1.1.0 // indirect
 	github.com/gophercloud/gophercloud v0.0.0-20190216224116-dcc6e84aef1b
@@ -133,7 +133,7 @@ require (
 	k8s.io/klog v0.3.1
 	k8s.io/kubernetes v1.15.3
 	k8s.io/legacy-cloud-providers v0.0.0
-	k8s.io/utils v0.0.0-20190506122338-8fab8cb257d5
+	k8s.io/utils v0.0.0-20190607212802-c55fbcfc754a
 	sigs.k8s.io/controller-runtime v0.2.2
 	sigs.k8s.io/controller-tools v0.2.2-0.20190919191502-76a25b63325a
 )
