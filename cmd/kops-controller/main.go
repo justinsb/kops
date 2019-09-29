@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog"
+	kopsv1alpha2 "k8s.io/kops/cmd/kops-controller/api/v1alpha2"
 	"k8s.io/kops/cmd/kops-controller/controllers"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -46,6 +47,7 @@ var (
 
 func init() {
 
+	_ = kopsv1alpha2.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -88,6 +90,13 @@ func main() {
 
 	if err := addNodeController(mgr, &opt); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeController")
+		os.Exit(1)
+	}
+	if err = (&controllers.InstanceGroupReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("InstanceGroup"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "InstanceGroup")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
