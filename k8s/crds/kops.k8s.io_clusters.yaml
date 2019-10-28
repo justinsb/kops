@@ -2635,6 +2635,14 @@ spec:
             podCIDR:
               description: PodCIDR is the CIDR from which we allocate IPs for pods
               type: string
+            policyOverrides:
+              additionalProperties:
+                items:
+                  type: string
+                type: array
+              description: PolicyOverrides allows the insertion of pre-existing managed
+                policies on IG Roles
+              type: object
             project:
               description: Project is the cloud project we should use, required on
                 GCE
