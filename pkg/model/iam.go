@@ -165,6 +165,30 @@ func (b *IAMModelBuilder) buildIAMTasks(igRole kops.InstanceGroupRole, iamName s
 			c.AddTask(iamInstanceProfileRole)
 		}
 
+		// Create PolicyOverride tasks
+		{
+			overrides := make([]string, 0)
+
+			if b.Cluster.Spec.PolicyOverrides != nil {
+				policyOverrides := *(b.Cluster.Spec.PolicyOverrides)
+
+				for _, arn := range policyOverrides[strings.ToLower(string(igRole))] {
+					overrides = append(overrides, arn)
+				}
+			}
+
+			name := fmt.Sprintf("%s-policyoverride", strings.ToLower(string(igRole)))
+			t := &awstasks.IAMRolePolicy{
+				Name:            s(name),
+				Lifecycle:       b.Lifecycle,
+				Role:            iamRole,
+				PolicyOverrides: &overrides,
+				Managed:         true,
+			}
+
+			c.AddTask(t)
+		}
+
 		// Generate additional policies if needed, and attach to existing role
 		{
 			additionalPolicy := ""

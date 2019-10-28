@@ -43,11 +43,46 @@ type IAMRolePolicy struct {
 
 	// The PolicyDocument to create as an inline policy.
 	// If the PolicyDocument is empty, the policy will be removed.
-	PolicyDocument fi.Resource
+	PolicyDocument  fi.Resource
+	PolicyOverrides *[]string
+	Managed         bool
 }
 
 func (e *IAMRolePolicy) Find(c *fi.Context) (*IAMRolePolicy, error) {
+	var actual IAMRolePolicy
+
 	cloud := c.Cloud.(awsup.AWSCloud)
+
+	// Handle policy overrides
+	if e.PolicyOverrides != nil {
+		request := &iam.ListAttachedRolePoliciesInput{
+			RoleName: e.Role.Name,
+		}
+
+		cloudPolicies, err := cloud.IAM().ListAttachedRolePolicies(request)
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == "NoSuchEntity" {
+				return nil, nil
+			}
+
+			return nil, fmt.Errorf("error getting policies for role: %v", err)
+		}
+
+		policies := make([]string, 0)
+
+		for _, policy := range cloudPolicies.AttachedPolicies {
+			policies = append(policies, aws.StringValue(policy.PolicyArn))
+		}
+
+		actual.ID = e.ID
+		actual.Name = e.Name
+		actual.Lifecycle = e.Lifecycle
+		actual.Role = e.Role
+		actual.Managed = true
+		actual.PolicyOverrides = &policies
+
+		return &actual, nil
+	}
 
 	request := &iam.GetRolePolicyInput{
 		RoleName:   e.Role.Name,
@@ -65,7 +100,6 @@ func (e *IAMRolePolicy) Find(c *fi.Context) (*IAMRolePolicy, error) {
 	}
 
 	p := response
-	actual := &IAMRolePolicy{}
 	actual.Role = &IAMRole{Name: p.RoleName}
 	if aws.StringValue(e.Role.Name) == aws.StringValue(p.RoleName) {
 		actual.Role.ID = e.Role.ID
@@ -87,7 +121,7 @@ func (e *IAMRolePolicy) Find(c *fi.Context) (*IAMRolePolicy, error) {
 	// Avoid spurious changes
 	actual.Lifecycle = e.Lifecycle
 
-	return actual, nil
+	return &actual, nil
 }
 
 func (e *IAMRolePolicy) Run(c *fi.Context) error {
@@ -109,9 +143,10 @@ func (_ *IAMRolePolicy) ShouldCreate(a, e, changes *IAMRolePolicy) (bool, error)
 		return false, fmt.Errorf("error rendering PolicyDocument: %v", err)
 	}
 
-	if a == nil && ePolicy == "" {
+	if a == nil && ePolicy == "" && e.PolicyOverrides == nil {
 		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -119,6 +154,51 @@ func (_ *IAMRolePolicy) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRoleP
 	policy, err := e.policyDocumentString()
 	if err != nil {
 		return fmt.Errorf("error rendering PolicyDocument: %v", err)
+	}
+
+	// Handles the full lifecycle of Policy Overrides
+	if e.Managed {
+		// Attach policies that are not already attached
+	AttachPolicies:
+		for _, policy := range *e.PolicyOverrides {
+			for _, cloudPolicy := range *a.PolicyOverrides {
+				if cloudPolicy == policy {
+					continue AttachPolicies
+				}
+			}
+
+			request := &iam.AttachRolePolicyInput{
+				RoleName:  e.Role.Name,
+				PolicyArn: s(policy),
+			}
+
+			_, err = t.Cloud.IAM().AttachRolePolicy(request)
+			if err != nil {
+				return fmt.Errorf("error attaching IAMRolePolicy: %v", err)
+			}
+		}
+
+		// Clean up unused cloud policies
+	CheckPolicies:
+		for _, cloudPolicy := range *a.PolicyOverrides {
+			for _, policy := range *e.PolicyOverrides {
+				if policy == cloudPolicy {
+					continue CheckPolicies
+				}
+			}
+
+			klog.V(2).Infof("Detaching unused IAMRolePolicy %s/%s", aws.StringValue(e.Role.Name), cloudPolicy)
+
+			// Detach policy
+			request := &iam.DetachRolePolicyInput{
+				RoleName:  e.Role.Name,
+				PolicyArn: s(cloudPolicy),
+			}
+
+			t.Cloud.IAM().DetachRolePolicy(request)
+		}
+
+		return nil
 	}
 
 	if policy == "" {
@@ -195,9 +275,20 @@ type terraformIAMRolePolicy struct {
 	Name           *string            `json:"name"`
 	Role           *terraform.Literal `json:"role"`
 	PolicyDocument *terraform.Literal `json:"policy"`
+	PolicyArn      *string            `json:"policy_arn,omitempty"`
 }
 
 func (_ *IAMRolePolicy) RenderTerraform(t *terraform.TerraformTarget, a, e, changes *IAMRolePolicy) error {
+	if e.PolicyOverrides != nil {
+		for _, policy := range *e.PolicyOverrides {
+			tf := &terraformIAMRolePolicy{
+				Role:      e.Role.TerraformLink(),
+				PolicyArn: s(policy),
+			}
+			return t.RenderResource("aws_iam_role_policy_attachment", *e.Name, tf)
+		}
+	}
+
 	policyString, err := e.policyDocumentString()
 	if err != nil {
 		return fmt.Errorf("error rendering PolicyDocument: %v", err)
