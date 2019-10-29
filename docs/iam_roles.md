@@ -56,6 +56,26 @@ The additional permissions are:
 }
 ```
 
+## Adding Managed Policies
+
+At times you may want to attach policies shared to you by another AWS account or that are maintained by an outside application. You can specify managed policies through the `policyOverrides` spec field.
+
+Policy Overrides are specified by their ARN on AWS and are grouped by their role type. See the example below:
+
+```yaml
+spec:
+  policyOverrides:
+    node:
+    - aws:arn:iam:123456789000:policy:test-policy
+    master:
+    - aws:arn:iam:123456789000:policy:test-policy
+    bastion:
+    - aws:arn:iam:123456789000:policy:test-policy
+```
+
+Managed Policy attachments are treated declaritively. Any policies declared will be attached to the role, any policies not specified will be detached _after_ new policies are attached.
+
+It's important to note that policyOverrides will only handle the attachment and detachment of policies, not creation, modification, or deletion.
 
 ## Adding Additional Policies
 
