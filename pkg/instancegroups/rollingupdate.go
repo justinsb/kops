@@ -18,7 +18,6 @@ package instancegroups
 
 import (
 	"fmt"
-	"k8s.io/kops/pkg/validation"
 	"sync"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"k8s.io/klog"
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cloudinstances"
+	"k8s.io/kops/pkg/validation"
 	"k8s.io/kops/upup/pkg/fi"
 )
 

@@ -19,7 +19,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"k8s.io/kops/pkg/validation"
 	"os"
 	"strconv"
 	"strings"
@@ -38,6 +37,7 @@ import (
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/instancegroups"
 	"k8s.io/kops/pkg/pretty"
+	"k8s.io/kops/pkg/validation"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/util/pkg/tables"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
