@@ -70,8 +70,10 @@ func (e *IAMRolePolicy) Find(c *fi.Context) (*IAMRolePolicy, error) {
 
 		policies := make([]string, 0)
 
-		for _, policy := range cloudPolicies.AttachedPolicies {
-			policies = append(policies, aws.StringValue(policy.PolicyArn))
+		if cloudPolicies != nil && len(cloudPolicies.AttachedPolicies) > 0 {
+			for _, policy := range cloudPolicies.AttachedPolicies {
+				policies = append(policies, aws.StringValue(policy.PolicyArn))
+			}
 		}
 
 		actual.ID = e.ID
