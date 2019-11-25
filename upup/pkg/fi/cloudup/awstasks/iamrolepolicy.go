@@ -59,7 +59,7 @@ func (e *IAMRolePolicy) Find(c *fi.Context) (*IAMRolePolicy, error) {
 			RoleName: e.Role.Name,
 		}
 
-		cloudPolicies, err := cloud.IAM().ListAttachedRolePolicies(request)
+		response, err := cloud.IAM().ListAttachedRolePolicies(request)
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "NoSuchEntity" {
 				return nil, nil
@@ -70,8 +70,8 @@ func (e *IAMRolePolicy) Find(c *fi.Context) (*IAMRolePolicy, error) {
 
 		policies := make([]string, 0)
 
-		if cloudPolicies != nil && len(cloudPolicies.AttachedPolicies) > 0 {
-			for _, policy := range cloudPolicies.AttachedPolicies {
+		if response != nil && len(response.AttachedPolicies) > 0 {
+			for _, policy := range response.AttachedPolicies {
 				policies = append(policies, aws.StringValue(policy.PolicyArn))
 			}
 		}
