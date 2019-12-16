@@ -272,6 +272,12 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) error {
 		return err
 	}
 
+	addonsClient := c.Clientset.AddonsFor(cluster)
+	addons, err := addonsClient.List()
+	if err != nil {
+		return fmt.Errorf("error fetching addons: %v", err)
+	}
+
 	// Normalize k8s version
 	versionWithoutV := strings.TrimSpace(cluster.Spec.KubernetesVersion)
 	versionWithoutV = strings.TrimPrefix(versionWithoutV, "v")
@@ -568,6 +574,7 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) error {
 					Lifecycle:        &clusterLifecycle,
 					assetBuilder:     assetBuilder,
 					templates:        templates,
+					ClusterAddons:    addons,
 				},
 				&model.PKIModelBuilder{
 					KopsModelContext: modelContext,

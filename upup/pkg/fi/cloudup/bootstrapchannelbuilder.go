@@ -25,8 +25,10 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/featureflag"
+	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/templates"
+	"k8s.io/kops/pkg/wellknownoperators"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/fitasks"
 	"k8s.io/kops/upup/pkg/fi/utils"
@@ -35,9 +37,10 @@ import (
 // BootstrapChannelBuilder is responsible for handling the addons in channels
 type BootstrapChannelBuilder struct {
 	*model.KopsModelContext
-	Lifecycle    *fi.Lifecycle
-	templates    *templates.Templates
-	assetBuilder *assets.AssetBuilder
+	ClusterAddons kubemanifest.ObjectList
+	Lifecycle     *fi.Lifecycle
+	templates     *templates.Templates
+	assetBuilder  *assets.AssetBuilder
 }
 
 var _ fi.ModelBuilder = &BootstrapChannelBuilder{}
@@ -69,23 +72,84 @@ func (b *BootstrapChannelBuilder) Build(c *fi.ModelBuilderContext) error {
 			return fmt.Errorf("error reading manifest %s: %v", manifestPath, err)
 		}
 
-		remapped, err := b.assetBuilder.RemapManifest(manifestBytes)
+		manifestBytes, manifestHash, err := b.prepareManifest(manifestBytes)
 		if err != nil {
-			klog.Infof("invalid manifest: %s", string(manifestBytes))
-			return fmt.Errorf("error remapping manifest %s: %v", manifestPath, err)
+			return fmt.Errorf("error preparing manifest %q: %v", manifestPath, err)
 		}
-		manifestBytes = remapped
 
-		// Trim whitespace
-		manifestBytes = []byte(strings.TrimSpace(string(manifestBytes)))
+		a.ManifestHash = manifestHash
 
-		rawManifest := string(manifestBytes)
-		klog.V(4).Infof("Manifest %v", rawManifest)
+		tasks[name] = &fitasks.ManagedFile{
+			Contents:  fi.WrapResource(fi.NewBytesResource(manifestBytes)),
+			Lifecycle: b.Lifecycle,
+			Location:  fi.String(manifestPath),
+			Name:      fi.String(name),
+		}
+	}
 
-		manifestHash, err := utils.HashString(rawManifest)
-		klog.V(4).Infof("hash %s", manifestHash)
+	if featureflag.UseOperators.Enabled() {
+		ob := &wellknownoperators.Builder{
+			Cluster: b.Cluster,
+		}
+
+		wellKnownAddons, crds, err := ob.Build()
 		if err != nil {
-			return fmt.Errorf("error hashing manifest: %v", err)
+			return fmt.Errorf("error building well-known operators: %v", err)
+		}
+
+		for _, w := range wellKnownAddons {
+			key := *w.Spec.Name
+			if w.Spec.Id != "" {
+				key = key + "-" + w.Spec.Id
+			}
+			name := b.Cluster.ObjectMeta.Name + "-addons-" + key
+			manifestPath := "addons/" + *w.Spec.Manifest
+
+			manifestBytes, manifestHash, err := b.prepareManifest(w.Manifest)
+			if err != nil {
+				return fmt.Errorf("error preparing manifest %q: %v", manifestPath, err)
+			}
+			w.Spec.ManifestHash = manifestHash
+
+			tasks[name] = &fitasks.ManagedFile{
+				Contents:  fi.WrapResource(fi.NewBytesResource(manifestBytes)),
+				Lifecycle: b.Lifecycle,
+				Location:  fi.String(manifestPath),
+				Name:      fi.String(name),
+			}
+
+			addons.Spec.Addons = append(addons.Spec.Addons, &w.Spec)
+		}
+
+		b.ClusterAddons = append(b.ClusterAddons, crds...)
+	}
+
+	if b.ClusterAddons != nil {
+		key := "cluster-addons.kops.k8s.io"
+		version := "0.0.0"
+		location := key + "/default.yaml"
+
+		a := &channelsapi.AddonSpec{
+			Name:     fi.String(key),
+			Version:  fi.String(version),
+			Selector: map[string]string{"k8s-addon": key},
+			Manifest: fi.String(location),
+		}
+
+		if a.Id != "" {
+			key = key + "-" + a.Id
+		}
+		name := b.Cluster.ObjectMeta.Name + "-addons-" + key
+		manifestPath := "addons/" + *a.Manifest
+
+		manifestBytes, err := b.ClusterAddons.ToYAML()
+		if err != nil {
+			return fmt.Errorf("error serializing addons: %v", err)
+		}
+
+		manifestBytes, manifestHash, err := b.prepareManifest(manifestBytes)
+		if err != nil {
+			return fmt.Errorf("error preparing manifest %q: %v", manifestPath, err)
 		}
 		a.ManifestHash = manifestHash
 
@@ -96,6 +160,7 @@ func (b *BootstrapChannelBuilder) Build(c *fi.ModelBuilderContext) error {
 			Name:      fi.String(name),
 		}
 
+		addons.Spec.Addons = append(addons.Spec.Addons, a)
 	}
 
 	addonsYAML, err := utils.YamlMarshal(addons)
@@ -113,6 +178,28 @@ func (b *BootstrapChannelBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 
 	return nil
+}
+
+func (b *BootstrapChannelBuilder) prepareManifest(manifestBytes []byte) ([]byte, string, error) {
+	remapped, err := b.assetBuilder.RemapManifest(manifestBytes)
+	if err != nil {
+		klog.Infof("invalid manifest: %s", string(manifestBytes))
+		return nil, "", fmt.Errorf("error remapping manifest: %v", err)
+	}
+	manifestBytes = remapped
+
+	// Trim whitespace
+	manifestBytes = []byte(strings.TrimSpace(string(manifestBytes)))
+
+	rawManifest := string(manifestBytes)
+	klog.V(4).Infof("Manifest %v", rawManifest)
+
+	manifestHash, err := utils.HashString(rawManifest)
+	if err != nil {
+		return nil, "", fmt.Errorf("error hashing manifest: %v", err)
+	}
+
+	return manifestBytes, manifestHash, nil
 }
 
 func (b *BootstrapChannelBuilder) buildAddons() *channelsapi.Addons {
@@ -258,7 +345,7 @@ func (b *BootstrapChannelBuilder) buildAddons() *channelsapi.Addons {
 		}
 	}
 
-	if kubeDNS.Provider == "CoreDNS" {
+	if kubeDNS.Provider == "CoreDNS" && !featureflag.UseOperators.Enabled() {
 		{
 			key := "coredns.addons.k8s.io"
 			version := "1.6.7-kops.1"

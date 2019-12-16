@@ -88,6 +88,10 @@ var (
 	TerraformJSON = New("TerraformJSON", Bool(false))
 	// Terraform012 will output terraform in the 0.12 (hcl2) syntax
 	Terraform012 = New("Terraform-0.12", Bool(true))
+	// ClusterAddons activates experimental cluster-addons support
+	ClusterAddons = New("ClusterAddons", Bool(false))
+	// UseOperators activates experimental operator support
+	UseOperators = New("UseOperators", Bool(false))
 )
 
 // FeatureFlag defines a feature flag
