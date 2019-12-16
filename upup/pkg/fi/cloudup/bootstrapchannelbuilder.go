@@ -33,6 +33,7 @@ import (
 	"k8s.io/kops/pkg/model/components/addonmanifests/dnscontroller"
 	"k8s.io/kops/pkg/model/iam"
 	"k8s.io/kops/pkg/templates"
+	"k8s.io/kops/pkg/wellknownoperators"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/fitasks"
 	"k8s.io/kops/upup/pkg/fi/utils"
@@ -283,7 +284,7 @@ func (b *BootstrapChannelBuilder) buildAddons(c *fi.ModelBuilderContext) (*chann
 		}
 	}
 
-	if kubeDNS.Provider == "CoreDNS" {
+	if kubeDNS.Provider == "CoreDNS" && !featureflag.UseOperators.Enabled() {
 		{
 			key := "coredns.addons.k8s.io"
 			version := "1.7.0-kops.2"

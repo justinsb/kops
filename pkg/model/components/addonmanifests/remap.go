@@ -63,5 +63,8 @@ func RemapAddonManifest(addon *addonsapi.AddonSpec, context *model.KopsModelCont
 		manifest = remapped
 	}
 
+	// Trim whitespace
+	//manifestBytes = []byte(strings.TrimSpace(string(manifestBytes)))
+
 	return manifest, nil
 }

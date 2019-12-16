@@ -148,6 +148,7 @@ k8s.io/kops/pkg/util/subnet
 k8s.io/kops/pkg/util/templater
 k8s.io/kops/pkg/validation
 k8s.io/kops/pkg/values
+k8s.io/kops/pkg/wellknownoperators
 k8s.io/kops/pkg/wellknownports
 k8s.io/kops/pkg/wellknownusers
 k8s.io/kops/protokube/cmd/protokube
