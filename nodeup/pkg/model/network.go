@@ -18,6 +18,7 @@ package model
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"k8s.io/kops/upup/pkg/fi"
