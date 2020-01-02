@@ -281,7 +281,7 @@ type terraformIAMRolePolicy struct {
 }
 
 func (_ *IAMRolePolicy) RenderTerraform(t *terraform.TerraformTarget, a, e, changes *IAMRolePolicy) error {
-	if e.PolicyOverrides != nil {
+	if len(*e.PolicyOverrides) > 0 {
 		for _, policy := range *e.PolicyOverrides {
 			tf := &terraformIAMRolePolicy{
 				Role:      e.Role.TerraformLink(),
@@ -328,7 +328,7 @@ type cloudformationIAMRolePolicy struct {
 func (_ *IAMRolePolicy) RenderCloudformation(t *cloudformation.CloudformationTarget, a, e, changes *IAMRolePolicy) error {
 	// Currently CloudFormation does not have a reciprocal function to Terraform that allows the modification of a role
 	// after the fact. In order to make this feature complete we would have to intercept the role task and modify it.
-	if e.PolicyOverrides != nil {
+	if len(*e.PolicyOverrides) > 0 {
 		return fmt.Errorf("CloudFormation not supported for use with PolicyOverrides.")
 	}
 
