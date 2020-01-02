@@ -267,6 +267,16 @@ resource "aws_iam_role" "nodes-complex-example-com" {
   assume_role_policy = "${file("${path.module}/data/aws_iam_role_nodes.complex.example.com_policy")}"
 }
 
+resource "aws_iam_role_policy_attachment" "nodes-policyoverride" {
+  role        = "aws:arn:iam:123456789000:policy:test-policy"
+  policy_arn  = aws_iam_role.nodes-complex-example-com.arn
+}
+
+resource "aws_iam_role_policy_attachment" "masters-policyoverride" {
+  role        = "aws:arn:iam:123456789000:policy:test-policy"
+  policy_arn  = aws_iam_role.masters-complex-example-com.arn
+}
+
 resource "aws_iam_role_policy" "masters-complex-example-com" {
   name   = "masters.complex.example.com"
   role   = "${aws_iam_role.masters-complex-example-com.name}"
