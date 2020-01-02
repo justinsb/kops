@@ -269,12 +269,12 @@ resource "aws_iam_role" "nodes-complex-example-com" {
 
 resource "aws_iam_role_policy_attachment" "nodes-policyoverride" {
   role        = "aws:arn:iam:123456789000:policy:test-policy"
-  policy_arn  = aws_iam_role.nodes-complex-example-com.arn
+  policy_arn  = "${aws_iam_role.nodes-complex-example-com.arn}"
 }
 
 resource "aws_iam_role_policy_attachment" "masters-policyoverride" {
   role        = "aws:arn:iam:123456789000:policy:test-policy"
-  policy_arn  = aws_iam_role.masters-complex-example-com.arn
+  policy_arn  = "${aws_iam_role.masters-complex-example-com.arn}"
 }
 
 resource "aws_iam_role_policy" "masters-complex-example-com" {
