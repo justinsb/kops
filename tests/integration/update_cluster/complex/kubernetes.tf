@@ -267,36 +267,6 @@ resource "aws_iam_role" "nodes-complex-example-com" {
   assume_role_policy = "${file("${path.module}/data/aws_iam_role_nodes.complex.example.com_policy")}"
 }
 
-resource "aws_iam_policy" "role-test-policy" {
-  name        = "role-test-policy"
-  description = "A test policy"
-
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": [
-        "ec2:Describe*"
-      ],
-      "Effect": "Allow",
-      "Resource": "*"
-    }
-  ]
-}
-EOF
-}
-
-resource "aws_iam_role_policy_attachment" "nodes-policyoverride" {
-  role       = "${aws_iam_role.nodes-complex-example-com.name}"
-  policy_arn = "${aws_iam_policy.role-test-policy.arn}"
-}
-
-resource "aws_iam_role_policy_attachment" "masters-policyoverride" {
-  role       = "${aws_iam_role.masters-complex-example-com.name}"
-  policy_arn = "${aws_iam_policy.role-test-policy.arn}"
-}
-
 resource "aws_iam_role_policy" "masters-complex-example-com" {
   name   = "masters.complex.example.com"
   role   = "${aws_iam_role.masters-complex-example-com.name}"
@@ -307,6 +277,16 @@ resource "aws_iam_role_policy" "nodes-complex-example-com" {
   name   = "nodes.complex.example.com"
   role   = "${aws_iam_role.nodes-complex-example-com.name}"
   policy = "${file("${path.module}/data/aws_iam_role_policy_nodes.complex.example.com_policy")}"
+}
+
+resource "aws_iam_role_policy_attachment" "master-policyoverride" {
+  role       = "${aws_iam_role.masters-complex-example-com.name}"
+  policy_arn = "aws:arn:iam:123456789000:policy:test-policy"
+}
+
+resource "aws_iam_role_policy_attachment" "node-policyoverride" {
+  role       = "${aws_iam_role.nodes-complex-example-com.name}"
+  policy_arn = "aws:arn:iam:123456789000:policy:test-policy"
 }
 
 resource "aws_internet_gateway" "complex-example-com" {

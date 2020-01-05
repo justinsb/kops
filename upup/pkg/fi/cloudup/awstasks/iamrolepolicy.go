@@ -274,9 +274,9 @@ func (e *IAMRolePolicy) policyDocumentString() (string, error) {
 }
 
 type terraformIAMRolePolicy struct {
-	Name           *string            `json:"name"`
+	Name           *string            `json:"name,omitempty"`
 	Role           *terraform.Literal `json:"role"`
-	PolicyDocument *terraform.Literal `json:"policy"`
+	PolicyDocument *terraform.Literal `json:"policy,omitempty"`
 	PolicyArn      *string            `json:"policy_arn,omitempty"`
 }
 
@@ -329,7 +329,19 @@ func (_ *IAMRolePolicy) RenderCloudformation(t *cloudformation.CloudformationTar
 	// Currently CloudFormation does not have a reciprocal function to Terraform that allows the modification of a role
 	// after the fact. In order to make this feature complete we would have to intercept the role task and modify it.
 	if e.PolicyOverrides != nil && len(*e.PolicyOverrides) > 0 {
-		return fmt.Errorf("CloudFormation not supported for use with PolicyOverrides.")
+		cfObj, ok := t.Find(e.Role.CloudformationLink())
+		if !ok {
+			// topo-sort fail?
+			return fmt.Errorf("Role not yet rendered")
+		}
+		cf, ok := cfObj.(*cloudformationIAMRole)
+		if !ok {
+			return fmt.Errorf("unexpected type for CF record: %T", cfObj)
+		}
+
+		cf.ManagedPolicyArns = *e.PolicyOverrides
+	
+		return nil
 	}
 
 	policyString, err := e.policyDocumentString()

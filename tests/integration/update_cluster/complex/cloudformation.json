@@ -1039,7 +1039,10 @@
             }
           ],
           "Version": "2012-10-17"
-        }
+        },
+        "ManagedPolicyArns": [
+          "aws:arn:iam:123456789000:policy:test-policy"
+        ]
       }
     },
     "AWSIAMRolenodescomplexexamplecom": {
@@ -1057,7 +1060,10 @@
             }
           ],
           "Version": "2012-10-17"
-        }
+        },
+        "ManagedPolicyArns": [
+          "aws:arn:iam:123456789000:policy:test-policy"
+        ]
       }
     },
     "AWSRoute53RecordSetapicomplexexamplecom": {

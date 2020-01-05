@@ -220,6 +220,7 @@ func (e *IAMRole) TerraformLink() *terraform.Literal {
 type cloudformationIAMRole struct {
 	RoleName                 *string `json:"RoleName"`
 	AssumeRolePolicyDocument map[string]interface{}
+	ManagedPolicyArns []string `json:"ManagedPolicyArns,omitempty"`
 }
 
 func (_ *IAMRole) RenderCloudformation(t *cloudformation.CloudformationTarget, a, e, changes *IAMRole) error {
