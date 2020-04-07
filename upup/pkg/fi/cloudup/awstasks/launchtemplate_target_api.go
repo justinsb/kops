@@ -60,6 +60,20 @@ func (t *LaunchTemplate) RenderAWS(c *awsup.AWSAPITarget, a, ep, changes *Launch
 	}
 	lc := input.LaunchTemplateData
 
+	// Map spot price options
+	if ep.SpotPrice != "" {
+		marketSpotOptions := &ec2.LaunchTemplateSpotMarketOptionsRequest{
+			MaxPrice: aws.String(ep.SpotPrice),
+		}
+		if ep.SpotDurationInMinutes != nil {
+			marketSpotOptions.BlockDurationMinutes = ep.SpotDurationInMinutes
+		}
+		lc.InstanceMarketOptions = &ec2.LaunchTemplateInstanceMarketOptionsRequest{
+			MarketType:  aws.String("spot"),
+			SpotOptions: marketSpotOptions,
+		}
+	}
+
 	// @step: add the actual block device mappings
 	rootDevices, err := t.buildRootDevice(c.Cloud)
 	if err != nil {
