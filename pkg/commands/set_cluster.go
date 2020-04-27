@@ -136,6 +136,10 @@ func SetClusterFields(fields []string, cluster *api.Cluster, instanceGroups []*a
 				}
 				etcd.Manager.Image = kv[1]
 			}
+		case "instanceGroup.spec.maxPrice":
+			for _, ig := range instanceGroups {
+				ig.Spec.MaxPrice = &kv[1]
+			}
 		default:
 			return fmt.Errorf("unhandled field: %q", field)
 		}
