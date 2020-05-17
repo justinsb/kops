@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"time"
 
 	"k8s.io/klog"
 	"k8s.io/kops/util/pkg/hashing"
@@ -76,7 +77,14 @@ func downloadURLAlways(url string, destPath string, dirMode os.FileMode) error {
 
 	klog.Infof("Downloading %q", url)
 
-	response, err := http.Get(url)
+	// Create a client with a reasonable timeout
+	httpClient := http.Client{
+		Transport: &http.Transport{
+			ResponseHeaderTimeout: 30 * time.Second,
+		},
+		Timeout: 5 * time.Minute,
+	}
+	response, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("error doing HTTP fetch of %q: %v", url, err)
 	}
