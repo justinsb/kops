@@ -137,6 +137,15 @@ func (t *LaunchTemplate) RenderAWS(c *awsup.AWSAPITarget, a, ep, changes *Launch
 			SpotOptions: s,
 		}
 	}
+
+	// Map instance metadata options
+	if t.MetadataOptions != nil {
+		lc.MetadataOptions = &ec2.LaunchTemplateInstanceMetadataOptionsRequest{
+			HttpEndpoint: t.MetadataOptions.HTTPEndpoint,
+			HttpTokens:   t.MetadataOptions.HTTPTokens,
+		}
+	}
+
 	// @step: attempt to create the launch template
 	err = func() error {
 		for attempt := 0; attempt < 10; attempt++ {

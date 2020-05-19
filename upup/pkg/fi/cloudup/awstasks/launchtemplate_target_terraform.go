@@ -137,6 +137,17 @@ type terraformLaunchTemplate struct {
 	TagSpecifications []*terraformLaunchTemplateTagSpecification `json:"tag_specifications,omitempty" cty:"tag_specifications"`
 	// UserData is the user data for the instances
 	UserData *terraform.Literal `json:"user_data,omitempty" cty:"user_data"`
+	// MetadataOptions configures the instance metadata service.
+	MetadataOptions *terraformMetadataOptions `json:"metadata_options,omitempty" cty:"metadata_options"`
+}
+
+// terraformMetadataOptions configures the instance metadata service.
+type terraformMetadataOptions struct {
+	// HTTPEndpoint enables or disables the HTTP metdata endpoint.
+	HTTPEndpoint *string `json:"http_endpoint,omitempty" cty:"http_endpoint"`
+
+	// HTTPTokens controls whether tokens are required.
+	HTTPTokens *string `json:"http_tokens,omitempty" cty:"http_tokens"`
 }
 
 // TerraformLink returns the terraform reference

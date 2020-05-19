@@ -133,6 +133,8 @@ type cloudformationLaunchTemplateData struct {
 	TagSpecifications []*cloudformationLaunchTemplateTagSpecification `json:"TagSpecifications,omitempty"`
 	// UserData is the user data for the instances
 	UserData *string `json:"UserData,omitempty"`
+	// MetadataOptions configures the instance metadata service.
+	MetadataOptions *cloudformationMetadataOptions `json:"MetadataOptions,omitempty"`
 }
 
 type cloudformationLaunchTemplate struct {
@@ -140,6 +142,15 @@ type cloudformationLaunchTemplate struct {
 	LaunchTemplateName *string `json:"LaunchTemplateName,omitempty"`
 	// LaunchTemplateData is the data request
 	LaunchTemplateData *cloudformationLaunchTemplateData `json:"LaunchTemplateData,omitempty"`
+}
+
+// cloudformationMetadataOptions configures the instance metadata service.
+type cloudformationMetadataOptions struct {
+	// HTTPEndpoint enables or disables the HTTP metdata endpoint.
+	HTTPEndpoint *string `json:"HttpEndpoint,omitempty"`
+
+	// HTTPTokens controls whether tokens are required.
+	HTTPTokens *string `json:"HttpTokens,omitempty`
 }
 
 // CloudformationLink returns the cloudformation link for us
@@ -218,6 +229,14 @@ func (t *LaunchTemplate) RenderCloudformation(target *cloudformation.Cloudformat
 		}
 		data.UserData = aws.String(base64.StdEncoding.EncodeToString(d))
 	}
+
+	if e.MetadataOptions != nil {
+		data.MetadataOptions = &cloudformationMetadataOptions{
+			HttpEndpoint: t.MetadataOptions.HTTPEndpoint,
+			HttpTokens:   t.MetadataOptions.HTTPTokens,
+		}
+	}
+
 	devices, err := e.buildRootDevice(cloud)
 	if err != nil {
 		return err

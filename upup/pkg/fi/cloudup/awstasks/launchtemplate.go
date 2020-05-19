@@ -73,6 +73,18 @@ type LaunchTemplate struct {
 	// InstanceInterruptionBehavior defines if a spot instance should be terminated, hibernated,
 	// or stopped after interruption
 	InstanceInterruptionBehavior *string
+
+	// MetadataOptions specifies the options for the instance metadata service.
+	MetadataOptions *MetadataOptions
+}
+
+// MetadataOptions configures the instance metadata service.
+type MetadataOptions struct {
+	// HTTPEndpoint enables or disables the HTTP metdata endpoint.
+	HTTPEndpoint *string
+
+	// HTTPTokens controls whether tokens are required.
+	HTTPTokens *string
 }
 
 var (

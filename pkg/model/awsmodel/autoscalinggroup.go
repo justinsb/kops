@@ -26,6 +26,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awstasks"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
@@ -137,6 +138,15 @@ func (b *AutoscalingGroupModelBuilder) buildLaunchTemplateTask(c *fi.ModelBuilde
 	if ig.Spec.InstanceInterruptionBehavior != nil {
 		lt.InstanceInterruptionBehavior = ig.Spec.InstanceInterruptionBehavior
 	}
+
+	useIMDSv2 := true // TODO
+	if useIMDSv2 {
+		lt.MetadataOptions = &awstasks.MetadataOptions{
+			HTTPEndpoint: aws.String("enabled"),
+			HTTPTokens:   aws.String("required"),
+		}
+	}
+
 	return lt, nil
 }
 
