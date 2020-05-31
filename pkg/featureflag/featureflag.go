@@ -129,7 +129,7 @@ func Bool(b bool) *bool {
 	return &b
 }
 
-// ParseFlags responsible for parse out the feature flag usage
+// ParseFlags parses the feature flags into the FeatureFlag constants
 func ParseFlags(f string) {
 	f = strings.TrimSpace(f)
 	for _, s := range strings.Split(f, ",") {

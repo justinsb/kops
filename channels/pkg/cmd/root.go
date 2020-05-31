@@ -19,11 +19,12 @@ package cmd
 import (
 	goflag "flag"
 	"fmt"
-
 	"io"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"k8s.io/kops/pkg/featureflags"
 )
 
 type CmdRootOptions struct {
@@ -69,4 +70,9 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
+
+	if featureFlags := viper.GetString("feature_flags"); featureFlags != "" {
+		featureflags.ParseFlags(featureFlags)
+	}
+
 }
