@@ -6,6 +6,16 @@ metadata:
     k8s-app: kube-dns
   name: coredns-operator-system
 ---
+# Added: run under a service acccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    control-plane: controller-manager
+    k8s-app: kube-dns
+  name: coredns-operator
+  namespace: kube-system
+---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
@@ -133,7 +143,7 @@ rules:
   - ""
   resources:
   - configmaps
-  - serviceaccounts
+  #- serviceaccounts
   - services
   verbs:
   - create
@@ -146,6 +156,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  # TODO: Do we need these, or are these the coredns permissions?
   - endpoints
   - namespaces
   - nodes
@@ -165,6 +176,7 @@ rules:
   resources:
   - coredns
   verbs:
+  # TODO: do we need create & delete?
   - create
   - delete
   - get
@@ -201,12 +213,12 @@ rules:
   - rolebindings
   - roles
   verbs:
-  - create
-  - delete
+#  - create
+#  - delete
   - get
   - list
-  - patch
-  - update
+#  - patch
+#  - update
   - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -254,7 +266,8 @@ roleRef:
   name: coredns-operator-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: default
+  #name: default
+  name: coredns-operator
   namespace: kube-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -269,7 +282,8 @@ roleRef:
   name: coredns-operator-manager-role
 subjects:
 - kind: ServiceAccount
-  name: default
+  #name: default
+  name: coredns-operator
   namespace: kube-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -284,7 +298,8 @@ roleRef:
   name: coredns-operator-proxy-role
 subjects:
 - kind: ServiceAccount
-  name: default
+  #name: default
+  name: coredns-operator
   namespace: kube-system
 ---
 apiVersion: v1
@@ -298,7 +313,8 @@ metadata:
 spec:
   ports:
   - name: https
-    port: 8443
+    #port: 8443
+    port: 443
     targetPort: https
   selector:
     control-plane: controller-manager
@@ -324,6 +340,8 @@ spec:
         control-plane: controller-manager
         k8s-app: kube-dns
     spec:
+      # Added
+      serviceAccountName: coredns-operator
       containers:
       - args:
         - --enable-leader-election
@@ -338,3 +356,63 @@ spec:
             cpu: 100m
             memory: 20Mi
       terminationGracePeriodSeconds: 10
+---
+# Added: pre-create CoreDNS ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coredns
+  namespace: kube-system
+  labels:
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "CoreDNS"
+    addonmanager.kubernetes.io/mode: EnsureExists
+---
+# Added: pre-create RBAC permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "CoreDNS"
+    addonmanager.kubernetes.io/mode: EnsureExists
+  name: system:coredns
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  - services
+  - pods
+  - namespaces
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+---
+# Added: pre-create ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "CoreDNS"
+    addonmanager.kubernetes.io/mode: EnsureExists
+  name: system:coredns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:coredns
+subjects:
+- kind: ServiceAccount
+  name: coredns
+  namespace: kube-system
