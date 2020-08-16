@@ -1,18 +1,18 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  labels:
-    control-plane: controller-manager
-    k8s-app: kube-dns
-  name: coredns-operator-system
----
+#apiVersion: v1
+#kind: Namespace
+#metadata:
+#  labels:
+#    control-plane: controller-manager
+#    k8s-app: coredns-operator
+#  name: coredns-operator-system
+#---
 # Added: run under a service acccount
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   labels:
     control-plane: controller-manager
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator
   namespace: kube-system
 ---
@@ -23,7 +23,7 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.2.5
   creationTimestamp: null
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns.addons.x-k8s.io
 spec:
   group: addons.x-k8s.io
@@ -100,7 +100,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-leader-election-role
   namespace: kube-system
 rules:
@@ -136,7 +136,7 @@ kind: ClusterRole
 metadata:
   creationTimestamp: null
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-manager-role
 rules:
 - apiGroups:
@@ -225,7 +225,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-proxy-role
 rules:
 - apiGroups:
@@ -245,7 +245,7 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-metrics-reader
 rules:
 - nonResourceURLs:
@@ -257,7 +257,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-leader-election-rolebinding
   namespace: kube-system
 roleRef:
@@ -274,7 +274,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -290,7 +290,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   labels:
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-proxy-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -307,7 +307,7 @@ kind: Service
 metadata:
   labels:
     control-plane: controller-manager
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-controller-manager-metrics-service
   namespace: kube-system
 spec:
@@ -318,14 +318,14 @@ spec:
     targetPort: https
   selector:
     control-plane: controller-manager
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     control-plane: controller-manager
-    k8s-app: kube-dns
+    k8s-app: coredns-operator
   name: coredns-operator-controller-manager
   namespace: kube-system
 spec:
@@ -333,12 +333,12 @@ spec:
   selector:
     matchLabels:
       control-plane: controller-manager
-      k8s-app: kube-dns
+      k8s-app: coredns-operator
   template:
     metadata:
       labels:
         control-plane: controller-manager
-        k8s-app: kube-dns
+        k8s-app: coredns-operator
     spec:
       # Added
       serviceAccountName: coredns-operator
