@@ -24,10 +24,12 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	"k8s.io/kops/cmd/kops-controller/controllers"
+	"k8s.io/kops/cmd/kops-controller/pkg/clusterapi"
 	"k8s.io/kops/cmd/kops-controller/pkg/config"
 	"k8s.io/kops/cmd/kops-controller/pkg/server"
 	"k8s.io/kops/pkg/nodeidentity"
@@ -136,6 +138,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NodeController")
 		os.Exit(1)
 	}
+
+	klog.Infof("Adding instancegroup controller")
+
+	if err := addInstanceGroupController(mgr, &opt); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "InstanceGroupController")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
@@ -214,6 +224,23 @@ func addNodeController(mgr manager.Manager, opt *config.Options) error {
 		if err := nodeController.SetupWithManager(mgr); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func addInstanceGroupController(mgr manager.Manager, opt *config.Options) error {
+	dynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return fmt.Errorf("error building kubernetes dynamic client: %v", err)
+	}
+
+	if err := (&clusterapi.InstanceGroupReconciler{
+		DynamicClient: dynamicClient,
+		Client:        mgr.GetClient(),
+		Log:           ctrl.Log.WithName("controllers").WithName("InstanceGroup"),
+	}).SetupWithManager(mgr); err != nil {
+		return err
 	}
 
 	return nil

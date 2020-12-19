@@ -132,6 +132,11 @@ func New(key string, defaultValue *bool) *FeatureFlag {
 	return f
 }
 
+// SetEnabled overrides the enabled status
+func (f *FeatureFlag) SetEnabled(b bool) {
+	f.enabled = Bool(b)
+}
+
 // Enabled checks if the flag is enabled
 func (f *FeatureFlag) Enabled() bool {
 	if f.enabled != nil {
