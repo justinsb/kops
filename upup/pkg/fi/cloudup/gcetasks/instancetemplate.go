@@ -86,60 +86,101 @@ func (e *InstanceTemplate) Find(c *fi.Context) (*InstanceTemplate, error) {
 		return nil, fmt.Errorf("error listing InstanceTemplates: %v", err)
 	}
 
-	expected, err := e.mapToGCE(cloud.Project(), cloud.Region())
-	if err != nil {
-		return nil, err
-	}
-
 	for _, r := range response.Items {
 		if !strings.HasPrefix(r.Name, fi.StringValue(e.NamePrefix)+"-") {
 			continue
 		}
 
-		if !matches(expected, r) {
+		actual, err := gceToModel(cloud.Project(), r)
+		if err != nil {
+			klog.Infof("cannot map existing instanceTemplate: %v", err)
 			continue
 		}
 
-		actual := &InstanceTemplate{}
+		// Prevent spurious changes
+		actual.Name = e.Name
+		actual.NamePrefix = e.NamePrefix
 
-		p := r.Properties
+		actual.ID = &r.Name
+		if e.ID == nil {
+			e.ID = actual.ID
+		}
 
-		actual.Tags = append(actual.Tags, p.Tags.Items...)
-		actual.MachineType = fi.String(lastComponent(p.MachineType))
-		actual.CanIPForward = &p.CanIpForward
+		// System fields
+		actual.Lifecycle = e.Lifecycle
 
-		bootDiskImage, err := ShortenImageURL(cloud.Project(), p.Disks[0].InitializeParams.SourceImage)
+		changes := &InstanceTemplate{}
+		changed := fi.BuildChanges(actual, e, changes)
+		if changed {
+			klog.Infof("changes vs existing object: %v", changes)
+			continue
+		}
+		return actual, nil
+	}
+
+	return nil, nil
+}
+
+func (e *InstanceTemplate) Run(c *fi.Context) error {
+	return fi.DefaultDeltaRunMethod(e, c)
+}
+
+func (_ *InstanceTemplate) CheckChanges(a, e, changes *InstanceTemplate) error {
+	if fi.StringValue(e.BootDiskImage) == "" {
+		return fi.RequiredField("BootDiskImage")
+	}
+	if fi.StringValue(e.MachineType) == "" {
+		return fi.RequiredField("MachineType")
+	}
+	return nil
+}
+
+type cannotRepresentError struct {
+	message string
+}
+
+var _ error = &cannotRepresentError{}
+
+func (e cannotRepresentError) Error() string {
+	return e.message
+}
+
+func cannotRepresent(message string) error {
+	return &cannotRepresentError{message: message}
+}
+
+func gceToModel(project string, in *compute.InstanceTemplate) (*InstanceTemplate, error) {
+	out := &InstanceTemplate{}
+
+	if in.Properties == nil {
+		return nil, cannotRepresent("Properties")
+	}
+
+	out.CanIPForward = &in.Properties.CanIpForward
+	out.MachineType = fi.String(lastComponent(in.Properties.MachineType))
+
+	if in.Properties.Tags != nil {
+		out.Tags = in.Properties.Tags.Items
+	}
+
+	if len(in.Properties.Disks) != 1 {
+		return nil, cannotRepresent("Disks")
+	}
+	for _, disk := range in.Properties.Disks {
+		if disk.InitializeParams == nil {
+			return nil, cannotRepresent("Disks.InitializeParams")
+		}
+		out.BootDiskSizeGB = &disk.InitializeParams.DiskSizeGb
+		out.BootDiskType = &disk.InitializeParams.DiskType
+
+		bootDiskImage, err := ShortenImageURL(project, disk.InitializeParams.SourceImage)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing source image URL: %v", err)
+			return nil, cannotRepresent("Disks.InitializeParams.SourceImage")
 		}
-		actual.BootDiskImage = fi.String(bootDiskImage)
-		actual.BootDiskType = &p.Disks[0].InitializeParams.DiskType
-		actual.BootDiskSizeGB = &p.Disks[0].InitializeParams.DiskSizeGb
+		out.BootDiskImage = fi.String(bootDiskImage)
 
-		if p.Scheduling != nil {
-			actual.Preemptible = &p.Scheduling.Preemptible
-		}
-		if len(p.NetworkInterfaces) != 0 {
-			ni := p.NetworkInterfaces[0]
-			actual.Network = &Network{Name: fi.String(lastComponent(ni.Network))}
-
-			if len(ni.AliasIpRanges) != 0 {
-				actual.AliasIPRanges = make(map[string]string)
-				for _, aliasIPRange := range ni.AliasIpRanges {
-					actual.AliasIPRanges[aliasIPRange.SubnetworkRangeName] = aliasIPRange.IpCidrRange
-				}
-			}
-
-			if ni.Subnetwork != "" {
-				actual.Subnet = &Subnet{Name: fi.String(lastComponent(ni.Subnetwork))}
-			}
-		}
-
-		for _, serviceAccount := range p.ServiceAccounts {
-			for _, scope := range serviceAccount.Scopes {
-				actual.Scopes = append(actual.Scopes, scopeToShortForm(scope))
-			}
-			actual.ServiceAccounts = append(actual.ServiceAccounts, serviceAccount.Email)
+		if disk.Boot != true || disk.AutoDelete != true || disk.Mode != "READ_WRITE" || disk.Type != "PERSISTENT" {
+			return nil, cannotRepresent("Disk mismatch")
 		}
 
 		// When we deal with additional disks (local disks), we'll need to map them like this...
@@ -164,44 +205,73 @@ func (e *InstanceTemplate) Find(c *fi.Context) (*InstanceTemplate, error) {
 		//		}
 		//	}
 		//}
+	}
 
-		if p.Metadata != nil {
-			actual.Metadata = make(map[string]fi.Resource)
-			for _, meta := range p.Metadata.Items {
-				actual.Metadata[meta.Key] = fi.NewStringResource(fi.StringValue(meta.Value))
+	if in.Properties.Metadata != nil {
+		out.Metadata = make(map[string]fi.Resource)
+		for _, item := range in.Properties.Metadata.Items {
+			out.Metadata[item.Key] = fi.NewStringResource(fi.StringValue(item.Value))
+		}
+	}
+
+	if in.Properties.Scheduling == nil {
+		return nil, cannotRepresent("scheduling not set")
+	}
+	out.Preemptible = &in.Properties.Scheduling.Preemptible
+	if in.Properties.Scheduling.Preemptible {
+		if fi.BoolValue(in.Properties.Scheduling.AutomaticRestart) != false {
+			return nil, cannotRepresent("Scheduling.AutomaticRestart")
+		}
+		if in.Properties.Scheduling.OnHostMaintenance != "TERMINATE" {
+			return nil, cannotRepresent("Scheduling.OnHostMaintenance")
+		}
+	} else {
+		if fi.BoolValue(in.Properties.Scheduling.AutomaticRestart) != true {
+			return nil, cannotRepresent("Scheduling.AutomaticRestart")
+		}
+		if in.Properties.Scheduling.OnHostMaintenance != "MIGRATE" {
+			return nil, cannotRepresent("Scheduling.OnHostMaintenance")
+		}
+	}
+
+	if len(in.Properties.NetworkInterfaces) != 1 {
+		return nil, cannotRepresent("NetworkInterfaces")
+	}
+	for _, nic := range in.Properties.NetworkInterfaces {
+		if len(nic.AccessConfigs) != 1 {
+			return nil, cannotRepresent("NetworkInterfaces.AccessConfigs")
+		}
+
+		for _, ac := range nic.AccessConfigs {
+			if ac.Type != "ONE_TO_ONE_NAT" {
+				return nil, cannotRepresent("NetworkInterfaces.AccessConfigs.Type")
+			}
+			if ac.NetworkTier != "PREMIUM" {
+				return nil, cannotRepresent("NetworkInterfaces.AccessConfigs.NetworkTier")
 			}
 		}
 
-		// Prevent spurious changes
-		actual.Name = e.Name
-		actual.NamePrefix = e.NamePrefix
-
-		actual.ID = &r.Name
-		if e.ID == nil {
-			e.ID = actual.ID
+		out.Network = &Network{Name: fi.String(lastComponent(nic.Network))}
+		if nic.Subnetwork != "" {
+			out.Subnet = &Subnet{Name: fi.String(lastComponent(nic.Subnetwork))}
 		}
-
-		// System fields
-		actual.Lifecycle = e.Lifecycle
-
-		return actual, nil
+		if len(nic.AliasIpRanges) != 0 {
+			out.AliasIPRanges = make(map[string]string)
+			for _, r := range nic.AliasIpRanges {
+				out.AliasIPRanges[r.SubnetworkRangeName] = r.IpCidrRange
+			}
+		}
 	}
 
-	return nil, nil
-}
+	for _, sa := range in.Properties.ServiceAccounts {
+		out.ServiceAccounts = append(out.ServiceAccounts, sa.Email)
 
-func (e *InstanceTemplate) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
-}
+		for _, scope := range sa.Scopes {
+			out.Scopes = append(out.Scopes, scopeToShortForm(scope))
+		}
+	}
 
-func (_ *InstanceTemplate) CheckChanges(a, e, changes *InstanceTemplate) error {
-	if fi.StringValue(e.BootDiskImage) == "" {
-		return fi.RequiredField("BootDiskImage")
-	}
-	if fi.StringValue(e.MachineType) == "" {
-		return fi.RequiredField("MachineType")
-	}
-	return nil
+	return out, nil
 }
 
 func (e *InstanceTemplate) mapToGCE(project string, region string) (*compute.InstanceTemplate, error) {
