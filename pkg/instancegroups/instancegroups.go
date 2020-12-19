@@ -407,8 +407,8 @@ func (c *RollingUpdateCluster) reconcileInstanceGroup() error {
 		LifecycleOverrides: map[string]fi.Lifecycle{},
 	}
 
-	return applyCmd.Run(c.Ctx)
-
+	_, _, err := applyCmd.Run(c.Ctx)
+	return err
 }
 
 func (c *RollingUpdateCluster) maybeValidate(operation string, validateCount int, group *cloudinstances.CloudInstanceGroup) error {

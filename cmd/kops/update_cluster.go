@@ -283,15 +283,16 @@ func RunUpdateCluster(ctx context.Context, f *util.Factory, clusterName string, 
 		LifecycleOverrides: lifecycleOverrideMap,
 	}
 
-	if err := applyCmd.Run(ctx); err != nil {
-		return results, err
+	target, taskMap, err := applyCmd.Run(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	results.Target = applyCmd.Target
-	results.TaskMap = applyCmd.TaskMap
+	results.Target = target
+	results.TaskMap = taskMap
 
 	if isDryrun {
-		target := applyCmd.Target.(*fi.DryRunTarget)
+		target := results.Target.(*fi.DryRunTarget)
 		if target.HasChanges() {
 			fmt.Fprintf(out, "Must specify --yes to apply changes\n")
 		} else {
