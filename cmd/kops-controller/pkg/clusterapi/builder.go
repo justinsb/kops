@@ -17,6 +17,7 @@ limitations under the License.
 package clusterapi
 
 import (
+	"context"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,6 +27,7 @@ import (
 	kopsv1alpha2 "k8s.io/kops/pkg/apis/kops/v1alpha2"
 	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/kopscodecs"
+	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 )
@@ -39,7 +41,7 @@ type ClusterAPIBuilder interface {
 	MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup) ([]*unstructured.Unstructured, error)
 }
 
-func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj *kopsv1alpha2.InstanceGroup) ([]*unstructured.Unstructured, error) {
+func (b *Builder) BuildMachineDeployment(ctx context.Context, clusterObj *kopsv1alpha2.Cluster, igObj *kopsv1alpha2.InstanceGroup) ([]*unstructured.Unstructured, error) {
 	cloudup.AlphaAllowGCE.SetEnabled(true)
 
 	cluster := &kops.Cluster{}
@@ -110,19 +112,23 @@ func (b *Builder) BuildMachineDeployment(clusterObj *kopsv1alpha2.Cluster, igObj
 		*/
 	}
 
-	applyCmd := &cloudup.ApplyClusterCmd{
-		Cluster:        cluster,
-		Clientset:      b.Clientset,
-		InstanceGroups: []*kops.InstanceGroup{ig},
-		Phase:          phase,
-	}
+	// applyCmd := &cloudup.ApplyClusterCmd{
+	// 	Cluster:        cluster,
+	// 	Clientset:      b.Clientset,
+	// 	InstanceGroups: []*kops.InstanceGroup{ig},
+	// 	Phase:          phase,
+	// }
 
 	cloud, err := cloudup.BuildCloud(cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	l, err := applyCmd.BuildLoader(cloud, keyStore, secretStore, sshCredentialStore)
+	instanceGroups := []*kops.InstanceGroup{ig}
+	targetName := cloudup.TargetDirect
+	var addons kubemanifest.ObjectList
+
+	tasks, err := cloudup.BuildTasks(ctx, cluster, instanceGroups, cloud, keyStore, secretStore, sshCredentialStore, phase, nil, targetName, addons)
 	if err != nil {
 		return nil, err
 	}
