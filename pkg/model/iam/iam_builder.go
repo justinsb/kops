@@ -37,6 +37,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/model"
+	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/util/stringorslice"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awstasks"
@@ -248,8 +249,7 @@ func (r *NodeRoleMaster) BuildAWSPolicy(b *PolicyBuilder) (*Policy, error) {
 	addMasterELBPolicies(p, resource, b.Cluster.Spec.IAM.Legacy)
 	addCertIAMPolicies(p, resource)
 
-	var err error
-	if p, err = b.AddS3Permissions(p); err != nil {
+	if err := b.AddS3Permissions(p); err != nil {
 		return nil, fmt.Errorf("failed to generate AWS IAM S3 access statements: %v", err)
 	}
 
@@ -297,8 +297,7 @@ func (r *NodeRoleNode) BuildAWSPolicy(b *PolicyBuilder) (*Policy, error) {
 
 	addNodeEC2Policies(p, resource)
 
-	var err error
-	if p, err = b.AddS3Permissions(p); err != nil {
+	if err := b.AddS3Permissions(p); err != nil {
 		return nil, fmt.Errorf("failed to generate AWS IAM S3 access statements: %v", err)
 	}
 
@@ -364,7 +363,7 @@ func (b *PolicyBuilder) IAMPrefix() string {
 
 // AddS3Permissions builds an IAM Policy, with statements granting tailored
 // access to S3 assets, depending on the instance group or service-account role
-func (b *PolicyBuilder) AddS3Permissions(p *Policy) (*Policy, error) {
+func (b *PolicyBuilder) AddS3Permissions(p *Policy) error {
 	// For S3 IAM permissions we grant permissions to subtrees, so find the parents;
 	// we don't need to grant mypath and mypath/child.
 	var roots []string
@@ -411,16 +410,16 @@ func (b *PolicyBuilder) AddS3Permissions(p *Policy) (*Policy, error) {
 	for _, root := range roots {
 		vfsPath, err := vfs.Context.BuildVfsPath(root)
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse VFS path %q: %v", root, err)
+			return fmt.Errorf("cannot parse VFS path %q: %v", root, err)
 		}
 
 		if s3Path, ok := vfsPath.(*vfs.S3Path); ok {
 			iamS3Path := s3Path.Bucket() + "/" + s3Path.Key()
 			iamS3Path = strings.TrimSuffix(iamS3Path, "/")
 
-			s3Buckets.Insert(s3Path.Bucket())
-
 			if b.Cluster.Spec.IAM.Legacy {
+				s3Buckets.Insert(s3Path.Bucket())
+
 				p.Statement = append(p.Statement, &Statement{
 					Effect: StatementEffectAllow,
 					Action: stringorslice.Slice([]string{"s3:*"}),
@@ -431,10 +430,12 @@ func (b *PolicyBuilder) AddS3Permissions(p *Policy) (*Policy, error) {
 			} else {
 				resources, err := ReadableStatePaths(b.Cluster, b.Role)
 				if err != nil {
-					return nil, err
+					return err
 				}
 
 				if len(resources) != 0 {
+					s3Buckets.Insert(s3Path.Bucket())
+
 					sort.Strings(resources)
 
 					// Add the prefix for IAM
@@ -458,13 +459,13 @@ func (b *PolicyBuilder) AddS3Permissions(p *Policy) (*Policy, error) {
 		} else {
 			// We could implement this approach, but it seems better to
 			// get all clouds using cluster-readable storage
-			return nil, fmt.Errorf("path is not cluster readable: %v", root)
+			return fmt.Errorf("path is not cluster readable: %v", root)
 		}
 	}
 
 	writeablePaths, err := WriteableVFSPaths(b.Cluster, b.Role)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for _, vfsPath := range writeablePaths {
@@ -507,7 +508,7 @@ func (b *PolicyBuilder) AddS3Permissions(p *Policy) (*Policy, error) {
 		})
 	}
 
-	return p, nil
+	return nil
 }
 
 func WriteableVFSPaths(cluster *kops.Cluster, role Subject) ([]vfs.Path, error) {
@@ -546,6 +547,9 @@ func ReadableStatePaths(cluster *kops.Cluster, role Subject) ([]string, error) {
 		paths = append(paths, "/*")
 
 	case *NodeRoleNode:
+		if featureflag.KopsControllerStateStore.Enabled() {
+			return nil, nil
+		}
 		paths = append(paths,
 			"/addons/*",
 			"/cluster.spec",
