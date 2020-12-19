@@ -28,6 +28,7 @@ import (
 	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/kopscodecs"
 	"k8s.io/kops/pkg/kubemanifest"
+	"k8s.io/kops/pkg/model/gcemodel"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 )
@@ -134,13 +135,28 @@ func (b *Builder) BuildMachineDeployment(ctx context.Context, clusterObj *kopsv1
 	}
 
 	var objects []*unstructured.Unstructured
-	for _, b := range l.Builders {
-		clusterAPIBuilder, ok := b.(ClusterAPIBuilder)
-		if !ok {
-			continue
-		}
 
-		objs, err := clusterAPIBuilder.MapToClusterAPI(cluster, ig)
+	// TODO: Maybe getting the loaders is better!
+
+	// for _, b := range l.Builders {
+	// 	clusterAPIBuilder, ok := b.(ClusterAPIBuilder)
+	// 	if !ok {
+	// 		continue
+	// 	}
+
+	// 	objs, err := clusterAPIBuilder.MapToClusterAPI(cluster, ig)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	objects = append(objects, objs...)
+	// }
+
+	var mappers []func(cluster *kops.Cluster, ig *kops.InstanceGroup, tasks map[string]fi.Task) ([]*unstructured.Unstructured, error)
+	mappers = append(mappers, gcemodel.MapToClusterAPI)
+
+	for _, fn := range mappers {
+		objs, err := fn(cluster, ig, tasks)
 		if err != nil {
 			return nil, err
 		}

@@ -66,7 +66,7 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 
 	b := &Builder{}
-	objects, err := b.BuildMachineDeployment(cluster, instance)
+	objects, err := b.BuildMachineDeployment(ctx, cluster, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
