@@ -36,7 +36,7 @@ func apply(ctx context.Context) error {
 		Clientset:  clientset,
 		TargetName: cloudup.TargetDirect,
 	}
-	err = applyCmd.Run(ctx)
+	_, _, err = applyCmd.Run(ctx)
 	if err != nil {
 		return err
 	}
