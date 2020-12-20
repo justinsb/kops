@@ -1,0 +1,6 @@
+clusterAPI:
+  enabled: true
+leaderElection:
+  enabled: false
+nodeController:
+  enabled: false

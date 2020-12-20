@@ -1,0 +1,27 @@
+apiVersion: cluster.x-k8s.io/v1alpha4
+kind: Cluster
+metadata:
+  name: foo.containuous.com
+spec:
+  # clusterNetwork:
+  #   pods:
+  #     cidrBlocks: ["192.168.0.0/16"]
+  infrastructureRef:
+     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+     kind: GCPCluster
+     name: foo.containuous.com
+  controlPlaneRef:
+    kind: Cluster
+    apiVersion: kops.k8s.io/v1alpha2
+    name: foo.containuous.com
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: GCPCluster
+metadata:
+  name: foo.containuous.com
+spec:
+  region: us-east4
+  project: justinsb-cloud-kubernetes-test
+  controlPlaneEndpoint:
+    host: api.foo.containuous.com
+    port: 443
