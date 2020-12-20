@@ -215,7 +215,7 @@ var _ HasIsReady = &TaskDependentResource{}
 
 func (r *TaskDependentResource) Open() (io.Reader, error) {
 	if r.Resource == nil {
-		return nil, fmt.Errorf("resource opened before it is ready (task=%v)", r.Task)
+		return nil, fmt.Errorf("resource opened before it is ready (task=%T %v)", r.Task, DebugAsJsonString(r.Task))
 	}
 	return r.Resource.Open()
 }

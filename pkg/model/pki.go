@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/rbac"
 	"k8s.io/kops/pkg/tokens"
 	"k8s.io/kops/upup/pkg/fi"
@@ -226,4 +228,9 @@ func (b *PKIModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 
 	return nil
+}
+
+// MapToClusterAPI implements the cluster-api support
+func (b *PKIModelBuilder) MapToClusterAPI(c *fi.Context, cluster *kops.Cluster, ig *kops.InstanceGroup, tasks map[string]fi.Task) ([]*unstructured.Unstructured, error) {
+	return nil, nil
 }

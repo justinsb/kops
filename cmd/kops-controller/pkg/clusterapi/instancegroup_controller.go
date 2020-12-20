@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	api "k8s.io/kops/pkg/apis/kops/v1alpha2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,24 +60,34 @@ func (r *InstanceGroupReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return ctrl.Result{}, err
 	}
 
-	cluster, err := r.getCluster(ctx, instance)
-	if err != nil {
+	if err := r.reconcile(ctx, instance); err != nil {
+		klog.Infof("error reconciling object: %v", err)
 		return ctrl.Result{}, err
 	}
+	return ctrl.Result{}, nil
+}
+
+func (r *InstanceGroupReconciler) reconcile(ctx context.Context, instance *api.InstanceGroup) error {
+	cluster, err := r.getCluster(ctx, instance)
+	if err != nil {
+		return err
+	}
+
+	// klog.Infof("cluster %v", cluster)
 
 	b := &Builder{}
 	objects, err := b.BuildMachineDeployment(ctx, cluster, instance)
 	if err != nil {
-		return ctrl.Result{}, err
+		return fmt.Errorf("failed to construct child objects: %w", err)
 	}
 
 	for _, obj := range objects {
 		if err := r.updateObject(ctx, obj); err != nil {
-			return ctrl.Result{}, err
+			return err
 		}
 	}
 
-	return ctrl.Result{}, nil
+	return nil
 }
 
 func (r *InstanceGroupReconciler) updateObject(ctx context.Context, obj *unstructured.Unstructured) error {
@@ -135,11 +145,9 @@ func (r *InstanceGroupReconciler) updateObject(ctx context.Context, obj *unstruc
 
 func (r *InstanceGroupReconciler) getCluster(ctx context.Context, ig *api.InstanceGroup) (*api.Cluster, error) {
 	clusters := &api.ClusterList{}
-	var opts client.ListOptions
-	opts.Namespace = ig.Namespace
-	err := r.List(ctx, clusters, &opts)
+	err := r.List(ctx, clusters, client.InNamespace(ig.Namespace))
 	if err != nil {
-		return nil, fmt.Errorf("error fetching clusters: %v", err)
+		return nil, fmt.Errorf("error fetching clusters: %w", err)
 	}
 
 	if len(clusters.Items) == 0 {
@@ -152,6 +160,20 @@ func (r *InstanceGroupReconciler) getCluster(ctx context.Context, ig *api.Instan
 
 	return &clusters.Items[0], nil
 }
+
+// func (r *InstanceGroupReconciler) getInstanceGroups(ctx context.Context, cluster *api.Cluster) ([]*api.InstanceGroup, error) {
+// 	igList := &api.InstanceGroupList{}
+// 	err := r.List(ctx, igList, client.InNamespace(cluster.Namespace))
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error fetching InstanceGroups: %w", err)
+// 	}
+
+// 	var out []*api.InstanceGroup
+// 	for i := range igList.Items {
+// 		out = append(out, &igList.Items[i])
+// 	}
+// 	return out, nil
+// }
 
 func (r *InstanceGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).

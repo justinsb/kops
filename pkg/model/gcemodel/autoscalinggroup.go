@@ -98,7 +98,7 @@ func (b *AutoscalingGroupModelBuilder) buildInstanceTemplate(c *fi.ModelBuilderC
 				Metadata: map[string]fi.Resource{
 					"startup-script": startupScript,
 					//"config": resources/config.yaml $nodeset.Name
-					"cluster-name": fi.NewStringResource(b.ClusterName()),
+					nodeidentitygce.MetadataKeyClusterName:       fi.NewStringResource(b.ClusterName()),
 					nodeidentitygce.MetadataKeyInstanceGroupName: fi.NewStringResource(ig.Name),
 				},
 			}
@@ -265,7 +265,7 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 }
 
 // MapToClusterAPI implements the cluster-api support
-func MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup, taskMap map[string]fi.Task) ([]*unstructured.Unstructured, error) {
+func (b *AutoscalingGroupModelBuilder) MapToClusterAPI(c *fi.Context, cluster *kops.Cluster, ig *kops.InstanceGroup, taskMap map[string]fi.Task) ([]*unstructured.Unstructured, error) {
 	var objects []*unstructured.Unstructured
 
 	for _, taskObj := range taskMap {
@@ -304,7 +304,7 @@ func MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup, taskMap map[
 		// TODO: Should the provider encode this?  Not clear whether the data is supposed to be pre-encoded.
 		var bootstrapData []byte
 
-		additionalMetadata := make(map[string]string)
+		additionalMetadata := []map[string]interface{}{}
 		for k, vr := range it.Metadata {
 			if k == "startup-script" {
 				b, err := fi.ResourceAsBytes(vr)
@@ -320,7 +320,10 @@ func MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup, taskMap map[
 				return nil, err
 			}
 
-			additionalMetadata[k] = v
+			additionalMetadata = append(additionalMetadata, map[string]interface{}{
+				"key":   k,
+				"value": v,
+			})
 		}
 
 		// TODO: GCP provider requires this, but actually only requires it when we aren't using a custom image
@@ -341,8 +344,8 @@ func MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup, taskMap map[
 
 			template := map[string]interface{}{
 				"spec": map[string]interface{}{
-					"instanceType":          it.MachineType,
-					"zone":                  zone,
+					"instanceType": it.MachineType,
+					//"zone":                  zone,
 					"image":                 image,
 					"rootDeviceSize":        it.BootDiskSizeGB,
 					"serviceAccount":        serviceAccount,
@@ -389,7 +392,7 @@ func MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup, taskMap map[
 		{
 			u := &unstructured.Unstructured{}
 
-			u.SetAPIVersion("cluster.x-k8s.io/v1alpha3")
+			u.SetAPIVersion("cluster.x-k8s.io/v1alpha4")
 			u.SetKind("MachineDeployment")
 			u.SetName(ig.Name)
 			u.SetNamespace(ig.Namespace)
@@ -413,6 +416,7 @@ func MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup, taskMap map[
 					"bootstrap": map[string]interface{}{
 						"dataSecretName": dataSecretName,
 					},
+					"failureDomain": zone,
 					"infrastructureRef": map[string]interface{}{
 						"apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha3",
 						"kind":       "GCPMachineTemplate",

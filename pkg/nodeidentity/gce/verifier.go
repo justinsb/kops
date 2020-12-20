@@ -35,6 +35,9 @@ type VerifierOptions struct {
 	// ProjectID is the project of the cluster (we verify the nodes are in this project)
 	ProjectID string `json:"projectID,omitempty"`
 
+	// ClusterName is the name of the cluster (we verify the nodes are in this project)
+	ClusterName string `json:"clusterName,omitempty"`
+
 	// ServiceAccounts are the emails of the service accounts that worker nodes are permitted to have.
 	//	ServiceAccounts []string `json:"serviceAccounts,omitempty"`
 }
@@ -70,6 +73,7 @@ func NewVerifier(opt *VerifierOptions) (fi.Verifier, error) {
 	v.nodeIdentifier = &nodeIdentifier{
 		computeService: computeService,
 		project:        opt.ProjectID,
+		clusterName:    opt.ClusterName,
 	}
 
 	return v, nil

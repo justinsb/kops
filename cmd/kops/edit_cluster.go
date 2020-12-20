@@ -216,8 +216,18 @@ func RunEditCluster(ctx context.Context, f *util.Factory, cmd *cobra.Command, ar
 			return preservedFile(fmt.Errorf("error populating configuration: %v", err), file, out)
 		}
 
+		keyStore, err := clientset.KeyStore(newCluster)
+		if err != nil {
+			return err
+		}
+
+		secretStore, err := clientset.SecretStore(newCluster)
+		if err != nil {
+			return err
+		}
+
 		assetBuilder := assets.NewAssetBuilder(newCluster, "")
-		fullCluster, err := cloudup.PopulateClusterSpec(clientset, newCluster, cloud, assetBuilder)
+		fullCluster, err := cloudup.PopulateClusterSpec(newCluster, cloud, assetBuilder, keyStore, secretStore)
 		if err != nil {
 			results = editResults{
 				file: file,

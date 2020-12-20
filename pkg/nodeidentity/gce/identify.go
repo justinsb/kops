@@ -34,6 +34,10 @@ import (
 // This is used by the gce nodeidentifier to securely identify the node instancegroup
 const MetadataKeyInstanceGroupName = "kops-k8s-io-instance-group-name"
 
+// MetadataKeyClusterName is the key for the metadata that specifies the cluster name
+// This is used by the gce nodeidentifier to securely identify the node
+const MetadataKeyClusterName = "cluster-name"
+
 // nodeIdentifier identifies a node from GCE
 type nodeIdentifier struct {
 	// computeService is the GCE client
@@ -41,6 +45,9 @@ type nodeIdentifier struct {
 
 	// project is our GCE project; we require that instances be in this project
 	project string
+
+	// clusterName is our cluster name; if set we require that instances be tagged with this cluster name
+	clusterName string
 }
 
 // NewLegacyIdentifier creates and returns a nodeidentity.LegacyIdentifier for Nodes running on GCE
@@ -109,6 +116,27 @@ func (i *nodeIdentifier) verifyInstance(ctx context.Context, project string, zon
 	instanceStatus := instance.Status
 	if instanceStatus != "RUNNING" {
 		return nil, fmt.Errorf("found instance %q, but status is %q", instanceName, instanceStatus)
+	}
+
+	clusterName := getMetadataValue(instance.Metadata, MetadataKeyClusterName)
+	if clusterName == "" {
+		return nil, fmt.Errorf("%q not set on instance %s", MetadataKeyClusterName, instance.Name)
+	}
+
+	if i.clusterName != "" && clusterName != i.clusterName {
+		return nil, fmt.Errorf("instance %q was tagged with a different cluster %q", instance.Name, clusterName)
+	}
+
+	paranoid := false
+	if !paranoid {
+		igName := getMetadataValue(instance.Metadata, MetadataKeyInstanceGroupName)
+		if igName == "" {
+			return nil, fmt.Errorf("%q not set on instance %s", MetadataKeyInstanceGroupName, instance.Name)
+		}
+
+		info := &nodeidentity.LegacyInfo{}
+		info.InstanceGroup = igName
+		return info, nil
 	}
 
 	// The metadata itself is potentially mutable from the instance

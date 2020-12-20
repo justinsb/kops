@@ -22,10 +22,30 @@ import (
 )
 
 type Options struct {
-	Cloud                 string         `json:"cloud,omitempty"`
-	ConfigBase            string         `json:"configBase,omitempty"`
-	Server                *ServerOptions `json:"server,omitempty"`
-	CacheNodeidentityInfo bool           `json:"cacheNodeidentityInfo,omitempty"`
+	Cloud      string         `json:"cloud,omitempty"`
+	ConfigBase string         `json:"configBase,omitempty"`
+	Server     *ServerOptions `json:"server,omitempty"`
+
+	// ClusterAPI configures the cluster-api controllers.
+	ClusterAPI *ClusterAPIOptions `json:"clusterAPI,omitempty"`
+
+	// NodeController configures the node controllers.
+	NodeController *NodeControllerOptions `json:"nodeController,omitempty"`
+
+	CacheNodeidentityInfo bool `json:"cacheNodeidentityInfo,omitempty"`
+
+	// LeaderElection configures leaderElection options.
+	LeaderElection *LeaderElectionOptions `json:"leaderElection,omitempty"`
+}
+
+type LeaderElectionOptions struct {
+	// Enabled controls whether we should use leader election to prevent multiple instances running.
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+type NodeControllerOptions struct {
+	// Enabled controls whether node controllers are enabled
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 func (o *Options) PopulateDefaults() {
@@ -54,4 +74,9 @@ type ServerOptions struct {
 type ServerProviderOptions struct {
 	AWS *awsup.AWSVerifierOptions        `json:"aws,omitempty"`
 	GCE *nodeidentitygce.VerifierOptions `json:"gce,omitempty"`
+}
+
+type ClusterAPIOptions struct {
+	// Enabled controls whether cluster api controllers are enabled
+	Enabled *bool `json:"enabled,omitempty"`
 }

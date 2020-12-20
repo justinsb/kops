@@ -28,7 +28,6 @@ import (
 	"k8s.io/kops/pkg/apis/kops/util"
 	"k8s.io/kops/pkg/apis/kops/validation"
 	"k8s.io/kops/pkg/assets"
-	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/dns"
 	"k8s.io/kops/pkg/model/components"
 	"k8s.io/kops/pkg/model/components/etcdmanager"
@@ -58,13 +57,13 @@ type populateClusterSpec struct {
 
 // PopulateClusterSpec takes a user-specified cluster spec, and computes the full specification that should be set on the cluster.
 // We do this so that we don't need any real "brains" on the node side.
-func PopulateClusterSpec(clientset simple.Clientset, cluster *kopsapi.Cluster, cloud fi.Cloud, assetBuilder *assets.AssetBuilder) (*kopsapi.Cluster, error) {
+func PopulateClusterSpec(cluster *kopsapi.Cluster, cloud fi.Cloud, assetBuilder *assets.AssetBuilder, keyStore fi.Keystore, secretStore fi.SecretStore) (*kopsapi.Cluster, error) {
 	c := &populateClusterSpec{
 		cloud:        cloud,
 		InputCluster: cluster,
 		assetBuilder: assetBuilder,
 	}
-	err := c.run(clientset)
+	err := c.run(keyStore, secretStore)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +80,7 @@ func PopulateClusterSpec(clientset simple.Clientset, cluster *kopsapi.Cluster, c
 // struct is falling through..
 // @kris-nova
 //
-func (c *populateClusterSpec) run(clientset simple.Clientset) error {
+func (c *populateClusterSpec) run(keyStore fi.Keystore, secretStore fi.SecretStore) error {
 	if errs := validation.ValidateCluster(c.InputCluster, false); len(errs) != 0 {
 		return errs.ToAggregate()
 	}
@@ -177,11 +176,6 @@ func (c *populateClusterSpec) run(clientset simple.Clientset) error {
 		return fmt.Errorf("ConfigBase path is not cluster readable: %v", cluster.Spec.ConfigBase)
 	}
 
-	keyStore, err := clientset.KeyStore(cluster)
-	if err != nil {
-		return err
-	}
-
 	if cluster.Spec.KeyStore == "" {
 		hasVFSPath, ok := keyStore.(fi.HasVFSPath)
 		if !ok {
@@ -195,11 +189,6 @@ func (c *populateClusterSpec) run(clientset simple.Clientset) error {
 			// We could implement this approach, but it seems better to get all clouds using cluster-readable storage
 			return fmt.Errorf("keyStore path is not cluster readable: %v", hasVFSPath.VFSPath())
 		}
-	}
-
-	secretStore, err := clientset.SecretStore(cluster)
-	if err != nil {
-		return err
 	}
 
 	if cluster.Spec.SecretStore == "" {

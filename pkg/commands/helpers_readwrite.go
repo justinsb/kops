@@ -40,8 +40,18 @@ func UpdateCluster(ctx context.Context, clientset simple.Clientset, cluster *kop
 		return fmt.Errorf("error populating configuration: %v", err)
 	}
 
+	keyStore, err := clientset.KeyStore(cluster)
+	if err != nil {
+		return err
+	}
+
+	secretStore, err := clientset.SecretStore(cluster)
+	if err != nil {
+		return err
+	}
+
 	assetBuilder := assets.NewAssetBuilder(cluster, "")
-	fullCluster, err := cloudup.PopulateClusterSpec(clientset, cluster, cloud, assetBuilder)
+	fullCluster, err := cloudup.PopulateClusterSpec(cluster, cloud, assetBuilder, keyStore, secretStore)
 	if err != nil {
 		return err
 	}

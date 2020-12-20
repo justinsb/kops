@@ -457,8 +457,9 @@ func (tf *TemplateFunctions) KopsControllerConfig() (string, error) {
 			}
 		case kops.CloudProviderGCE:
 			config.Server.Provider.GCE = &nodeidentitygce.VerifierOptions{
-				Audience:  "kops-controller." + cluster.Name,
-				ProjectID: cluster.Spec.Project,
+				Audience:    "kops-controller." + cluster.Name,
+				ProjectID:   cluster.Spec.Project,
+				ClusterName: cluster.Name,
 				//ServiceAccounts: serviceAccounts,
 			}
 		default:

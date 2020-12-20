@@ -139,7 +139,7 @@ type ApplyClusterCmd struct {
 	// TaskMap map[string]fi.Task
 }
 
-func BuildTasks(ctx context.Context,
+func BuildLoader(ctx context.Context,
 	cluster *kops.Cluster,
 	instanceGroups []*kops.InstanceGroup,
 	cloud fi.Cloud,
@@ -147,9 +147,12 @@ func BuildTasks(ctx context.Context,
 	secretStore fi.SecretStore,
 	sshCredentialStore fi.SSHCredentialStore,
 	phase Phase,
-	lifecycleOverrides map[string]fi.Lifecycle,
 	targetName string,
-	addons kubemanifest.ObjectList) (map[string]fi.Task, error) {
+	addons kubemanifest.ObjectList) (*Loader, *assets.AssetBuilder, error) {
+	// 	//lifecycleOverrides map[string]fi.Lifecycle,
+	// 	///targetName string,
+	// 	//addons kubemanifest.ObjectList
+	// ) (*Loader, *assets.AssetBuilder, error) {
 	// cloud := c.Cloud
 
 	// cluster := c.Cluster
@@ -167,7 +170,6 @@ func BuildTasks(ctx context.Context,
 		}
 	}
 
-	stageAssetsLifecycle := fi.LifecycleSync
 	securityLifecycle := fi.LifecycleSync
 	networkLifecycle := fi.LifecycleSync
 	clusterLifecycle := fi.LifecycleSync
@@ -175,44 +177,37 @@ func BuildTasks(ctx context.Context,
 	switch phase {
 	case Phase(""):
 		// Everything ... the default
-
-		// until we implement finding assets we need to Ignore them
-		stageAssetsLifecycle = fi.LifecycleIgnore
 	case PhaseStageAssets:
 		networkLifecycle = fi.LifecycleIgnore
 		securityLifecycle = fi.LifecycleIgnore
 		clusterLifecycle = fi.LifecycleIgnore
 
 	case PhaseNetwork:
-		stageAssetsLifecycle = fi.LifecycleIgnore
 		securityLifecycle = fi.LifecycleIgnore
 		clusterLifecycle = fi.LifecycleIgnore
 
 	case PhaseSecurity:
-		stageAssetsLifecycle = fi.LifecycleIgnore
 		networkLifecycle = fi.LifecycleExistsAndWarnIfChanges
 		clusterLifecycle = fi.LifecycleIgnore
 
 	case PhaseCluster:
 		if targetName == TargetDryRun {
-			stageAssetsLifecycle = fi.LifecycleIgnore
 			securityLifecycle = fi.LifecycleExistsAndWarnIfChanges
 			networkLifecycle = fi.LifecycleExistsAndWarnIfChanges
 		} else {
-			stageAssetsLifecycle = fi.LifecycleIgnore
 			networkLifecycle = fi.LifecycleExistsAndValidates
 			securityLifecycle = fi.LifecycleExistsAndValidates
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown phase %q", phase)
+		return nil, nil, fmt.Errorf("unknown phase %q", phase)
 	}
 
 	if cluster.Spec.KubernetesVersion == "" {
-		return nil, fmt.Errorf("KubernetesVersion not set")
+		return nil, nil, fmt.Errorf("KubernetesVersion not set")
 	}
 	if cluster.Spec.DNSZone == "" && !dns.IsGossipHostname(cluster.ObjectMeta.Name) {
-		return nil, fmt.Errorf("DNSZone not set")
+		return nil, nil, fmt.Errorf("DNSZone not set")
 	}
 
 	l := &Loader{}
@@ -268,13 +263,13 @@ func BuildTasks(ctx context.Context,
 	if fi.BoolValue(cluster.Spec.EncryptionConfig) {
 		secret, err := secretStore.FindSecret("encryptionconfig")
 		if err != nil {
-			return nil, fmt.Errorf("could not load encryptionconfig secret: %v", err)
+			return nil, nil, fmt.Errorf("could not load encryptionconfig secret: %v", err)
 		}
 		if secret == nil {
 			fmt.Println("")
 			fmt.Println("You have encryptionConfig enabled, but no encryptionconfig secret has been set.")
 			fmt.Println("See `kops create secret encryptionconfig -h` and https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/")
-			return nil, fmt.Errorf("could not find encryptionconfig secret")
+			return nil, nil, fmt.Errorf("could not find encryptionconfig secret")
 		}
 	}
 
@@ -284,13 +279,13 @@ func BuildTasks(ctx context.Context,
 
 	assets, nodeUpAssets, err := addFileAssets(assetBuilder, cluster, instanceGroups)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Only setup transfer of kops assets if using a FileRepository
 	if cluster.Spec.Assets != nil && cluster.Spec.Assets.FileRepository != nil {
 		if err := SetKopsAssetsLocations(assetBuilder); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -302,7 +297,7 @@ func BuildTasks(ctx context.Context,
 	{
 		keys, err := sshCredentialStore.FindSSHPublicKeys(fi.SecretNameSSHPrimary)
 		if err != nil {
-			return nil, fmt.Errorf("error retrieving SSH public key %q: %v", fi.SecretNameSSHPrimary, err)
+			return nil, nil, fmt.Errorf("error retrieving SSH public key %q: %v", fi.SecretNameSSHPrimary, err)
 		}
 
 		for _, k := range keys {
@@ -322,7 +317,7 @@ func BuildTasks(ctx context.Context,
 			// project = gceCloud.Project()
 
 			if !AlphaAllowGCE.Enabled() {
-				return nil, fmt.Errorf("GCE support is currently alpha, and is feature-gated.  export KOPS_FEATURE_FLAGS=AlphaAllowGCE")
+				return nil, nil, fmt.Errorf("GCE support is currently alpha, and is feature-gated.  export KOPS_FEATURE_FLAGS=AlphaAllowGCE")
 			}
 
 			modelContext.SSHPublicKeys = sshPublicKeys
@@ -331,7 +326,7 @@ func BuildTasks(ctx context.Context,
 	case kops.CloudProviderDO:
 		{
 			if len(sshPublicKeys) == 0 && (cluster.Spec.SSHKeyName == nil || *cluster.Spec.SSHKeyName == "") {
-				return nil, fmt.Errorf("SSH public key must be specified when running with DigitalOcean (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
+				return nil, nil, fmt.Errorf("SSH public key must be specified when running with DigitalOcean (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
 			}
 
 			modelContext.SSHPublicKeys = sshPublicKeys
@@ -342,36 +337,36 @@ func BuildTasks(ctx context.Context,
 
 			accountID, partition, err := awsCloud.AccountInfo()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			modelContext.AWSAccountID = accountID
 			modelContext.AWSPartition = partition
 
 			if len(sshPublicKeys) == 0 && cluster.Spec.SSHKeyName == nil {
-				return nil, fmt.Errorf("SSH public key must be specified when running with AWS (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
+				return nil, nil, fmt.Errorf("SSH public key must be specified when running with AWS (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
 			}
 
 			modelContext.SSHPublicKeys = sshPublicKeys
 
 			if len(sshPublicKeys) > 1 {
-				return nil, fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with AWS; please delete a key using `kops delete secret`")
+				return nil, nil, fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with AWS; please delete a key using `kops delete secret`")
 			}
 		}
 
 	case kops.CloudProviderALI:
 		{
 			if !AlphaAllowALI.Enabled() {
-				return nil, fmt.Errorf("aliyun support is currently alpha, and is feature-gated.  export KOPS_FEATURE_FLAGS=AlphaAllowALI")
+				return nil, nil, fmt.Errorf("aliyun support is currently alpha, and is feature-gated.  export KOPS_FEATURE_FLAGS=AlphaAllowALI")
 			}
 
 			if len(sshPublicKeys) == 0 {
-				return nil, fmt.Errorf("SSH public key must be specified when running with ALICloud (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
+				return nil, nil, fmt.Errorf("SSH public key must be specified when running with ALICloud (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
 			}
 
 			modelContext.SSHPublicKeys = sshPublicKeys
 
 			if len(sshPublicKeys) != 1 {
-				return nil, fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with ALICloud; please delete a key using `kops delete secret`")
+				return nil, nil, fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with ALICloud; please delete a key using `kops delete secret`")
 			}
 		}
 	case kops.CloudProviderAzure:
@@ -393,17 +388,17 @@ func BuildTasks(ctx context.Context,
 	case kops.CloudProviderOpenstack:
 		{
 			if len(sshPublicKeys) == 0 {
-				return nil, fmt.Errorf("SSH public key must be specified when running with Openstack (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
+				return nil, nil, fmt.Errorf("SSH public key must be specified when running with Openstack (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
 			}
 
 			modelContext.SSHPublicKeys = sshPublicKeys
 
 			if len(sshPublicKeys) != 1 {
-				return nil, fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with Openstack; please delete a key using `kops delete secret`")
+				return nil, nil, fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with Openstack; please delete a key using `kops delete secret`")
 			}
 		}
 	default:
-		return nil, fmt.Errorf("unknown CloudProvider %q", cluster.Spec.CloudProvider)
+		return nil, nil, fmt.Errorf("unknown CloudProvider %q", cluster.Spec.CloudProvider)
 	}
 
 	modelContext.Region = cloud.Region()
@@ -412,7 +407,7 @@ func BuildTasks(ctx context.Context,
 		klog.Infof("Gossip DNS: skipping DNS validation")
 	} else {
 		if err := validateDNS(cluster, cloud); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -423,12 +418,12 @@ func BuildTasks(ctx context.Context,
 	{
 		templates, err := templates.LoadTemplates(cluster, models.NewAssetPath("cloudup/resources"))
 		if err != nil {
-			return nil, fmt.Errorf("error loading templates: %v", err)
+			return nil, nil, fmt.Errorf("error loading templates: %v", err)
 		}
 
 		err = tf.AddTo(templates.TemplateFunctions, secretStore)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		l.Builders = append(l.Builders,
@@ -551,7 +546,7 @@ func BuildTasks(ctx context.Context,
 			)
 
 		default:
-			return nil, fmt.Errorf("unknown cloudprovider %q", cluster.Spec.CloudProvider)
+			return nil, nil, fmt.Errorf("unknown cloudprovider %q", cluster.Spec.CloudProvider)
 		}
 	}
 
@@ -561,7 +556,7 @@ func BuildTasks(ctx context.Context,
 	configBuilder, err := newNodeUpConfigBuilder(cluster, assetBuilder, assets)
 >>>>>>> WIP: refactor
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	bootstrapScriptBuilder := &model.BootstrapScriptBuilder{
 		NodeUpConfigBuilder: configBuilder,
@@ -654,10 +649,36 @@ func BuildTasks(ctx context.Context,
 		})
 
 	default:
-		return nil, fmt.Errorf("unknown cloudprovider %q", cluster.Spec.CloudProvider)
+		return nil, nil, fmt.Errorf("unknown cloudprovider %q", cluster.Spec.CloudProvider)
 	}
 
-	taskMap, err := l.BuildTasks(assetBuilder, &stageAssetsLifecycle, lifecycleOverrides)
+	return l, assetBuilder, nil
+}
+
+func BuildTasks(ctx context.Context,
+	cluster *kops.Cluster,
+	instanceGroups []*kops.InstanceGroup,
+	cloud fi.Cloud,
+	keyStore fi.CAStore,
+	secretStore fi.SecretStore,
+	sshCredentialStore fi.SSHCredentialStore,
+	phase Phase,
+	lifecycleOverrides map[string]fi.Lifecycle,
+	targetName string,
+	addons kubemanifest.ObjectList) (map[string]fi.Task, error) {
+	loader, assetBuilder, err := BuildLoader(ctx, cluster, instanceGroups, cloud, keyStore, secretStore, sshCredentialStore, phase, targetName, addons)
+	if err != nil {
+		return nil, fmt.Errorf("error building task loaders: %v", err)
+	}
+
+	stageAssetsLifecycle := fi.LifecycleIgnore
+	switch phase {
+	case PhaseStageAssets:
+		stageAssetsLifecycle = fi.LifecycleSync
+	}
+
+	predicate := func(fi.ModelBuilder) bool { return true }
+	taskMap, err := loader.BuildTasks(assetBuilder, &stageAssetsLifecycle, lifecycleOverrides, predicate)
 	if err != nil {
 		return nil, fmt.Errorf("error building tasks: %v", err)
 	}
@@ -683,8 +704,18 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (fi.Target, map[string]fi.Tas
 		klog.Warningf("%v", err)
 	}
 
+	keyStore, err := c.Clientset.KeyStore(c.Cluster)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	secretStore, err := c.Clientset.SecretStore(c.Cluster)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	assetBuilder := assets.NewAssetBuilder(c.Cluster, string(c.Phase))
-	if err := c.upgradeSpecs(assetBuilder, channel); err != nil {
+	if err := c.upgradeSpecs(assetBuilder, channel, keyStore, secretStore); err != nil {
 		return nil, nil, err
 	}
 
@@ -735,16 +766,6 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (fi.Target, map[string]fi.Tas
 	addons, err := addonsClient.List()
 	if err != nil {
 		return nil, nil, fmt.Errorf("error fetching addons: %v", err)
-	}
-
-	keyStore, err := c.Clientset.KeyStore(cluster)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	secretStore, err := c.Clientset.SecretStore(cluster)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	sshCredentialStore, err := c.Clientset.SSHCredentialStore(cluster)
@@ -906,8 +927,8 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (fi.Target, map[string]fi.Tas
 }
 
 // upgradeSpecs ensures that fields are fully populated / defaulted
-func (c *ApplyClusterCmd) upgradeSpecs(assetBuilder *assets.AssetBuilder, channel *kops.Channel) error {
-	fullCluster, err := PopulateClusterSpec(c.Clientset, c.Cluster, c.Cloud, assetBuilder)
+func (c *ApplyClusterCmd) upgradeSpecs(assetBuilder *assets.AssetBuilder, channel *kops.Channel, keyStore fi.Keystore, secretStore fi.SecretStore) error {
+	fullCluster, err := PopulateClusterSpec(c.Cluster, c.Cloud, assetBuilder, keyStore, secretStore)
 	if err != nil {
 		return err
 	}

@@ -17,20 +17,23 @@ limitations under the License.
 package clusterapi
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/registry"
 	kopsv1alpha2 "k8s.io/kops/pkg/apis/kops/v1alpha2"
+	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/kopscodecs"
 	"k8s.io/kops/pkg/kubemanifest"
-	"k8s.io/kops/pkg/model/gcemodel"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
+	"k8s.io/kops/upup/pkg/fi/secrets"
 )
 
 type Builder struct {
@@ -39,7 +42,7 @@ type Builder struct {
 
 // ClusterAPIBuilder is implemented by the model task that knows how to map an InstanceGroup to k8s objects
 type ClusterAPIBuilder interface {
-	MapToClusterAPI(cluster *kops.Cluster, ig *kops.InstanceGroup) ([]*unstructured.Unstructured, error)
+	MapToClusterAPI(c *fi.Context, cluster *kops.Cluster, ig *kops.InstanceGroup, tasks map[string]fi.Task) ([]*unstructured.Unstructured, error)
 }
 
 func (b *Builder) BuildMachineDeployment(ctx context.Context, clusterObj *kopsv1alpha2.Cluster, igObj *kopsv1alpha2.InstanceGroup) ([]*unstructured.Unstructured, error) {
@@ -47,7 +50,10 @@ func (b *Builder) BuildMachineDeployment(ctx context.Context, clusterObj *kopsv1
 
 	cluster := &kops.Cluster{}
 	{
-		if err := kopscodecs.Scheme.Convert(clusterObj, cluster, nil); err != nil {
+		copy := clusterObj.DeepCopy()
+		copy.Namespace = ""
+
+		if err := kopscodecs.Scheme.Convert(copy, cluster, nil); err != nil {
 			return nil, fmt.Errorf("error converting cluster to internal form: %v", err)
 		}
 	}
@@ -61,47 +67,47 @@ func (b *Builder) BuildMachineDeployment(ctx context.Context, clusterObj *kopsv1
 
 	phase := cloudup.PhaseCluster
 
-	var secretStore fi.SecretStore
-
-	/*{
-		configBase, err := registry.ConfigBase(cluster)
-		if err != nil {
-			return nil, err
-		}
-		basedir := configBase.Join("secrets")
-		secretStore = secrets.NewVFSSecretStore(cluster, basedir)
-	}*/
+	clusterConfigBase, err := registry.ConfigBase(cluster)
+	if err != nil {
+		return nil, err
+	}
 
 	var keyStore fi.CAStore
-	/*{
-		configBase, err := registry.ConfigBase(cluster)
-		if err != nil {
-			return nil, err
-		}
-		basedir := configBase.Join("pki")
-		allowList := true
-		keyStore = fi.NewVFSCAStore(cluster, basedir, allowList)
-	}*/
+	{
+		basedir := clusterConfigBase.Join("pki")
+		keyStore = fi.NewVFSCAStore(cluster, basedir)
+	}
+
+	var secretStore fi.SecretStore
+
+	{
+		basedir := clusterConfigBase.Join("secrets")
+		secretStore = secrets.NewVFSSecretStore(cluster, basedir)
+	}
 
 	var sshCredentialStore fi.SSHCredentialStore
 	{
 		configBase, err := registry.ConfigBase(cluster)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to get config base: %w", err)
 		}
 		basedir := configBase.Join("pki")
 		sshCredentialStore = fi.NewVFSSSHCredentialStore(cluster, basedir)
 	}
 
-	{
-		/*	assetBuilder := assets.NewAssetBuilder(cluster, string(phase))
+	cloud, err := cloudup.BuildCloud(cluster)
+	if err != nil {
+		return nil, err
+	}
 
-			fullCluster, err := cloudup.PopulateClusterSpec(cluster, keyStore, secretStore, assetBuilder)
-			if err != nil {
-				return nil, err
-			}
-			cluster = fullCluster
-		*/
+	{
+		assetBuilder := assets.NewAssetBuilder(cluster, string(phase))
+
+		fullCluster, err := cloudup.PopulateClusterSpec(cluster, cloud, assetBuilder, keyStore, secretStore)
+		if err != nil {
+			return nil, err
+		}
+		cluster = fullCluster
 
 		// The instance group is populated in place; no need to hydrate
 		/*
@@ -120,43 +126,102 @@ func (b *Builder) BuildMachineDeployment(ctx context.Context, clusterObj *kopsv1
 	// 	Phase:          phase,
 	// }
 
-	cloud, err := cloudup.BuildCloud(cluster)
-	if err != nil {
-		return nil, err
-	}
-
 	instanceGroups := []*kops.InstanceGroup{ig}
 	targetName := cloudup.TargetDirect
 	var addons kubemanifest.ObjectList
 
-	tasks, err := cloudup.BuildTasks(ctx, cluster, instanceGroups, cloud, keyStore, secretStore, sshCredentialStore, phase, nil, targetName, addons)
+	loader, assetBuilder, err := cloudup.BuildLoader(ctx, cluster, instanceGroups, cloud, keyStore, secretStore, sshCredentialStore, phase, targetName, addons)
 	if err != nil {
 		return nil, err
 	}
 
 	var objects []*unstructured.Unstructured
 
+	stageAssetsLifecycle := fi.LifecycleIgnore
+
+	predicate := func(builder fi.ModelBuilder) bool {
+		_, ok := builder.(ClusterAPIBuilder)
+		return ok
+	}
+	tasks, err := loader.BuildTasks(assetBuilder, &stageAssetsLifecycle, nil, predicate)
+	if err != nil {
+		return nil, fmt.Errorf("error building tasks: %w", err)
+	}
+
 	// TODO: Maybe getting the loaders is better!
 
-	// for _, b := range l.Builders {
-	// 	clusterAPIBuilder, ok := b.(ClusterAPIBuilder)
-	// 	if !ok {
-	// 		continue
-	// 	}
-
-	// 	objs, err := clusterAPIBuilder.MapToClusterAPI(cluster, ig)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	objects = append(objects, objs...)
+	// stageAssetsLifecycle := fi.LifecycleIgnore
+	// switch phase {
+	// case PhaseStageAssets:
+	// 	stageAssetsLifecycle = fi.LifecycleSync
 	// }
 
-	var mappers []func(cluster *kops.Cluster, ig *kops.InstanceGroup, tasks map[string]fi.Task) ([]*unstructured.Unstructured, error)
-	mappers = append(mappers, gcemodel.MapToClusterAPI)
+	// taskMap, err := loader.BuildTasks(assetBuilder, &stageAssetsLifecycle, lifecycleOverrides)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error building tasks: %v", err)
+	// }
 
-	for _, fn := range mappers {
-		objs, err := fn(cluster, ig, tasks)
+	// return taskMap, nil
+
+	var mappers []ClusterAPIBuilder
+
+	// tasks := make(map[string]fi.Task)
+	for _, builder := range loader.Builders {
+		clusterAPIBuilder, ok := builder.(ClusterAPIBuilder)
+		if !ok {
+			continue
+		}
+		mappers = append(mappers, clusterAPIBuilder)
+
+		// context := &fi.ModelBuilderContext{
+		// 	Tasks:              tasks,
+		// 	LifecycleOverrides: nil,
+		// }
+		// err := builder.Build(context)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// tasks = context.Tasks
+
+		// clusterAPIBuilder, ok := b.(ClusterAPIBuilder)
+		// if !ok {
+		// 	continue
+		// }
+
+		// objs, err := clusterAPIBuilder.MapToClusterAPI(cluster, ig)
+		// if err != nil {
+		// 	return nil, err
+		// }
+
+		// objects = append(objects, objs...)
+	}
+
+	// var mappers []func(cluster *kops.Cluster, ig *kops.InstanceGroup, tasks map[string]fi.Task) ([]*unstructured.Unstructured, error)
+	// mappers = append(mappers, gcemodel.MapToClusterAPI)
+
+	var out bytes.Buffer
+	target := fi.NewDryRunTarget(assetBuilder, &out)
+	checkExisting := true
+	c, err := fi.NewContext(target, cluster, cloud, keyStore, secretStore, clusterConfigBase, checkExisting, tasks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build execution context: %w", err)
+	}
+
+	var options fi.RunTasksOptions
+	options.InitDefaults()
+
+	if err := c.RunTasks(options); err != nil {
+		return nil, fmt.Errorf("error running tasks: %w", err)
+	}
+
+	// for _, task := range tasks {
+	// 	if err := task.Run(c); err != nil {
+	// 		return nil, fmt.Errorf("error running task: %w", err)
+	// 	}
+	// }
+
+	for _, mapper := range mappers {
+		objs, err := mapper.MapToClusterAPI(c, cluster, ig, tasks)
 		if err != nil {
 			return nil, err
 		}
@@ -183,6 +248,10 @@ func (b *Builder) BuildMachineDeployment(ctx context.Context, clusterObj *kopsv1
 		})
 
 		obj.SetOwnerReferences(owners)
+	}
+
+	for _, obj := range objects {
+		klog.Infof("object: %v", fi.DebugAsJsonString(obj))
 	}
 
 	return objects, nil

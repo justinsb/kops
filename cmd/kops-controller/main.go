@@ -32,6 +32,7 @@ import (
 	"k8s.io/kops/cmd/kops-controller/pkg/clusterapi"
 	"k8s.io/kops/cmd/kops-controller/pkg/config"
 	"k8s.io/kops/cmd/kops-controller/pkg/server"
+	api "k8s.io/kops/pkg/apis/kops/v1alpha2"
 	"k8s.io/kops/pkg/nodeidentity"
 	nodeidentityaws "k8s.io/kops/pkg/nodeidentity/aws"
 	nodeidentityazure "k8s.io/kops/pkg/nodeidentity/azure"
@@ -123,10 +124,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	leaderElect := true
+	if opt.LeaderElection != nil && opt.LeaderElection.Enabled != nil {
+		leaderElect = *opt.LeaderElection.Enabled
+	}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddress,
-		LeaderElection:     true,
+		LeaderElection:     leaderElect,
 		LeaderElectionID:   "kops-controller-leader",
 	})
 	if err != nil {
@@ -159,10 +164,21 @@ func buildScheme() error {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("error registering corev1: %v", err)
 	}
+	if err := api.AddToScheme(scheme); err != nil {
+		return fmt.Errorf("error registering kops schema: %v", err)
+	}
 	return nil
 }
 
 func addNodeController(mgr manager.Manager, opt *config.Options) error {
+	enabled := true
+	if opt.NodeController != nil && opt.NodeController.Enabled != nil {
+		enabled = *opt.NodeController.Enabled
+	}
+	if !enabled {
+		return nil
+	}
+
 	var legacyIdentifier nodeidentity.LegacyIdentifier
 	var identifier nodeidentity.Identifier
 	var err error
@@ -230,6 +246,14 @@ func addNodeController(mgr manager.Manager, opt *config.Options) error {
 }
 
 func addInstanceGroupController(mgr manager.Manager, opt *config.Options) error {
+	enabled := false
+	if opt.ClusterAPI != nil && opt.ClusterAPI.Enabled != nil {
+		enabled = *opt.ClusterAPI.Enabled
+	}
+	if !enabled {
+		return nil
+	}
+
 	dynamicClient, err := dynamic.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		return fmt.Errorf("error building kubernetes dynamic client: %v", err)

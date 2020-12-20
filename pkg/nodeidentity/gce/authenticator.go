@@ -1,13 +1,13 @@
 package gce
 
 import (
-	"fmt"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"net/url"
-	
-	"k8s.io/kops/upup/pkg/fi"
+
 	"cloud.google.com/go/compute/metadata"
+	"k8s.io/kops/upup/pkg/fi"
 )
 
 type gceAuthenticator struct {
@@ -30,7 +30,7 @@ func (a *gceAuthenticator) CreateToken(body []byte) (string, error) {
 
 	suffix := "instance/service-accounts/default/identity?format=full&audience=" + url.QueryEscape(audience)
 
-token, err := metadata.Get(suffix)
+	token, err := metadata.Get(suffix)
 	if err != nil {
 		return "", fmt.Errorf("unable to get token from GCE metadata service: %w", err)
 	}

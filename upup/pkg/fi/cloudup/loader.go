@@ -38,8 +38,11 @@ func (l *Loader) Init() {
 	l.tasks = make(map[string]fi.Task)
 }
 
-func (l *Loader) BuildTasks(assetBuilder *assets.AssetBuilder, lifecycle *fi.Lifecycle, lifecycleOverrides map[string]fi.Lifecycle) (map[string]fi.Task, error) {
+func (l *Loader) BuildTasks(assetBuilder *assets.AssetBuilder, assetLifecycle *fi.Lifecycle, lifecycleOverrides map[string]fi.Lifecycle, predicate func(fi.ModelBuilder) bool) (map[string]fi.Task, error) {
 	for _, builder := range l.Builders {
+		if !predicate(builder) {
+			continue
+		}
 		context := &fi.ModelBuilderContext{
 			Tasks:              l.tasks,
 			LifecycleOverrides: lifecycleOverrides,
@@ -51,11 +54,11 @@ func (l *Loader) BuildTasks(assetBuilder *assets.AssetBuilder, lifecycle *fi.Lif
 		l.tasks = context.Tasks
 	}
 
-	if err := l.addAssetCopyTasks(assetBuilder.ContainerAssets, lifecycle); err != nil {
+	if err := l.addAssetCopyTasks(assetBuilder.ContainerAssets, assetLifecycle); err != nil {
 		return nil, err
 	}
 
-	if err := l.addAssetFileCopyTasks(assetBuilder.FileAssets, lifecycle); err != nil {
+	if err := l.addAssetFileCopyTasks(assetBuilder.FileAssets, assetLifecycle); err != nil {
 		return nil, err
 	}
 	err := l.processDeferrals()

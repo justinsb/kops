@@ -19,6 +19,8 @@ package gcemodel
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
@@ -67,4 +69,9 @@ func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext) error {
 
 	}
 	return nil
+}
+
+// MapToClusterAPI implements the cluster-api support
+func (b *NetworkModelBuilder) MapToClusterAPI(c *fi.Context, cluster *kops.Cluster, ig *kops.InstanceGroup, tasks map[string]fi.Task) ([]*unstructured.Unstructured, error) {
+	return nil, nil
 }
