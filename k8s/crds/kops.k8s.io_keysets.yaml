@@ -7,6 +7,8 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.2.8
   creationTimestamp: null
   name: keysets.kops.k8s.io
+  annotations:
+    "api-approved.kubernetes.io": "unapproved pending"
 spec:
   group: kops.k8s.io
   names:
