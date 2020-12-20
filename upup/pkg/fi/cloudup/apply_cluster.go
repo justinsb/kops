@@ -550,11 +550,7 @@ func BuildLoader(ctx context.Context,
 		}
 	}
 
-<<<<<<< HEAD
-	configBuilder, err := newNodeUpConfigBuilder(cluster, assetBuilder, c.Assets)
-=======
 	configBuilder, err := newNodeUpConfigBuilder(cluster, assetBuilder, assets)
->>>>>>> WIP: refactor
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1244,16 +1240,12 @@ func needsMounterAsset(c *kops.Cluster, instanceGroups []*kops.InstanceGroup) bo
 }
 
 type nodeUpConfigBuilder struct {
-<<<<<<< HEAD
 	// Assets is a list of sources for files (primarily when not using everything containerized)
 	// Formats:
 	//  raw url: http://... or https://...
 	//  url with hash: <hex>@http://... or <hex>@https://...
 	assets map[architectures.Architecture][]*mirrors.MirroredAsset
 
-=======
-	assets         map[architectures.Architecture][]*mirrors.MirroredAsset
->>>>>>> WIP: refactor
 	assetBuilder   *assets.AssetBuilder
 	channels       []string
 	configBase     vfs.Path
@@ -1264,13 +1256,7 @@ type nodeUpConfigBuilder struct {
 }
 
 func newNodeUpConfigBuilder(cluster *kops.Cluster, assetBuilder *assets.AssetBuilder, assets map[architectures.Architecture][]*mirrors.MirroredAsset) (model.NodeUpConfigBuilder, error) {
-<<<<<<< HEAD
-	configBase, err := vfs.Context.BuildVfsPath(cluster.Spec.ConfigBase)
-=======
-	// cluster := c.Cluster
-
 	configBase, err := registry.ConfigBase(cluster)
->>>>>>> WIP: refactor
 	if err != nil {
 		return nil, err
 	}
@@ -1378,13 +1364,8 @@ func newNodeUpConfigBuilder(cluster *kops.Cluster, assetBuilder *assets.AssetBui
 	}
 
 	configBuilder := nodeUpConfigBuilder{
-<<<<<<< HEAD
 		assetBuilder:   assetBuilder,
 		assets:         assets,
-=======
-		assets:         assets,
-		assetBuilder:   assetBuilder,
->>>>>>> WIP: refactor
 		channels:       channels,
 		configBase:     configBase,
 		cluster:        cluster,
