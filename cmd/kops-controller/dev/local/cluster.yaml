@@ -1,7 +1,7 @@
 apiVersion: cluster.x-k8s.io/v1alpha4
 kind: Cluster
 metadata:
-  name: foo.containuous.com
+  name: clusterapi.krm202012.containuous.com
 spec:
   # clusterNetwork:
   #   pods:
@@ -9,19 +9,19 @@ spec:
   infrastructureRef:
      apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
      kind: GCPCluster
-     name: foo.containuous.com
+     name: clusterapi.krm202012.containuous.com
   controlPlaneRef:
     kind: Cluster
     apiVersion: kops.k8s.io/v1alpha2
-    name: foo.containuous.com
+    name: clusterapi.krm202012.containuous.com
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
 kind: GCPCluster
 metadata:
-  name: foo.containuous.com
+  name: clusterapi.krm202012.containuous.com
 spec:
   region: us-east4
-  project: justinsb-cloud-kubernetes-test
+  project: krm-2020-12
   controlPlaneEndpoint:
-    host: api.foo.containuous.com
+    host: api.clusterapi.krm202012.containuous.com
     port: 443
