@@ -372,17 +372,17 @@ func BuildLoader(ctx context.Context,
 	case kops.CloudProviderAzure:
 		{
 			if !featureflag.Azure.Enabled() {
-				return fmt.Errorf("azure support is currently alpha, and is feature-gated. Please export KOPS_FEATURE_FLAGS=Azure")
+				return nil, nil, fmt.Errorf("azure support is currently alpha, and is feature-gated. Please export KOPS_FEATURE_FLAGS=Azure")
 			}
 
 			if len(sshPublicKeys) == 0 {
-				return fmt.Errorf("SSH public key must be specified when running with AzureCloud (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
+				return nil, nil, fmt.Errorf("SSH public key must be specified when running with AzureCloud (create with `kops create secret --name %s sshpublickey admin -i ~/.ssh/id_rsa.pub`)", cluster.ObjectMeta.Name)
 			}
 
 			modelContext.SSHPublicKeys = sshPublicKeys
 
 			if len(sshPublicKeys) != 1 {
-				return fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with AzureCloud; please delete a key using `kops delete secret`")
+				return nil, nil, fmt.Errorf("exactly one 'admin' SSH public key can be specified when running with AzureCloud; please delete a key using `kops delete secret`")
 			}
 		}
 	case kops.CloudProviderOpenstack:
