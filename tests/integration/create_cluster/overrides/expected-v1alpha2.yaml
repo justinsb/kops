@@ -38,7 +38,7 @@ spec:
   masterPublicName: api.overrides.example.com
   networkCIDR: 172.20.0.0/16
   networking:
-    cni: {}
+    kubenet: {}
   nodePortAccess:
   - 1.2.3.4/32
   - 10.20.30.0/24

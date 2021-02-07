@@ -45,7 +45,7 @@ spec:
   kubernetesVersion: v1.20.0
   masterPublicName: api.ha-gce.example.com
   networking:
-    cni: {}
+    kubenet: {}
   nonMasqueradeCIDR: 100.64.0.0/10
   project: testproject
   sshAccess:
