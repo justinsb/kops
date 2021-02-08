@@ -389,6 +389,7 @@ func RunCreateCluster(ctx context.Context, f *util.Factory, out io.Writer, c *Cr
 		c.NetworkID = c.OpenstackNetworkID
 	}
 
+	c.Networking = "kopeio"
 	clusterResult, err := cloudup.NewCluster(&c.NewClusterOptions, clientset)
 	if err != nil {
 		return err
