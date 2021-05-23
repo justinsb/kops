@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+set -x
+
+go build -v -o .build/kops ./cmd/kops
+.build/kops $@
