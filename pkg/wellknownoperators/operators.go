@@ -99,5 +99,54 @@ func (b *Builder) Build() ([]*WellKnownAddon, kubemanifest.ObjectList, error) {
 		}
 	}
 
+	if b.Cluster.Spec.Networking != nil && b.Cluster.Spec.Networking.Kopeio != nil {
+		// TODO: Check that we haven't manually loaded a kopeio-networking operator
+		// TODO: Check that we haven't manually created a kopeio-networking CRD
+
+		key := "networking.addons.kope.io"
+		version := "0.1.0-kops.1"
+		id := ""
+
+		location := path.Join("operators", key, version, "manifest.yaml")
+		channelURL, err := kops.ResolveChannel(b.Cluster.Spec.Channel)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error resolving channel %q: %v", b.Cluster.Spec.Channel, err)
+		}
+
+		locationURL := channelURL.ResolveReference(&url.URL{Path: location}).String()
+
+		manifestBytes, err := vfs.Context.ReadFile(locationURL)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error reading operator manifest %q: %v", locationURL, err)
+		}
+
+		addon := &WellKnownAddon{
+			Manifest: manifestBytes,
+			Spec: channelsapi.AddonSpec{
+				Name:     fi.String(key),
+				Version:  fi.String(version),
+				Selector: map[string]string{"k8s-addon": key},
+				Manifest: fi.String(location),
+				Id:       id,
+			},
+		}
+		addons = append(addons, addon)
+
+		{
+			metadata := map[string]interface{}{
+				"name": "default",
+			}
+			spec := map[string]interface{}{}
+
+			crd := kubemanifest.NewObject(map[string]interface{}{
+				"apiVersion": "addons.kope.io/v1alpha1",
+				"kind":       "Networking",
+				"metadata":   metadata,
+				"spec":       spec,
+			})
+			crds = append(crds, crd)
+		}
+	}
+
 	return addons, crds, nil
 }
