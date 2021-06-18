@@ -54,23 +54,40 @@ In order to create a new release branch off of master prior to a beta release, p
 
 See [1.19.0-alpha.1 PR](https://github.com/kubernetes/kops/pull/9494) for an example.
 
-* Use the hack/set-version script to update versions:  `hack/set-version 1.20.0`
+* Set the MINOR and PATCH versions for the new release:
+
+```
+MINOR=20
+PATCH=2
+VERSION=1.${MINOR}.${PATCH}
+```
+
+* Make sure you are on the correct branch: `git checkout release-1.${MINOR}`
+
+* Use the hack/set-version script to update versions:  `hack/set-version $VERSION`
 
 The syntax is `hack/set-version <new-release-version>`
 
 `new-release-version` is the version you are releasing.
 
+* Verify and delete .bak files:
+TODO
+
 * Update the golden tests: `hack/update-expected.sh`
 
-* Commit the changes (without pushing yet): `git add . && git commit -m "Release 1.X.Y"`
+* Commit the changes (without pushing yet): `git add . && git commit -m "Release ${VERSION}"`
 
 * This is the "release commit".
 
 ### Send Pull Request to propose a release
 
+(`$USER` should be pointing to your fork on github, e.g. `git remote add $USER git@github.com:$USER/kops`)
+
+(`gh` can be installed from https://github.com/cli/cli)
+
 ```
 git push $USER
-hub pull-request
+gh pr create  -t "Release $VERSION" -b "Bump versions for release $VERSION" -B release-1.${MINOR} # or use hub pull-request
 ```
 
 Wait for the PR to merge.
