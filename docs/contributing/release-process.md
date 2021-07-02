@@ -62,7 +62,7 @@ PATCH=2
 VERSION=1.${MINOR}.${PATCH}
 ```
 
-* Make sure you are on the correct branch: `git checkout release-1.${MINOR}`
+* Make sure you are on the correct branch: `git checkout release-1.${MINOR} && git pull`
 
 * Use the hack/set-version script to update versions:  `hack/set-version $VERSION`
 
@@ -70,8 +70,11 @@ The syntax is `hack/set-version <new-release-version>`
 
 `new-release-version` is the version you are releasing.
 
-* Verify and delete .bak files:
-TODO
+* Delete .bak files:
+
+`find upup/models/ -name "*.bak" -delete`
+
+(Otherwise `make ci` detects a bazel change)
 
 * Update the golden tests: `hack/update-expected.sh`
 
@@ -164,7 +167,7 @@ Review then send a PR with the release notes:
 git add -p docs/releases/${DOC}-NOTES.md
 git commit -m "Release notes for ${VERSION}"
 git push ${USER}
-hub pull-request
+gh pr create  -t "Release notes for ${VERSION}" -b "" # or use hub pull-request
 ```
 
 ### Propose promotion of artifacts
@@ -176,7 +179,7 @@ The `gsutil` tool may be obtained from `pip3`.
 Create container promotion PR:
 
 ```
-cd ${GOPATH}/src/k8s.io/k8s.io
+cd ${GOPATH}/src/k8s.io/k8s.io # Should be a checkout of https://github.com/kubernetes/k8s.io
 
 git checkout main
 git pull
@@ -195,7 +198,7 @@ cd ${GOPATH}/src/k8s.io/k8s.io
 git add -p k8s.gcr.io/images/k8s-staging-kops/images.yaml
 git commit -m "Promote kOps $VERSION images"
 git push ${USER}
-hub pull-request -b main
+gh pr create  -t "Promote kOps $VERSION images" -b "Image artifacts for kOps ${VERSION}" -B main # or use hub pull-request -b main
 ```
 
 
@@ -212,7 +215,7 @@ rm -rf ./k8s-staging-kops/kops/releases
 mkdir -p ./k8s-staging-kops/kops/releases/${VERSION}/
 gsutil rsync -r  gs://k8s-staging-kops/kops/releases/${VERSION}/ ./k8s-staging-kops/kops/releases/${VERSION}/
 
-kpromo manifest files --src k8s-staging-kops/kops/releases/ >> artifacts/manifests/k8s-staging-kops/${VERSION}.yaml
+kpromo manifest files --src k8s-staging-kops/kops/releases/ > artifacts/manifests/k8s-staging-kops/${VERSION}.yaml
 ```
 
 Verify, then send a PR:
@@ -221,7 +224,6 @@ Verify, then send a PR:
 git add artifacts/manifests/k8s-staging-kops/${VERSION}.yaml
 git commit -m "Promote kOps $VERSION binary artifacts"
 git push ${USER}
-hub pull-request -b main
 ```
 
 
