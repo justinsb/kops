@@ -19,6 +19,7 @@ package gcemodel
 import (
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/cidr"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
 )
@@ -49,12 +50,24 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		// But I think we can always add more permissions in this case later, but we can't easily take them away
 		klog.V(2).Infof("bastion is in use; won't configure SSH access to master / node instances")
 	} else {
+		sshAccess, err := cidr.NewSet(b.Cluster.Spec.SSHAccess)
+		if err != nil {
+			return err
+		}
 		c.AddTask(&gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("ssh-external-to-master")),
 			Lifecycle:    b.Lifecycle,
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
 			Allowed:      []string{"tcp:22"},
-			SourceRanges: b.Cluster.Spec.SSHAccess,
+			SourceRanges: ipv4SourceRange(sshAccess),
+			Network:      b.LinkToNetwork(),
+		})
+		c.AddTask(&gcetasks.FirewallRule{
+			Name:         s(b.SafeObjectName("ssh-external-to-master-ipv6")),
+			Lifecycle:    b.Lifecycle,
+			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
+			Allowed:      []string{"tcp:22"},
+			SourceRanges: ipv6SourceRange(sshAccess),
 			Network:      b.LinkToNetwork(),
 		})
 
@@ -63,7 +76,16 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			Lifecycle:    b.Lifecycle,
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
 			Allowed:      []string{"tcp:22"},
-			SourceRanges: b.Cluster.Spec.SSHAccess,
+			SourceRanges: ipv4SourceRange(sshAccess),
+			Network:      b.LinkToNetwork(),
+		})
+		
+		c.AddTask(&gcetasks.FirewallRule{
+			Name:         s(b.SafeObjectName("ssh-external-to-node-ipv6")),
+			Lifecycle:    b.Lifecycle,
+			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
+			Allowed:      []string{"tcp:22"},
+			SourceRanges: ipv6SourceRange(sshAccess),
 			Network:      b.LinkToNetwork(),
 		})
 	}
@@ -74,6 +96,11 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		if err != nil {
 			return err
 		}
+		nodePortAccess, err := cidr.NewSet(b.Cluster.Spec.NodePortAccess)
+		if err != nil {
+			return err
+		}
+
 		nodePortRangeString := nodePortRange.String()
 		t := &gcetasks.FirewallRule{
 			Name:       s(b.SafeObjectName("nodeport-external-to-node")),
@@ -83,9 +110,10 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				"tcp:" + nodePortRangeString,
 				"udp:" + nodePortRangeString,
 			},
-			SourceRanges: b.Cluster.Spec.NodePortAccess,
+			SourceRanges: ipv4SourceRange(nodePortAccess),
 			Network:      b.LinkToNetwork(),
 		}
+
 		if len(t.SourceRanges) == 0 {
 			// Empty SourceRanges is interpreted as 0.0.0.0/0 if tags are empty, so we set a SourceTag
 			// This is already covered by the normal node-to-node rules, but avoids opening the NodePort range
@@ -99,13 +127,28 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		// We expect that either the IP address is published, or DNS is set up to point to the IPs
 		// We need to open security groups directly to the master nodes (instead of via the ELB)
 
+		kubernetesAPIAccess, err := cidr.NewSet(b.Cluster.Spec.KubernetesAPIAccess)
+		if err != nil {
+			return err
+		}
+
 		// HTTPS to the master is allowed (for API access)
 		c.AddTask(&gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("kubernetes-master-https")),
 			Lifecycle:    b.Lifecycle,
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
 			Allowed:      []string{"tcp:443"},
-			SourceRanges: b.Cluster.Spec.KubernetesAPIAccess,
+			SourceRanges: ipv4SourceRange(kubernetesAPIAccess),
+			Network:      b.LinkToNetwork(),
+		})
+
+		// HTTPS to the master is allowed (for API access)
+		c.AddTask(&gcetasks.FirewallRule{
+			Name:         s(b.SafeObjectName("kubernetes-master-https-ipv6")),
+			Lifecycle:    b.Lifecycle,
+			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
+			Allowed:      []string{"tcp:443"},
+			SourceRanges: ipv6SourceRange(kubernetesAPIAccess),
 			Network:      b.LinkToNetwork(),
 		})
 	}

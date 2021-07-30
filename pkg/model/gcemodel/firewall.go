@@ -19,6 +19,7 @@ package gcemodel
 import (
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/cidr"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
 )
@@ -63,11 +64,15 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		// The traffic is not recognized if it's on the overlay network?
 		klog.Warningf("Adding overlay network for X -> node rule - HACK")
 
+		nonMasqueradeCIDR, err := cidr.NewSet([]string{b.Cluster.Spec.NonMasqueradeCIDR})
+		if err != nil {
+			return err
+		}
 		t := &gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("cidr-to-node")),
 			Lifecycle:    b.Lifecycle,
 			Network:      b.LinkToNetwork(),
-			SourceRanges: []string{b.Cluster.Spec.NonMasqueradeCIDR},
+			SourceRanges: ipv4SourceRange(nonMasqueradeCIDR),
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
 			Allowed:      []string{"tcp", "udp", "icmp", "esp", "ah", "sctp"},
 		}
@@ -116,15 +121,37 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	if b.Cluster.Spec.NonMasqueradeCIDR != "" {
 		// The traffic is not recognized if it's on the overlay network?
 		klog.Warningf("Adding overlay network for X -> master rule - HACK")
+
+		nonMasqueradeCIDR, err := cidr.NewSet([]string{b.Cluster.Spec.NonMasqueradeCIDR})
+		if err != nil {
+			return err
+		}
+
 		t := &gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("cidr-to-master")),
 			Lifecycle:    b.Lifecycle,
 			Network:      b.LinkToNetwork(),
-			SourceRanges: []string{b.Cluster.Spec.NonMasqueradeCIDR},
+			SourceRanges: ipv4SourceRange(nonMasqueradeCIDR),
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
 			Allowed:      []string{"tcp:443", "tcp:4194"},
 		}
 		c.AddTask(t)
 	}
 	return nil
+}
+
+func ipv4SourceRange(cidrs cidr.Set) []string {
+	ipv4s := cidrs.WhereIPV4().ToStrings()
+	if len(ipv4s) == 0 {
+		ipv4s = append(ipv4s, "0.0.0.0/32")
+	}
+	return ipv4s
+}
+
+func ipv6SourceRange(cidrs cidr.Set) []string {
+	ipv6s := cidrs.WhereIPV6().ToStrings()
+	if len(ipv6s) == 0 {
+		ipv6s = append(ipv6s, "::/128")
+	}
+	return ipv6s
 }

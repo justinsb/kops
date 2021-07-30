@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/cidr"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gcetasks"
 )
@@ -83,17 +84,34 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 
 	// Allow traffic into the API (port 443) from KubernetesAPIAccess CIDRs
+	kubernetesAPIAccess, err := cidr.NewSet(b.Cluster.Spec.KubernetesAPIAccess)
+	if err != nil {
+		return err
+	}
+
 	{
 		t := &gcetasks.FirewallRule{
 			Name:         s(b.NameForFirewallRule("https-api")),
 			Lifecycle:    b.Lifecycle,
 			Network:      b.LinkToNetwork(),
-			SourceRanges: b.Cluster.Spec.KubernetesAPIAccess,
+			SourceRanges: ipv4SourceRange(kubernetesAPIAccess),
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
 			Allowed:      []string{"tcp:443"},
 		}
 		c.AddTask(t)
 	}
-	return nil
 
+	{
+		t := &gcetasks.FirewallRule{
+			Name:         s(b.NameForFirewallRule("https-api-ipv6")),
+			Lifecycle:    b.Lifecycle,
+			Network:      b.LinkToNetwork(),
+			SourceRanges: ipv6SourceRange(kubernetesAPIAccess),
+			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
+			Allowed:      []string{"tcp:443"},
+		}
+		c.AddTask(t)
+	}
+
+	return nil
 }

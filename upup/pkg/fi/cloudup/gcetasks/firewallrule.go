@@ -18,6 +18,7 @@ package gcetasks
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	compute "google.golang.org/api/compute/v1"
@@ -74,7 +75,50 @@ func (e *FirewallRule) Find(c *fi.Context) (*FirewallRule, error) {
 }
 
 func (e *FirewallRule) Run(c *fi.Context) error {
+	if err := e.sanityCheck(); err != nil {
+		return err
+	}
 	return fi.DefaultDeltaRunMethod(e, c)
+}
+
+// sanityCheck applies some validation that isn't technically required,
+// but avoids some problems with surprising behaviours.
+func (e *FirewallRule) sanityCheck() error {
+	// Treat it as an error if SourceRanges _and_ SourceTags empty;
+	// this is interpreted as SourceRanges="0.0.0.0/0", which is likely surprising
+	if len(e.SourceRanges) == 0 && len(e.SourceTags) == 0 {
+		return fmt.Errorf("either SourceRanges or SourceTags should be specified")
+	}
+
+	// Treat it as an error if SourceRanges _and_ SourceTags both set;
+	// this is interpreted as OR, not AND, which is likely surprising
+	if len(e.SourceRanges) != 0 && len(e.SourceTags) != 0 {
+		return fmt.Errorf("SourceRanges and SourceTags should not both be specified")
+	}
+
+	name := fi.StringValue(e.Name)
+
+	// Make sure we've split the ipv4 / ipv6 addresses.
+	// A single firewall rule can't mix ipv4 and ipv6 addresses, so we split them into two rules.
+	for _, sourceRange := range e.SourceRanges {
+		_, cidr, err := net.ParseCIDR(sourceRange)
+		if err != nil {
+			return fmt.Errorf("sourceRange %q is not valid: %w", sourceRange, err)
+		}
+		if cidr.IP.To4() != nil {
+			// IPv4
+			if strings.Contains(name, "-ipv6") {
+				return fmt.Errorf("ipv4 ranges should not be in a ipv6-named rule (found %s in %s)", sourceRange, name)
+			}
+		} else {
+			// IPv6
+			if !strings.Contains(name, "-ipv6") {
+				return fmt.Errorf("ipv6 ranges should be in a ipv6-named rule (found %s in %s)", sourceRange, name)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (_ *FirewallRule) CheckChanges(a, e, changes *FirewallRule) error {
