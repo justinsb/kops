@@ -90,27 +90,14 @@ func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
 	}
 
 	{
-		t := &gcetasks.FirewallRule{
+		AddFirewallRulesTasks(c, &gcetasks.FirewallRule{
 			Name:         s(b.NameForFirewallRule("https-api")),
 			Lifecycle:    b.Lifecycle,
 			Network:      b.LinkToNetwork(),
-			SourceRanges: ipv4SourceRange(kubernetesAPIAccess),
+			SourceRanges: kubernetesAPIAccess.ToStrings(),
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
 			Allowed:      []string{"tcp:443"},
-		}
-		c.AddTask(t)
-	}
-
-	{
-		t := &gcetasks.FirewallRule{
-			Name:         s(b.NameForFirewallRule("https-api-ipv6")),
-			Lifecycle:    b.Lifecycle,
-			Network:      b.LinkToNetwork(),
-			SourceRanges: ipv6SourceRange(kubernetesAPIAccess),
-			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
-			Allowed:      []string{"tcp:443"},
-		}
-		c.AddTask(t)
+		})
 	}
 
 	return nil

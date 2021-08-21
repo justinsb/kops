@@ -54,38 +54,21 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		if err != nil {
 			return err
 		}
-		c.AddTask(&gcetasks.FirewallRule{
-			Name:         s(b.SafeObjectName("ssh-external-to-master")),
-			Lifecycle:    b.Lifecycle,
-			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
-			Allowed:      []string{"tcp:22"},
-			SourceRanges: ipv4SourceRange(sshAccess),
-			Network:      b.LinkToNetwork(),
-		})
-		c.AddTask(&gcetasks.FirewallRule{
-			Name:         s(b.SafeObjectName("ssh-external-to-master-ipv6")),
-			Lifecycle:    b.Lifecycle,
-			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
-			Allowed:      []string{"tcp:22"},
-			SourceRanges: ipv6SourceRange(sshAccess),
-			Network:      b.LinkToNetwork(),
+
+		AddFirewallRulesTasks(c, &gcetasks.FirewallRule{
+			Name:       s(b.SafeObjectName("ssh-external-to-master")),
+			Lifecycle:  b.Lifecycle,
+			TargetTags: []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
+			Allowed:    []string{"tcp:22"},
+			Network:    b.LinkToNetwork(),
 		})
 
-		c.AddTask(&gcetasks.FirewallRule{
+		AddFirewallRulesTasks(c, &gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("ssh-external-to-node")),
 			Lifecycle:    b.Lifecycle,
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
 			Allowed:      []string{"tcp:22"},
-			SourceRanges: ipv4SourceRange(sshAccess),
-			Network:      b.LinkToNetwork(),
-		})
-		
-		c.AddTask(&gcetasks.FirewallRule{
-			Name:         s(b.SafeObjectName("ssh-external-to-node-ipv6")),
-			Lifecycle:    b.Lifecycle,
-			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
-			Allowed:      []string{"tcp:22"},
-			SourceRanges: ipv6SourceRange(sshAccess),
+			SourceRanges: sshAccess.ToStrings(),
 			Network:      b.LinkToNetwork(),
 		})
 	}
@@ -102,7 +85,7 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		}
 
 		nodePortRangeString := nodePortRange.String()
-		t := &gcetasks.FirewallRule{
+		AddFirewallRulesTasks(c, &gcetasks.FirewallRule{
 			Name:       s(b.SafeObjectName("nodeport-external-to-node")),
 			Lifecycle:  b.Lifecycle,
 			TargetTags: []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
@@ -110,16 +93,9 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				"tcp:" + nodePortRangeString,
 				"udp:" + nodePortRangeString,
 			},
-			SourceRanges: ipv4SourceRange(nodePortAccess),
+			SourceRanges: nodePortAccess.ToStrings(),
 			Network:      b.LinkToNetwork(),
-		}
-
-		if len(t.SourceRanges) == 0 {
-			// Empty SourceRanges is interpreted as 0.0.0.0/0 if tags are empty, so we set a SourceTag
-			// This is already covered by the normal node-to-node rules, but avoids opening the NodePort range
-			t.SourceTags = []string{b.GCETagForRole(kops.InstanceGroupRoleNode)}
-		}
-		c.AddTask(t)
+		})
 	}
 
 	if !b.UseLoadBalancerForAPI() {
@@ -133,22 +109,12 @@ func (b *ExternalAccessModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		}
 
 		// HTTPS to the master is allowed (for API access)
-		c.AddTask(&gcetasks.FirewallRule{
+		AddFirewallRulesTasks(c, &gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("kubernetes-master-https")),
 			Lifecycle:    b.Lifecycle,
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
 			Allowed:      []string{"tcp:443"},
-			SourceRanges: ipv4SourceRange(kubernetesAPIAccess),
-			Network:      b.LinkToNetwork(),
-		})
-
-		// HTTPS to the master is allowed (for API access)
-		c.AddTask(&gcetasks.FirewallRule{
-			Name:         s(b.SafeObjectName("kubernetes-master-https-ipv6")),
-			Lifecycle:    b.Lifecycle,
-			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
-			Allowed:      []string{"tcp:443"},
-			SourceRanges: ipv6SourceRange(kubernetesAPIAccess),
+			SourceRanges: kubernetesAPIAccess.ToStrings(),
 			Network:      b.LinkToNetwork(),
 		})
 	}

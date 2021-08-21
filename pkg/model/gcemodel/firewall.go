@@ -17,6 +17,8 @@ limitations under the License.
 package gcemodel
 
 import (
+	"net"
+
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cidr"
@@ -68,15 +70,14 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 		if err != nil {
 			return err
 		}
-		t := &gcetasks.FirewallRule{
+		AddFirewallRulesTasks(c, &gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("cidr-to-node")),
 			Lifecycle:    b.Lifecycle,
 			Network:      b.LinkToNetwork(),
-			SourceRanges: ipv4SourceRange(nonMasqueradeCIDR),
+			SourceRanges: nonMasqueradeCIDR.ToStrings(),
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleNode)},
 			Allowed:      []string{"tcp", "udp", "icmp", "esp", "ah", "sctp"},
-		}
-		c.AddTask(t)
+		})
 	}
 
 	// Allow full traffic from master -> master
@@ -127,31 +128,46 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			return err
 		}
 
-		t := &gcetasks.FirewallRule{
+		AddFirewallRulesTasks(c, &gcetasks.FirewallRule{
 			Name:         s(b.SafeObjectName("cidr-to-master")),
 			Lifecycle:    b.Lifecycle,
 			Network:      b.LinkToNetwork(),
-			SourceRanges: ipv4SourceRange(nonMasqueradeCIDR),
+			SourceRanges: nonMasqueradeCIDR.ToStrings(),
 			TargetTags:   []string{b.GCETagForRole(kops.InstanceGroupRoleMaster)},
 			Allowed:      []string{"tcp:443", "tcp:4194"},
-		}
-		c.AddTask(t)
+		})
 	}
 	return nil
 }
 
-func ipv4SourceRange(cidrs cidr.Set) []string {
-	ipv4s := cidrs.WhereIPV4().ToStrings()
-	if len(ipv4s) == 0 {
-		ipv4s = append(ipv4s, "0.0.0.0/32")
-	}
-	return ipv4s
-}
+// AddFirewallRulesTasks creates and adds ipv4 and ipv6 gcetasks.FirewallRule Tasks.
+// GCE does not allow us to mix ipv4 and ipv6 in the same firewall rule, so we must create separate rules.
+// Furthermore, an empty SourceRange with empty SourceTags is interpreted as allow-everything,
+// but we intend for it to block everything; so we can Disabled to achieve the desired blocking.
+func AddFirewallRulesTasks(c *fi.ModelBuilderContext, rule *gcetasks.FirewallRule) {
+	var ipv4SourceRanges []string
+	var ipv6SourceRanges []string
+	for _, sourceRange := range rule.SourceRanges {
+		_, cidr, err := net.ParseCIDR(sourceRange)
+		if err != nil {
+			klog.Fatalf("failed to parse invalid sourceRange %q", sourceRange)
+		}
+		if cidr.IP.To4() != nil {
+			ipv4SourceRanges = append(ipv4SourceRanges, sourceRange)
+		} else {
+			ipv6SourceRanges = append(ipv6SourceRanges, sourceRange)
 
-func ipv6SourceRange(cidrs cidr.Set) []string {
-	ipv6s := cidrs.WhereIPV6().ToStrings()
-	if len(ipv6s) == 0 {
-		ipv6s = append(ipv6s, "::/128")
+		}
 	}
-	return ipv6s
+
+	ipv4 := *rule
+	ipv4.SourceRanges = ipv4SourceRanges
+	ipv4.DisableIfEmptySourceRanges()
+	c.AddTask(&ipv4)
+
+	ipv6 := *rule
+	ipv6.Name = s(fi.StringValue(rule.Name) + "-ipv6")
+	ipv6.SourceRanges = ipv6SourceRanges
+	ipv6.DisableIfEmptySourceRanges()
+	c.AddTask(&ipv6)
 }
