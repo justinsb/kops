@@ -364,21 +364,48 @@ func (b *ContainerdBuilder) buildIPMasqueradeRules(c *fi.ModelBuilderContext) er
 
 iptables -w -t nat -N IP-MASQ
 iptables -w -t nat -A POSTROUTING -m comment --comment "ip-masq: ensure nat POSTROUTING directs all non-LOCAL destination traffic to our custom IP-MASQ chain" -m addrtype ! --dst-type LOCAL -j IP-MASQ
-iptables -w -t nat -A IP-MASQ -d {{.NonMasqueradeCIDR}} -m comment --comment "ip-masq: pod cidr is not subject to MASQUERADE" -j RETURN
-iptables -w -t nat -A IP-MASQ -m comment --comment "ip-masq: outbound traffic is subject to MASQUERADE (must be last in chain)" -j MASQUERADE
 `
 
-	skipMasqueradeCIDR := b.Cluster.Spec.NonMasqueradeCIDR
-	if b.Cluster.Spec.NonMasqueradeCIDR == "" {
+	// if b.Cluster.Spec.Networking != nil && b.Cluster.Spec.Networking.GCE != nil {
+	// 	script += `
+	// iptables -w -t nat -A IP-MASQ -d 169.254.0.0/16 -m comment --comment "ip-masq: local traffic is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 10.0.0.0/8 -m comment --comment "ip-masq: RFC 1918 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 172.16.0.0/12 -m comment --comment "ip-masq: RFC 1918 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 192.168.0.0/16 -m comment --comment "ip-masq: RFC 1918 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 240.0.0.0/4 -m comment --comment "ip-masq: RFC 5735 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 192.0.2.0/24 -m comment --comment "ip-masq: RFC 5737 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 198.51.100.0/24 -m comment --comment "ip-masq: RFC 5737 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 203.0.113.0/24 -m comment --comment "ip-masq: RFC 5737 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 100.64.0.0/10 -m comment --comment "ip-masq: RFC 6598 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 198.18.0.0/15 -m comment --comment "ip-masq: RFC 6815 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 192.0.0.0/24 -m comment --comment "ip-masq: RFC 6890 reserved range is not subject to MASQUERADE" -j RETURN
+	// iptables -w -t nat -A IP-MASQ -d 192.88.99.0/24 -m comment --comment "ip-masq: RFC 7526 reserved range is not subject to MASQUERADE" -j RETURN
+	// `
+	// }
+
+	if b.Cluster.Spec.NonMasqueradeCIDR != "" {
+		script += fmt.Sprintf("\niptables -w -t nat -A IP-MASQ -d %s -m comment --comment \"ip-masq: pod cidr is not subject to MASQUERADE\" -j RETURN", b.Cluster.Spec.NonMasqueradeCIDR)
+	} else {
 		// We fall back to the pod CIDR; NonMasqueradeCIDR is not set for GCE IP Alias mode
-		skipMasqueradeCIDR = b.Cluster.Spec.PodCIDR
+		if b.Cluster.Spec.PodCIDR == "" {
+			return fmt.Errorf("NonMasqueradeCIDR/PodCIDR are not set")
+		}
+		script += fmt.Sprintf("iptables -w -t nat -A IP-MASQ -d %s -m comment --comment \"ip-masq: pod cidr is not subject to MASQUERADE\" -j RETURN\n", b.Cluster.Spec.PodCIDR)
+
+		if b.Cluster.Spec.ServiceClusterIPRange != "" {
+			script += fmt.Sprintf("iptables -w -t nat -A IP-MASQ -d %s -m comment --comment \"ip-masq: service cidr is not subject to MASQUERADE\" -j RETURN\n", b.Cluster.Spec.ServiceClusterIPRange)
+		}
+
+		for _, subnet := range b.Cluster.Spec.Subnets {
+			if subnet.CIDR != "" {
+				script += fmt.Sprintf("iptables -w -t nat -A IP-MASQ -d %s -m comment --comment \"ip-masq: node cidr is not subject to MASQUERADE\" -j RETURN\n", subnet.CIDR)
+			}
+		}
 	}
 
-	if skipMasqueradeCIDR == "" {
-		return fmt.Errorf("NonMasqueradeCIDR/PodCIDR are not set")
-	}
-
-	script = strings.ReplaceAll(script, "{{.NonMasqueradeCIDR}}", skipMasqueradeCIDR)
+	script += `
+iptables -w -t nat -A IP-MASQ -m comment --comment "ip-masq: outbound traffic is subject to MASQUERADE (must be last in chain)" -j MASQUERADE
+`
 
 	c.AddTask(&nodetasks.File{
 		Path:     "/opt/kops/bin/cni-iptables-setup",
