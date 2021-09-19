@@ -312,7 +312,9 @@ func (c *populateClusterSpec) run(clientset simple.Clientset) error {
 
 func (c *populateClusterSpec) assignSubnets(cluster *kopsapi.Cluster) error {
 	if cluster.Spec.NonMasqueradeCIDR == "" {
-		klog.Warningf("NonMasqueradeCIDR not set; can't auto-assign dependent subnets")
+		if cluster.Spec.PodCIDR == "" || cluster.Spec.ServiceClusterIPRange == "" {
+			klog.Warningf("NonMasqueradeCIDR not set; can't auto-assign dependent subnets")
+		}
 		return nil
 	}
 
