@@ -25,6 +25,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
@@ -156,6 +157,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := addGossipController(mgr, &opt); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "GossipController")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
@@ -238,6 +244,32 @@ func addNodeController(mgr manager.Manager, opt *config.Options) error {
 		if err := nodeController.SetupWithManager(mgr); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func addGossipController(mgr manager.Manager, opt *config.Options) error {
+	if opt.Gossip == nil {
+		return nil
+	}
+
+	if opt.Gossip.HostnameInternalAPIServer == "" {
+		return nil
+	}
+
+	configMapID := types.NamespacedName{
+		Namespace: "kube-system",
+		Name:      "coredns",
+	}
+
+	controller, err := controllers.NewHostsReconciler(mgr, configMapID, opt.Gossip.HostnameInternalAPIServer)
+	if err != nil {
+		return err
+	}
+
+	if err := controller.SetupWithManager(mgr); err != nil {
+		return err
 	}
 
 	return nil
