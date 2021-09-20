@@ -110,6 +110,16 @@ func (tf *TemplateFunctions) AddTo(dest template.FuncMap, secretStore fi.SecretS
 		return cluster.Spec.KubeDNS
 	}
 
+	dest["GossipDomains"] = func() []string {
+		var names []string
+
+		if dns.IsGossipHostname(cluster.Spec.MasterInternalName) {
+			names = append(names, "k8s.local")
+		}
+
+		return names
+	}
+
 	dest["NodeLocalDNSClusterIP"] = func() string {
 		if cluster.Spec.KubeProxy.ProxyMode == "ipvs" {
 			return cluster.Spec.KubeDNS.ServerIP
@@ -573,6 +583,12 @@ func (tf *TemplateFunctions) KopsControllerConfig() (string, error) {
 		config.EnableCloudIPAM = true
 	}
 
+	if dns.IsGossipHostname(cluster.Spec.MasterInternalName) {
+		config.Gossip = &kopscontrollerconfig.GossipOptions{
+			HostnameInternalAPIServer: cluster.Spec.MasterInternalName,
+		}
+	}
+		
 	// To avoid indentation problems, we marshal as json.  json is a subset of yaml
 	b, err := json.Marshal(config)
 	if err != nil {

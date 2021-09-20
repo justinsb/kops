@@ -187,6 +187,15 @@ rules:
   - leases
   verbs:
   - create
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - watch
+  - patch
+  resourceNames: [ "coredns" ]
 
 ---
 
