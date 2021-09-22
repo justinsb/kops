@@ -301,7 +301,7 @@ func (a *AssetBuilder) findHash(file *FileAsset) (*hashing.Hash, error) {
 		for _, ext := range []string{".sha256", ".sha1"} {
 			for _, mirror := range mirrors.FindUrlMirrors(u.String()) {
 				hashURL := mirror + ext
-				klog.V(3).Infof("Trying to read hash fie: %q", hashURL)
+				klog.V(3).Infof("Trying to read hash file: %q", hashURL)
 				b, err := vfs.Context.ReadFile(hashURL, vfs.WithBackoff(backoff))
 				if err != nil {
 					// Try to log without being too alarming - issue #7550

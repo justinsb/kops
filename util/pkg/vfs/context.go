@@ -213,7 +213,7 @@ func (c *VFSContext) readHTTPLocation(httpURL string, httpHeaders map[string]str
 	var body []byte
 
 	done, err := RetryWithBackoff(opts.backoff, func() (bool, error) {
-		klog.V(4).Infof("Performing HTTP request: GET %s", httpURL)
+		klog.Infof("Performing HTTP request: GET %s", httpURL)
 		req, err := http.NewRequest("GET", httpURL, nil)
 		if err != nil {
 			return false, err

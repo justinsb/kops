@@ -45,6 +45,12 @@ func (e *Network) CompareWithID() *string {
 	return e.Name
 }
 
+// func init() {
+// 	fs := flag.NewFlagSet("override", flag.PanicOnError)
+// 	klog.InitFlags(fs)
+// 	fs.Parse([]string{"--v=8"})
+// }
+
 func (e *Network) Find(c *fi.Context) (*Network, error) {
 	cloud := c.Cloud.(gce.GCECloud)
 
@@ -168,6 +174,7 @@ func (_ *Network) RenderGCE(t *gce.GCEAPITarget, a, e, changes *Network) error {
 		}
 		empty := &Network{}
 		if !reflect.DeepEqual(empty, changes) {
+			klog.Warningf("cannot apply changes to Network")
 			return fmt.Errorf("cannot apply changes to Network: %v", changes)
 		}
 	}
