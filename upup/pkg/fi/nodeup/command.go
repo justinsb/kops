@@ -43,8 +43,10 @@ import (
 	"k8s.io/kops/pkg/bootstrap"
 	"k8s.io/kops/pkg/configserver"
 	"k8s.io/kops/pkg/kopscodecs"
+	"k8s.io/kops/pkg/resolver"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gce/gceresolver"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce/tpm/gcetpmsigner"
 	"k8s.io/kops/upup/pkg/fi/nodeup/cloudinit"
 	"k8s.io/kops/upup/pkg/fi/nodeup/local"
@@ -113,7 +115,7 @@ func (c *NodeUpCommand) Run(out io.Writer) error {
 	if bootConfig.ConfigServer != nil {
 		response, err := getNodeConfigFromServer(ctx, &bootConfig, region)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get node config from server: %w", err)
 		}
 		nodeConfig = response.NodeConfig
 	} else if fi.StringValue(bootConfig.ConfigBase) != "" {
@@ -762,6 +764,7 @@ func seedRNG(ctx context.Context, bootConfig *nodeup.BootConfig, region string) 
 // getNodeConfigFromServer queries kops-controller for our node's configuration.
 func getNodeConfigFromServer(ctx context.Context, bootConfig *nodeup.BootConfig, region string) (*nodeup.BootstrapResponse, error) {
 	var authenticator bootstrap.Authenticator
+	var resolver resolver.Resolver
 
 	switch api.CloudProviderID(bootConfig.CloudProvider) {
 	case api.CloudProviderAWS:
@@ -776,12 +779,19 @@ func getNodeConfigFromServer(ctx context.Context, bootConfig *nodeup.BootConfig,
 			return nil, err
 		}
 		authenticator = a
+
+		r, err := gceresolver.New()
+		if err != nil {
+			return nil, err
+		}
+		resolver = r
 	default:
 		return nil, fmt.Errorf("unsupported cloud provider %s", bootConfig.CloudProvider)
 	}
 
 	client := &nodetasks.KopsBootstrapClient{
 		Authenticator: authenticator,
+		Resolver:      resolver,
 	}
 
 	u, err := url.Parse(bootConfig.ConfigServer.Server)

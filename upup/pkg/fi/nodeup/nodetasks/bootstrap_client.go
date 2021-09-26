@@ -32,9 +32,11 @@ import (
 	"path"
 	"time"
 
+	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/nodeup"
 	"k8s.io/kops/pkg/bootstrap"
 	"k8s.io/kops/pkg/pki"
+	"k8s.io/kops/pkg/resolver"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 )
@@ -143,7 +145,43 @@ type KopsBootstrapClient struct {
 	// BaseURL is the base URL for the server
 	BaseURL url.URL
 
+	// // Addresses is a set of addresses to try instead of relying on DNS resolution
+	// Addresses []string
+
+	Resolver resolver.Resolver
+
 	httpClient *http.Client
+}
+
+func (b *KopsBootstrapClient) dial(ctx context.Context, network, addr string) (net.Conn, error) {
+	var errors []error
+
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot split host and port from %q: %w", addr, err)
+	}
+
+	// TODO: cache?
+	addresses, err := b.Resolver.Resolve(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, addr := range addresses {
+		timeout := 5 * time.Second
+		conn, err := net.DialTimeout(network, addr+":"+port, timeout)
+		if err == nil {
+			return conn, nil
+		}
+		if err != nil {
+			klog.Warningf("failed to dial %q: %v", addr, err)
+			errors = append(errors, err)
+		}
+	}
+	if len(errors) == 0 {
+		return nil, fmt.Errorf("no addresses for %q", addr)
+	}
+	return nil, errors[0]
 }
 
 func (b *KopsBootstrapClient) QueryBootstrap(ctx context.Context, req *nodeup.BootstrapRequest) (*nodeup.BootstrapResponse, error) {
@@ -151,24 +189,35 @@ func (b *KopsBootstrapClient) QueryBootstrap(ctx context.Context, req *nodeup.Bo
 		certPool := x509.NewCertPool()
 		certPool.AppendCertsFromPEM(b.CAs)
 
-		b.httpClient = &http.Client{
-			Timeout: time.Duration(15) * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					RootCAs:    certPool,
-					MinVersion: tls.VersionTLS12,
-				},
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:    certPool,
+				MinVersion: tls.VersionTLS12,
 			},
 		}
+
+		if b.Resolver != nil {
+			transport.DialContext = b.dial
+		}
+
+		httpClient := &http.Client{
+			Timeout:   time.Duration(15) * time.Second,
+			Transport: transport,
+		}
+
+		b.httpClient = httpClient
 	}
 
-	if ips, err := net.LookupIP(b.BaseURL.Hostname()); err != nil {
-		if dnsErr, ok := err.(*net.DNSError); ok && dnsErr.IsNotFound {
-			return nil, fi.NewTryAgainLaterError(fmt.Sprintf("kops-controller DNS not setup yet (not found: %v)", dnsErr))
+	// If we don't have a custom DNS resolver, sanity-check DNS
+	if b.Resolver == nil {
+		if ips, err := net.LookupIP(b.BaseURL.Hostname()); err != nil {
+			if dnsErr, ok := err.(*net.DNSError); ok && dnsErr.IsNotFound {
+				return nil, fi.NewTryAgainLaterError(fmt.Sprintf("kops-controller DNS not setup yet (not found: %v)", dnsErr))
+			}
+			return nil, err
+		} else if len(ips) == 1 && ips[0].String() == cloudup.PlaceholderIP {
+			return nil, fi.NewTryAgainLaterError(fmt.Sprintf("kops-controller DNS not setup yet (placeholder IP found: %v)", ips))
 		}
-		return nil, err
-	} else if len(ips) == 1 && ips[0].String() == cloudup.PlaceholderIP {
-		return nil, fi.NewTryAgainLaterError(fmt.Sprintf("kops-controller DNS not setup yet (placeholder IP found: %v)", ips))
 	}
 
 	reqBytes, err := json.Marshal(req)

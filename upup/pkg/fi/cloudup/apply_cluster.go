@@ -1380,6 +1380,17 @@ func (n *nodeUpConfigBuilder) BuildConfig(ig *kops.InstanceGroup, apiserverAddit
 
 	useConfigServer := featureflag.KopsControllerStateStore.Enabled() && (role != kops.InstanceGroupRoleMaster)
 	if useConfigServer {
+		var addresses []string
+
+		if useGossip {
+			if len(apiserverAdditionalIPs) == 0 {
+				return nil, nil, fmt.Errorf("unable to find load balancer for apiserver")
+			}
+			if len(apiserverAdditionalIPs) != 1 {
+				return nil, nil, fmt.Errorf("found multiple load balancers for apiserver")
+			}
+			addresses = apiserverAdditionalIPs
+		}
 		baseURL := url.URL{
 			Scheme: "https",
 			Host:   net.JoinHostPort("kops-controller.internal."+cluster.ObjectMeta.Name, strconv.Itoa(wellknownports.KopsControllerPort)),
@@ -1388,6 +1399,7 @@ func (n *nodeUpConfigBuilder) BuildConfig(ig *kops.InstanceGroup, apiserverAddit
 
 		configServer := &nodeup.ConfigServerOptions{
 			Server:         baseURL.String(),
+			Addresses:      addresses,
 			CACertificates: config.CAs[fi.CertificateIDCA],
 		}
 

@@ -99,6 +99,10 @@ type BootConfig struct {
 type ConfigServerOptions struct {
 	// Server is the address of the configuration server to use (kops-controller)
 	Server string `json:"server,omitempty"`
+
+	// Addresses specifies a set of IP addresses we should try, instead of using DNS resolution.
+	Addresses []string `json:"addresses,omitempty"`
+
 	// CACertificates are the certificates to trust for fi.CertificateIDCA.
 	CACertificates string
 }
