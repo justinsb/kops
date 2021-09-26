@@ -201,7 +201,8 @@ func (e *Package) findDpkg(c *fi.Context) (*Package, error) {
 	// TODO: Take InstanceGroup-level overriding of the Cluster-level update policy into account
 	// here. Doing so requires that we make the current InstanceGroup available within Package's
 	// methods.
-	if fi.StringValue(c.Cluster.Spec.UpdatePolicy) != kops.UpdatePolicyExternal || !installed {
+	klog.Infof("Cluster.Spec.UpdatePolicy %v", c.Cluster.Spec.UpdatePolicy)
+	if fi.StringValue(c.Cluster.Spec.UpdatePolicy) == kops.UpdatePolicyExternal || !installed {
 		return nil, nil
 	}
 
@@ -252,7 +253,7 @@ func (e *Package) findYum(c *fi.Context) (*Package, error) {
 	// TODO: Take InstanceGroup-level overriding of the Cluster-level update policy into account
 	// here. Doing so requires that we make the current InstanceGroup available within Package's
 	// methods.
-	if fi.StringValue(c.Cluster.Spec.UpdatePolicy) != kops.UpdatePolicyExternal || !installed {
+	if fi.StringValue(c.Cluster.Spec.UpdatePolicy) == kops.UpdatePolicyExternal || !installed {
 		return nil, nil
 	}
 
@@ -283,6 +284,8 @@ func (_ *Package) RenderLocal(t *local.LocalTarget, a, e, changes *Package) erro
 	if err != nil {
 		return fmt.Errorf("unknown or unsupported distro: %v", err)
 	}
+
+	klog.Infof("RenderLocal: a=%#v, changes=%#v", a, changes)
 
 	if a == nil || changes.Version != nil {
 		klog.Infof("Installing package %q (dependencies: %v)", e.Name, e.Deps)
