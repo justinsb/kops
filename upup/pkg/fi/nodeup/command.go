@@ -45,6 +45,7 @@ import (
 	"k8s.io/kops/pkg/kopscodecs"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/gce/tpm/gcetpmsigner"
 	"k8s.io/kops/upup/pkg/fi/nodeup/cloudinit"
 	"k8s.io/kops/upup/pkg/fi/nodeup/local"
 	"k8s.io/kops/upup/pkg/fi/nodeup/nodetasks"
@@ -765,6 +766,12 @@ func getNodeConfigFromServer(ctx context.Context, bootConfig *nodeup.BootConfig,
 	switch api.CloudProviderID(bootConfig.CloudProvider) {
 	case api.CloudProviderAWS:
 		a, err := awsup.NewAWSAuthenticator(region)
+		if err != nil {
+			return nil, err
+		}
+		authenticator = a
+	case api.CloudProviderGCE:
+		a, err := gcetpmsigner.NewTPMAuthenticator()
 		if err != nil {
 			return nil, err
 		}
