@@ -669,7 +669,7 @@ func RunCreateCluster(ctx context.Context, f *util.Factory, out io.Writer, c *Cr
 		return fmt.Errorf("cannot parse KubernetesVersion %q in cluster: %w", clusterResult.Cluster.Spec.KubernetesVersion, err)
 	}
 
-	addons, err := wellknownoperators.CreateAddons(clusterResult.Channel, kubernetesVersion)
+	addons, err := wellknownoperators.CreateAddons(clusterResult.Channel, kubernetesVersion, fullCluster)
 	if err != nil {
 		return err
 	}
