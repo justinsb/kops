@@ -311,6 +311,9 @@ func buildChangeList(a, e, changes Task) ([]change, error) {
 					changed = true
 				}
 
+			case reflect.Bool:
+				changed = fieldValE.Bool() != fieldValA.Bool()
+
 			case reflect.String:
 				changed = fieldValC.Convert(reflect.TypeOf("")).Interface() != ""
 			}
