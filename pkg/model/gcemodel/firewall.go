@@ -97,6 +97,12 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				fmt.Sprintf("tcp:%d", wellknownports.KopsControllerPort),
 			},
 		}
+
+		// Allow BGP when we're using calico
+		if b.NetworkingIsCalico() {
+			t.Allowed = append(t.Allowed, fmt.Sprintf("tcp:%d", wellknownports.CalicoBGP))
+		}
+
 		c.AddTask(t)
 	}
 

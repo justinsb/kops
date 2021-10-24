@@ -66,6 +66,9 @@ const (
 
 	// CiliumHubblePrometheusPort is the default port where Hubble exposes metrics
 	CiliumHubblePrometheusPort = 9091
+
+	// CalicoBGP is used for BGP route propagation by calico
+	CalicoBGP = 179
 )
 
 type PortRange struct {
