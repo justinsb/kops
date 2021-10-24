@@ -780,7 +780,7 @@ func getNodeConfigFromServer(ctx context.Context, bootConfig *nodeup.BootConfig,
 		}
 		authenticator = a
 
-		r, err := gceresolver.New()
+		r, err := gceresolver.New(bootConfig.ClusterName)
 		if err != nil {
 			return nil, err
 		}

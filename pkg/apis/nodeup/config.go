@@ -88,6 +88,8 @@ type BootConfig struct {
 	ConfigBase *string `json:",omitempty"`
 	// ConfigServer holds the configuration for the configuration server.
 	ConfigServer *ConfigServerOptions `json:",omitempty"`
+	// ClusterName is the name of the cluster.
+	ClusterName string `json:",omitempty"`
 	// InstanceGroupName is the name of the instance group.
 	InstanceGroupName string `json:",omitempty"`
 	// InstanceGroupRole is the instance group role.
@@ -156,6 +158,7 @@ func NewConfig(cluster *kops.Cluster, instanceGroup *kops.InstanceGroup) (*Confi
 
 	bootConfig := BootConfig{
 		CloudProvider:     cluster.Spec.CloudProvider,
+		ClusterName:       cluster.Name,
 		InstanceGroupName: instanceGroup.ObjectMeta.Name,
 		InstanceGroupRole: role,
 	}

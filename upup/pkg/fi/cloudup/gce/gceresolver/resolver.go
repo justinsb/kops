@@ -11,6 +11,8 @@ import (
 )
 
 type GCEResolver struct {
+	clusterName string
+
 	compute   *compute.Service
 	projectID string
 	zoneNames []string
@@ -36,8 +38,6 @@ func (r *GCEResolver) Resolve(ctx context.Context, addr string) ([]string, error
 
 			// TODO: Filter by fields (but ask about google issue 29524655)
 
-			// TODO: Match clusterid?
-
 			if pageToken != "" {
 				listCall.PageToken(pageToken)
 			}
@@ -48,6 +48,21 @@ func (r *GCEResolver) Resolve(ctx context.Context, addr string) ([]string, error
 			}
 			pageToken = res.NextPageToken
 			for _, i := range res.Items {
+				// Match the cluster-id so we don't cross-talk to other clusters
+				// It shouldn't matter - the cert will be wrong - but it is unnecessary and potentially confusing.
+				hasClusterTag := false
+				if i.Metadata != nil {
+					for _, m := range i.Metadata.Items {
+						if m.Key == "cluster-name" {
+							if m.Value != nil && *m.Value == r.clusterName {
+								hasClusterTag = true
+							}
+						}
+					}
+				}
+				if !hasClusterTag {
+					continue
+				}
 				// TODO: Expose multiple IPs topologies?
 
 				for _, ni := range i.NetworkInterfaces {
@@ -69,7 +84,7 @@ func (r *GCEResolver) Resolve(ctx context.Context, addr string) ([]string, error
 	return seeds, nil
 }
 
-func New() (*GCEResolver, error) {
+func New(clusterName string) (*GCEResolver, error) {
 	ctx := context.Background()
 
 	computeService, err := compute.NewService(ctx)
@@ -107,9 +122,10 @@ func New() (*GCEResolver, error) {
 	}
 
 	return &GCEResolver{
-		compute:   computeService,
-		zoneNames: zoneNames,
-		projectID: projectID,
+		clusterName: clusterName,
+		compute:     computeService,
+		zoneNames:   zoneNames,
+		projectID:   projectID,
 	}, nil
 }
 
