@@ -1383,10 +1383,10 @@ func (n *nodeUpConfigBuilder) BuildConfig(ig *kops.InstanceGroup, apiserverAddit
 		var addresses []string
 
 		if useGossip {
-			if len(apiserverAdditionalIPs) == 0 {
-				return nil, nil, fmt.Errorf("unable to find load balancer for apiserver")
-			}
-			if len(apiserverAdditionalIPs) != 1 {
+			// if len(apiserverAdditionalIPs) == 0 {
+			// 	return nil, nil, fmt.Errorf("unable to find load balancer for apiserver")
+			// }
+			if len(apiserverAdditionalIPs) > 1 {
 				return nil, nil, fmt.Errorf("found multiple load balancers for apiserver")
 			}
 			addresses = apiserverAdditionalIPs
