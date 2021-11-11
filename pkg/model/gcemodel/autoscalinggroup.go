@@ -128,7 +128,7 @@ func (b *AutoscalingGroupModelBuilder) buildInstanceTemplate(c *fi.ModelBuilderC
 			}
 
 			switch ig.Spec.Role {
-			case kops.InstanceGroupRoleMaster:
+			case kops.InstanceGroupRoleMaster, kops.InstanceGroupRoleAPIServer:
 				// Grant DNS permissions
 				// TODO: migrate to IAM permissions instead of oldschool scopes?
 				t.Scopes = append(t.Scopes, "https://www.googleapis.com/auth/ndev.clouddns.readwrite")
