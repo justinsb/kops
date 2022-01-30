@@ -60,13 +60,17 @@ type S3BucketDetails struct {
 }
 
 type S3Context struct {
+	// httpClient can be set to override the http client used (primarily for testing)
+	httpClient *http.Client
+
 	mutex         sync.Mutex
 	clients       map[string]*s3.S3
 	bucketDetails map[string]*S3BucketDetails
 }
 
-func NewS3Context() *S3Context {
+func NewS3Context(httpClient *http.Client) *S3Context {
 	return &S3Context{
+		httpClient:    httpClient,
 		clients:       make(map[string]*s3.S3),
 		bucketDetails: make(map[string]*S3BucketDetails),
 	}
@@ -91,6 +95,10 @@ func (s *S3Context) getClient(region string) (*s3.S3, error) {
 			if err != nil {
 				return nil, err
 			}
+		}
+
+		if s.httpClient != nil {
+			config.HTTPClient = s.httpClient
 		}
 
 		sess, err := session.NewSessionWithOptions(session.Options{
@@ -192,7 +200,7 @@ func (s *S3Context) getDetailsForBucket(bucket string) (*S3BucketDetails, error)
 	// and fallback to brute-forcing if it fails
 	if err != nil {
 		klog.V(2).Infof("unable to get bucket location from region %q; scanning all regions: %v", awsRegion, err)
-		response, err = bruteforceBucketLocation(&awsRegion, request)
+		response, err = bruteforceBucketLocation(s.httpClient, &awsRegion, request)
 	}
 
 	if err != nil {
@@ -280,21 +288,25 @@ out the first result.
 
 See also: https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/GetBucketLocationRequest
 */
-func bruteforceBucketLocation(region *string, request *s3.GetBucketLocationInput) (*s3.GetBucketLocationOutput, error) {
+func bruteforceBucketLocation(httpClient *http.Client, region *string, request *s3.GetBucketLocationInput) (*s3.GetBucketLocationOutput, error) {
 	config := &aws.Config{Region: region}
 	config = config.WithCredentialsChainVerboseErrors(true)
+
+	if httpClient != nil {
+		config.HTTPClient = httpClient
+	}
 
 	session, err := session.NewSessionWithOptions(session.Options{
 		Config:            *config,
 		SharedConfigState: session.SharedConfigEnable,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error creating aws session: %v", err)
+		return nil, fmt.Errorf("error creating aws session: %w", err)
 	}
 
 	regions, err := ec2.New(session).DescribeRegions(nil)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to list AWS regions: %v", err)
+		return nil, fmt.Errorf("Unable to list AWS regions: %w", err)
 	}
 
 	klog.V(2).Infof("Querying S3 for bucket location for %s", *request.Bucket)
@@ -303,11 +315,19 @@ func bruteforceBucketLocation(region *string, request *s3.GetBucketLocationInput
 	for _, region := range regions.Regions {
 		go func(regionName string) {
 			klog.V(8).Infof("Doing GetBucketLocation in %q", regionName)
-			s3Client := s3.New(session, &aws.Config{Region: aws.String(regionName)})
+			config := &aws.Config{Region: aws.String(regionName)}
+			if httpClient != nil {
+				config.HTTPClient = httpClient
+			}
+
+			s3Client := s3.New(session, config)
+
 			result, bucketError := s3Client.GetBucketLocation(request)
 			if bucketError == nil {
 				klog.V(8).Infof("GetBucketLocation succeeded in %q", regionName)
 				out <- result
+			} else {
+				klog.V(8).Infof("GetBucketLocation failed in %q: %v", regionName, err)
 			}
 		}(*region.RegionName)
 	}

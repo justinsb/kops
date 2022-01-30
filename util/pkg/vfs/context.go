@@ -55,9 +55,13 @@ type VFSContext struct {
 	azureClient *azureClient
 }
 
-var Context = VFSContext{
-	s3Context:  NewS3Context(),
-	k8sContext: NewKubernetesContext(),
+var Context = NewVFSContext(nil)
+
+func NewVFSContext(httpClient *http.Client) VFSContext {
+	return VFSContext{
+		s3Context:  NewS3Context(httpClient),
+		k8sContext: NewKubernetesContext(),
+	}
 }
 
 type vfsOptions struct {
