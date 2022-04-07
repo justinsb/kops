@@ -28,16 +28,22 @@
 KOPS_ARCH=amd64
 export KOPS_ARCH
 
+# We need to set a GOBIN for uploading
+if [[ -z "${GOBIN}" ]]; then
+  export GOBIN=~/bin
+fi
+
 # Build and upload to bucket
 UPLOAD_DEST_BUCKET="kops-dev-$(gcloud config get-value project)-${USER}"
 export UPLOAD_DEST=gs://${UPLOAD_DEST_BUCKET}
 gsutil ls "${UPLOAD_DEST}" || gsutil mb "${UPLOAD_DEST}" || return
-make kops-install dev-upload-linux-${KOPS_ARCH} || return
+UPLOAD_ARGS=--private make kops-install dev-upload-linux-${KOPS_ARCH} || return
 
 # Set KOPS_BASE_URL
 (tools/get_version.sh | grep VERSION | awk '{print $2}') || return
 KOPS_VERSION=$(tools/get_version.sh | grep VERSION | awk '{print $2}')
-export KOPS_BASE_URL=https://storage.googleapis.com/${UPLOAD_DEST_BUCKET}/kops/${KOPS_VERSION}/
+#export KOPS_BASE_URL=https://storage.googleapis.com/${UPLOAD_DEST_BUCKET}/kops/${KOPS_VERSION}/
+export KOPS_BASE_URL=gs://${UPLOAD_DEST_BUCKET}/kops/${KOPS_VERSION}/
 
 # Create the state-store bucket if it doesn't exist
 KOPS_STATE_STORE="gs://kops-state-$(gcloud config get-value project)"

@@ -37,18 +37,14 @@ var nodeUpTemplate = `#!/bin/bash
 set -o errexit
 set -o nounset
 set -o pipefail
-
+GCE_ACCESS_TOKEN_URL="http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
 NODEUP_URL_AMD64={{ NodeUpSourceAmd64 }}
 NODEUP_HASH_AMD64={{ NodeUpSourceHashAmd64 }}
 NODEUP_URL_ARM64={{ NodeUpSourceArm64 }}
 NODEUP_HASH_ARM64={{ NodeUpSourceHashArm64 }}
-
 {{ EnvironmentVariables }}
-
 {{ ProxyEnv }}
-
 {{ SetSysctls }}
-
 function ensure-install-dir() {
   INSTALL_DIR="/opt/kops"
   # On ContainerOS, we install under /var/lib/toolbox; /opt is ro and noexec
@@ -59,13 +55,26 @@ function ensure-install-dir() {
   mkdir -p ${INSTALL_DIR}/conf
   cd ${INSTALL_DIR}
 }
-
+try-download-file() {
+  local -r url="$1"
+  local -r file="$2"
+  local -r auth="$3"
+  if [[ "$auth" == "" ]]; then
+        if curl -f --compressed -Lo "${file}" --connect-timeout 20 --retry 6 --retry-delay 10 "${url}"; then return 0; fi
+        if wget --compression=auto -O "${file}" --connect-timeout=20 --tries=6 --wait=10 "${url}"; then return 0; fi
+        if curl -f -Lo "${file}" --connect-timeout 20 --retry 6 --retry-delay 10 "${url}"; then return 0; fi
+        if wget -O "${file}" --connect-timeout=20 --tries=6 --wait=10 "${url}"; then return 0; fi
+  else
+        if curl -f --compressed -Lo "${file}" -v -H "Authorization: Bearer ${auth}" --connect-timeout 20 --retry 6 --retry-delay 10 "${url}"; then return 0; fi
+        if curl -f -Lo "${file}" -v -H "Authorization: Bearer ${auth}" --connect-timeout 20 --retry 6 --retry-delay 10 "${url}"; then return 0; fi
+  fi
+  return 1
+}
 # Retry a download until we get it. args: name, sha, urls
 download-or-bust() {
   local -r file="$1"
   local -r hash="$2"
   local -r urls=( $(split-commas "$3") )
-
   if [[ -f "${file}" ]]; then
     if ! validate-hash "${file}" "${hash}"; then
       rm -f "${file}"
@@ -73,52 +82,44 @@ download-or-bust() {
       return 0
     fi
   fi
-
   while true; do
     for url in "${urls[@]}"; do
-      commands=(
-        "curl -f --compressed -Lo "${file}" --connect-timeout 20 --retry 6 --retry-delay 10"
-        "wget --compression=auto -O "${file}" --connect-timeout=20 --tries=6 --wait=10"
-        "curl -f -Lo "${file}" --connect-timeout 20 --retry 6 --retry-delay 10"
-        "wget -O "${file}" --connect-timeout=20 --tries=6 --wait=10"
-      )
-      for cmd in "${commands[@]}"; do
-        echo "Attempting download with: ${cmd} {url}"
-        if ! (${cmd} "${url}"); then
-          echo "== Download failed with ${cmd} =="
-          continue
-        fi
-        if ! validate-hash "${file}" "${hash}"; then
-          echo "== Hash validation of ${url} failed. Retrying. =="
-          rm -f "${file}"
-        else
-          echo "== Downloaded ${url} (SHA256 = ${hash}) =="
-          return 0
-        fi
-      done
+      local access_token=""
+      if [[ "$GCE_ACCESS_TOKEN_URL" != "" ]]; then
+        # The token always begins with 'ya29' and continues until the next double-quote.
+        # We would normally use jq to be more tolerant of format changes, 
+        # but it's not available in flatcar during startup (depends on docker, which isn't up yet.)
+        access_token=$(curl "$GCE_ACCESS_TOKEN_URL" -H "Metadata-Flavor: Google" | grep -Eo 'ya29\.[^\"]*')
+      fi
+      echo "Attempting download of ${url}"
+      if ! try-download-file "${url}" "${file}" "${access_token}" ; then
+        continue
+      fi
+      if ! validate-hash "${file}" "${hash}"; then
+        echo "== Hash validation of ${url} failed. Retrying. =="
+        rm -f "${file}"
+      else
+        echo "== Downloaded ${url} (SHA256 = ${hash}) =="
+        return
+      fi
     done
-
-    echo "All downloads failed; sleeping before retrying"
+    echo "Download failed with all plausible commands; sleeping before retrying"
     sleep 60
   done
 }
-
 validate-hash() {
   local -r file="$1"
   local -r expected="$2"
   local actual
-
   actual=$(sha256sum ${file} | awk '{ print $1 }') || true
   if [[ "${actual}" != "${expected}" ]]; then
     echo "== ${file} corrupted, hash ${actual} doesn't match expected ${expected} =="
     return 1
   fi
 }
-
 function split-commas() {
   echo $1 | tr "," "\n"
 }
-
 function download-release() {
   case "$(uname -m)" in
   x86_64*|i?86_64*|amd64*)
@@ -134,24 +135,17 @@ function download-release() {
     exit 1
     ;;
   esac
-
   cd ${INSTALL_DIR}/bin
   download-or-bust nodeup "${NODEUP_HASH}" "${NODEUP_URL}"
-
   chmod +x nodeup
-
   echo "Running nodeup"
   # We can't run in the foreground because of https://github.com/docker/docker/issues/23793
   ( cd ${INSTALL_DIR}/bin; ./nodeup --install-systemd-unit --conf=${INSTALL_DIR}/conf/kube_env.yaml --v=8  )
 }
-
 ####################################################################################
-
 /bin/systemd-machine-id-setup || echo "failed to set up ensure machine-id configured"
-
 echo "== nodeup node config starting =="
 ensure-install-dir
-
 {{ if CompressUserData -}}
 echo "{{ GzipBase64 ClusterSpec }}" | base64 -d | gzip -d > conf/cluster_spec.yaml
 {{- else -}}
@@ -159,7 +153,6 @@ cat > conf/cluster_spec.yaml << '__EOF_CLUSTER_SPEC'
 {{ ClusterSpec }}
 __EOF_CLUSTER_SPEC
 {{- end }}
-
 {{ if CompressUserData -}}
 echo "{{ GzipBase64 KubeEnv }}" | base64 -d | gzip -d > conf/kube_env.yaml
 {{- else -}}
@@ -167,7 +160,6 @@ cat > conf/kube_env.yaml << '__EOF_KUBE_ENV'
 {{ KubeEnv }}
 __EOF_KUBE_ENV
 {{- end }}
-
 download-release
 echo "== nodeup node config done =="
 `
@@ -201,7 +193,15 @@ func (b *NodeUpScript) Build() (fi.Resource, error) {
 	functions := template.FuncMap{
 		"NodeUpSourceAmd64": func() string {
 			if b.NodeUpAssets[architectures.ArchitectureAmd64] != nil {
-				return strings.Join(b.NodeUpAssets[architectures.ArchitectureAmd64].Locations, ",")
+				locations := b.NodeUpAssets[architectures.ArchitectureAmd64].Locations
+				var rawURLs []string
+				for _, location := range locations {
+					if strings.HasPrefix(location, "gs://") {
+						location = "https://storage.googleapis.com/" + strings.TrimPrefix(location, "gs://")
+					}
+					rawURLs = append(rawURLs, location)
+				}
+				return strings.Join(rawURLs, ",")
 			}
 			return ""
 		},
@@ -213,7 +213,15 @@ func (b *NodeUpScript) Build() (fi.Resource, error) {
 		},
 		"NodeUpSourceArm64": func() string {
 			if b.NodeUpAssets[architectures.ArchitectureArm64] != nil {
-				return strings.Join(b.NodeUpAssets[architectures.ArchitectureArm64].Locations, ",")
+				locations := b.NodeUpAssets[architectures.ArchitectureArm64].Locations
+				var rawURLs []string
+				for _, location := range locations {
+					if strings.HasPrefix(location, "gs://") {
+						location = "https://storage.googleapis.com/" + strings.TrimPrefix(location, "gs://")
+					}
+					rawURLs = append(rawURLs, location)
+				}
+				return strings.Join(rawURLs, ",")
 			}
 			return ""
 		},

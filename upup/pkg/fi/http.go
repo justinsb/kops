@@ -24,10 +24,12 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"k8s.io/klog/v2"
 	"k8s.io/kops/util/pkg/hashing"
+	"k8s.io/kops/util/pkg/vfs"
 )
 
 // DownloadURL will download the file at the given url and store it as dest.
@@ -81,6 +83,16 @@ func downloadURLAlways(url string, destPath string, dirMode os.FileMode) error {
 
 	klog.Infof("Downloading %q", url)
 
+	if strings.HasPrefix(url, "gs://") {
+		p, err := vfs.Context.BuildVfsPath(url)
+		if err != nil {
+			return fmt.Errorf("error building vfs path for %q: %w", url, err)
+		}
+		if _, err := p.WriteTo(output); err != nil {
+			return fmt.Errorf("error downloading %q to %q: %w", url, destPath, err)
+		}
+		return nil
+	}
 	// Create a client with custom timeouts
 	// to avoid idle downloads to hang the program
 	httpClient := &http.Client{

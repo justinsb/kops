@@ -200,12 +200,15 @@ func hashFromHTTPHeader(url string) (*hashing.Hash, error) {
 
 // Add an asset into the store, in one of the recognized formats (see Assets in types package)
 func (a *AssetStore) Add(id string) error {
-	if strings.HasPrefix(id, "http://") || strings.HasPrefix(id, "https://") {
+	if strings.HasPrefix(id, "http://") || strings.HasPrefix(id, "https://") || strings.HasPrefix(id, "gs://") {
 		return a.addURLs(strings.Split(id, ","), nil)
 	}
 	i := strings.Index(id, "@http://")
 	if i == -1 {
 		i = strings.Index(id, "@https://")
+	}
+	if i == -1 {
+		i = strings.Index(id, "@gs://")
 	}
 	if i != -1 {
 		urls := strings.Split(id[i+1:], ",")
