@@ -75,6 +75,42 @@ func (b *GCPCloudControllerManagerOptionsBuilder) BuildOptions(options interface
 		}
 	}
 
+	// if len(ccmConfig.Controllers) == 0 {
+	// 	var changes []string
+
+	// 	if clusterSpec.IsKopsControllerIPAM() {
+	// 		changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
+	// 	}
+
+	// 	if len(changes) != 0 {
+	// 		ccmConfig.Controllers = append([]string{"*"}, changes...)
+	// 	}
+	// }
+
+	// // TODO: we want to consolidate this with the logic from KCM
+	// networking := clusterSpec.Networking
+	// if networking == nil {
+	// 	ccmConfig.ConfigureCloudRoutes = fi.Bool(true)
+	// } else if networking.Kubenet != nil {
+	// 	ccmConfig.ConfigureCloudRoutes = fi.Bool(true)
+	// } else if networking.GCE != nil {
+	// 	ccmConfig.ConfigureCloudRoutes = fi.Bool(false)
+	// 	// ccmConfig.CIDRAllocatorType = fi.String("CloudAllocator")
+
+	// 	// if ccmConfig.ClusterCIDR == "" {
+	// 	// 	ccmConfig.ClusterCIDR = clusterSpec.PodCIDR
+	// 	// }
+	// } else if networking.External != nil {
+	// 	ccmConfig.ConfigureCloudRoutes = fi.Bool(false)
+	// } else if UsesCNI(networking) {
+	// 	ccmConfig.ConfigureCloudRoutes = fi.Bool(false)
+	// } else if networking.Kopeio != nil {
+	// 	// Kopeio is based on kubenet / external
+	// 	ccmConfig.ConfigureCloudRoutes = fi.Bool(false)
+	// } else {
+	// 	return fmt.Errorf("no networking mode set")
+	// }
+
 	if ccmConfig.Image == "" {
 		// TODO: Implement CCM image publishing
 		switch b.KubernetesVersion.Minor {
