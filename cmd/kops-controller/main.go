@@ -175,19 +175,10 @@ func main() {
 	}
 
 	if opt.EnableCloudIPAM {
-		setupLog.Info("enabling IPAM controller")
-		if opt.Cloud != "aws" {
-			klog.Error("IPAM controller only supported by aws")
+		if err := setupCloudIPAM(mgr, &opt); err != nil {
+			setupLog.Error(err, "unable to setup cloud IPAM")
 			os.Exit(1)
-		}
-		ipamController, err := controllers.NewAWSIPAMReconciler(mgr)
-		if err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "IPAMController")
-			os.Exit(1)
-		}
-		if err := ipamController.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "IPAMController")
-			os.Exit(1)
+
 		}
 	}
 
@@ -320,6 +311,32 @@ func addGossipController(mgr manager.Manager, opt *config.Options) error {
 
 	if err := controller.SetupWithManager(mgr); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func setupCloudIPAM(mgr manager.Manager, opt *config.Options) error {
+	setupLog.Info("enabling IPAM controller")
+	switch opt.Cloud {
+	case "aws":
+		ipamController, err := controllers.NewAWSIPAMReconciler(mgr)
+		if err != nil {
+			return fmt.Errorf("error creating aws IPAM controller: %w", err)
+		}
+		if err := ipamController.SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("error registering aws IPAM controller: %w", err)
+		}
+	case "gce":
+		ipamController, err := controllers.NewGCEIPAMReconciler(mgr)
+		if err != nil {
+			return fmt.Errorf("error creating gce IPAM controller: %w", err)
+		}
+		if err := ipamController.SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("error registering gce IPAM controller: %w", err)
+		}
+	default:
+		return fmt.Errorf("kOps IPAM controller not supported on cloud %q", opt.Cloud)
 	}
 
 	return nil
