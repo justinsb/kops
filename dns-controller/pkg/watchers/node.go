@@ -37,9 +37,12 @@ import (
 // Unlike other watchers, NodeController only creates alias records referenced by records from other controllers
 type NodeController struct {
 	util.Stoppable
-	client   kubernetes.Interface
-	scope    dns.Scope
-	haveType map[dns.RecordType]bool
+	client kubernetes.Interface
+	scope  dns.Scope
+
+	// internalRecordTypes controls whether we publish internal records of these types;
+	// in particular to enable/disable IPv4 or IPv6 records (A or AAAA records)
+	internalRecordTypes map[dns.RecordType]bool
 }
 
 // NewNodeController creates a NodeController
@@ -50,13 +53,13 @@ func NewNodeController(client kubernetes.Interface, dnsContext dns.Context, inte
 	}
 
 	c := &NodeController{
-		client:   client,
-		scope:    scope,
-		haveType: map[dns.RecordType]bool{},
+		client:              client,
+		scope:               scope,
+		internalRecordTypes: map[dns.RecordType]bool{},
 	}
 
 	for _, recordType := range internalRecordTypes {
-		c.haveType[recordType] = true
+		c.internalRecordTypes[recordType] = true
 	}
 
 	return c, nil
@@ -162,15 +165,17 @@ func (c *NodeController) updateNodeRecords(node *v1.Node) string {
 		if utils.IsIPv6IP(a.Address) {
 			recordType = dns.RecordTypeAAAA
 		}
-		if !c.haveType[recordType] {
-			continue
-		}
-		records = append(records, dns.Record{
+		record := dns.Record{
 			RecordType:  recordType,
 			FQDN:        "node/" + node.Name + "/internal",
 			Value:       a.Address,
 			AliasTarget: true,
-		})
+		}
+		if !c.internalRecordTypes[recordType] {
+			klog.Infof("skipping internal record because records of that type are disabled: %#v", record)
+			continue
+		}
+		records = append(records, record)
 	}
 
 	// node/<name>/external -> ExternalIP
@@ -210,12 +215,18 @@ func (c *NodeController) updateNodeRecords(node *v1.Node) string {
 			if utils.IsIPv6IP(a.Address) {
 				recordType = dns.RecordTypeAAAA
 			}
-			records = append(records, dns.Record{
+
+			record := dns.Record{
 				RecordType:  recordType,
 				FQDN:        dns.AliasForNodesInRole(role, roleType),
 				Value:       a.Address,
 				AliasTarget: true,
-			})
+			}
+			if !c.internalRecordTypes[recordType] {
+				klog.Infof("skipping internal record because records of that type are disabled: %#v", record)
+				continue
+			}
+			records = append(records, record)
 		}
 	}
 
