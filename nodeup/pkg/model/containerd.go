@@ -451,7 +451,7 @@ func (b *ContainerdBuilder) buildCNIConfigTemplateFile(c *fi.NodeupModelBuilderC
             "ipam": {
                 "type": "host-local",
                 "ranges": [[{"subnet": "{{.PodCIDR}}"}]],
-                "routes": [{ "dst": "0.0.0.0/0" }]
+                "routes": [{"dst": "::/0"}, { "dst": "0.0.0.0/0" }]
             }
         },
         {
