@@ -64,7 +64,7 @@ func findEgressOnlyInternetGateway(cloud awsup.AWSCloud, request *ec2.DescribeEg
 	return igw, nil
 }
 
-func (e *EgressOnlyInternetGateway) Find(c *fi.Context) (*EgressOnlyInternetGateway, error) {
+func (e *EgressOnlyInternetGateway) Find(c *fi.Context[fi.CloudupContext]) (*EgressOnlyInternetGateway, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	request := &ec2.DescribeEgressOnlyInternetGatewaysInput{}
@@ -121,8 +121,8 @@ func (e *EgressOnlyInternetGateway) Find(c *fi.Context) (*EgressOnlyInternetGate
 	return actual, nil
 }
 
-func (e *EgressOnlyInternetGateway) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *EgressOnlyInternetGateway) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *EgressOnlyInternetGateway) CheckChanges(a, e, changes *EgressOnlyInternetGateway) error {

@@ -53,7 +53,7 @@ func (e *FirewallRule) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *FirewallRule) Find(c *fi.Context) (*FirewallRule, error) {
+func (e *FirewallRule) Find(c *fi.Context[fi.CloudupContext]) (*FirewallRule, error) {
 	cloud := c.Cloud.(gce.GCECloud)
 
 	r, err := cloud.Compute().Firewalls().Get(cloud.Project(), *e.Name)
@@ -81,11 +81,11 @@ func (e *FirewallRule) Find(c *fi.Context) (*FirewallRule, error) {
 	return actual, nil
 }
 
-func (e *FirewallRule) Run(c *fi.Context) error {
+func (e *FirewallRule) Run(c *fi.Context[fi.CloudupContext]) error {
 	if err := e.sanityCheck(); err != nil {
 		return err
 	}
-	return fi.DefaultDeltaRunMethod(e, c)
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 // sanityCheck applies some validation that isn't technically required,

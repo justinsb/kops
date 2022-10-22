@@ -91,9 +91,9 @@ type LaunchTemplate struct {
 }
 
 var (
-	_ fi.CompareWithID     = &LaunchTemplate{}
-	_ fi.ProducesDeletions = &LaunchTemplate{}
-	_ fi.Deletion          = &deleteLaunchTemplate{}
+	_ fi.CompareWithID                        = &LaunchTemplate{}
+	_ fi.ProducesDeletions[fi.CloudupContext] = &LaunchTemplate{}
+	_ fi.Deletion[fi.CloudupContext]          = &deleteLaunchTemplate{}
 )
 
 // CompareWithID implements the comparable interface
@@ -136,10 +136,10 @@ func (t *LaunchTemplate) buildRootDevice(cloud awsup.AWSCloud) (map[string]*Bloc
 }
 
 // Run is responsible for
-func (t *LaunchTemplate) Run(c *fi.Context) error {
+func (t *LaunchTemplate) Run(c *fi.Context[fi.CloudupContext]) error {
 	t.Normalize()
 
-	return fi.DefaultDeltaRunMethod(t, c)
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](t, c)
 }
 
 // Normalize is responsible for normalizing any data within the resource
@@ -162,8 +162,8 @@ func (t *LaunchTemplate) CheckChanges(a, e, changes *LaunchTemplate) error {
 }
 
 // FindDeletions is responsible for finding launch templates which can be deleted
-func (t *LaunchTemplate) FindDeletions(c *fi.Context) ([]fi.Deletion, error) {
-	var removals []fi.Deletion
+func (t *LaunchTemplate) FindDeletions(c *fi.Context[fi.CloudupContext]) ([]fi.Deletion[fi.CloudupContext], error) {
+	var removals []fi.Deletion[fi.CloudupContext]
 
 	list, err := t.findAllLaunchTemplates(c)
 	if err != nil {

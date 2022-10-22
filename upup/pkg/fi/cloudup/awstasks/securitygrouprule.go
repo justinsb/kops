@@ -55,7 +55,7 @@ type SecurityGroupRule struct {
 	Tags map[string]string
 }
 
-func (e *SecurityGroupRule) Find(c *fi.Context) (*SecurityGroupRule, error) {
+func (e *SecurityGroupRule) Find(c *fi.Context[fi.CloudupContext]) (*SecurityGroupRule, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	if e.SecurityGroup == nil || e.SecurityGroup.ID == nil {
@@ -198,8 +198,8 @@ func (e *SecurityGroupRule) matches(rule *ec2.SecurityGroupRule) bool {
 	return true
 }
 
-func (e *SecurityGroupRule) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *SecurityGroupRule) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (_ *SecurityGroupRule) CheckChanges(a, e, changes *SecurityGroupRule) error {

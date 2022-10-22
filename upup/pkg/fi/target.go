@@ -16,9 +16,9 @@ limitations under the License.
 
 package fi
 
-type Target interface {
+type Target[T SubContext] interface {
 	// Lifecycle methods, called by the driver
-	Finish(taskMap map[string]Task) error
+	Finish(taskMap map[string]Task[T]) error
 
 	// ProcessDeletions returns true if we should delete resources
 	// Some providers (e.g. Terraform) actively keep state, and will delete resources automatically

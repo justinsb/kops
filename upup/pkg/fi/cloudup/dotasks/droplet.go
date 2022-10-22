@@ -48,15 +48,15 @@ type Droplet struct {
 }
 
 var (
-	_ fi.Task          = &Droplet{}
-	_ fi.CompareWithID = &Droplet{}
+	_ fi.Task[fi.CloudupContext] = &Droplet{}
+	_ fi.CompareWithID           = &Droplet{}
 )
 
 func (d *Droplet) CompareWithID() *string {
 	return d.Name
 }
 
-func (d *Droplet) Find(c *fi.Context) (*Droplet, error) {
+func (d *Droplet) Find(c *fi.Context[fi.CloudupContext]) (*Droplet, error) {
 	cloud := c.Cloud.(do.DOCloud)
 
 	droplets, err := listDroplets(cloud)
@@ -120,8 +120,8 @@ func listDroplets(cloud do.DOCloud) ([]godo.Droplet, error) {
 	return allDroplets, nil
 }
 
-func (d *Droplet) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(d, c)
+func (d *Droplet) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](d, c)
 }
 
 func (_ *Droplet) RenderDO(t *do.DOAPITarget, a, e, changes *Droplet) error {

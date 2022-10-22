@@ -58,11 +58,11 @@ const (
 	localArchiveStateDir = "/var/cache/nodeup/archives/state/"
 )
 
-var _ fi.HasDependencies = &Archive{}
+var _ fi.HasDependencies[fi.NodeupContext] = &Archive{}
 
 // GetDependencies implements HasDependencies::GetDependencies
-func (e *Archive) GetDependencies(tasks map[string]fi.Task) []fi.Task {
-	var deps []fi.Task
+func (e *Archive) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.Task[fi.NodeupContext] {
+	var deps []fi.Task[fi.NodeupContext]
 
 	// Requires parent directories to be created
 	deps = append(deps, findCreatesDirParents(e.TargetDir, tasks)...)
@@ -89,7 +89,7 @@ func (e *Archive) Dir() string {
 }
 
 // Find implements fi.Task::Find
-func (e *Archive) Find(c *fi.Context) (*Archive, error) {
+func (e *Archive) Find(c *fi.Context[fi.NodeupContext]) (*Archive, error) {
 	// We write a marker file to prevent re-execution
 	localStateFile := path.Join(localArchiveStateDir, e.Name)
 	stateBytes, err := os.ReadFile(localStateFile)
@@ -124,8 +124,8 @@ func (e *Archive) Find(c *fi.Context) (*Archive, error) {
 }
 
 // Run implements fi.Task::Run
-func (e *Archive) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *Archive) Run(c *fi.Context[fi.NodeupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.NodeupContext](e, c)
 }
 
 // CheckChanges implements fi.Task::CheckChanges

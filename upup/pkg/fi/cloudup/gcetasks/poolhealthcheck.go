@@ -36,8 +36,8 @@ type PoolHealthCheck struct {
 var _ fi.CompareWithID = &PoolHealthCheck{}
 
 // GetDependencies returns the dependencies of the PoolHealthCheck task
-func (_ *PoolHealthCheck) GetDependencies(tasks map[string]fi.Task) []fi.Task {
-	var deps []fi.Task
+func (_ *PoolHealthCheck) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
+	var deps []fi.Task[fi.CloudupContext]
 	for _, task := range tasks {
 		if _, ok := task.(*HTTPHealthcheck); ok {
 			deps = append(deps, task)
@@ -53,7 +53,7 @@ func (e *PoolHealthCheck) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *PoolHealthCheck) Find(c *fi.Context) (*PoolHealthCheck, error) {
+func (e *PoolHealthCheck) Find(c *fi.Context[fi.CloudupContext]) (*PoolHealthCheck, error) {
 	cloud := c.Cloud.(gce.GCECloud)
 	name := fi.StringValue(e.Pool.Name)
 	r, err := cloud.Compute().TargetPools().Get(cloud.Project(), cloud.Region(), name)
@@ -76,8 +76,8 @@ func (e *PoolHealthCheck) Find(c *fi.Context) (*PoolHealthCheck, error) {
 	return nil, nil
 }
 
-func (e *PoolHealthCheck) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *PoolHealthCheck) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (_ *PoolHealthCheck) CheckChanges(a, e, changes *PoolHealthCheck) error {

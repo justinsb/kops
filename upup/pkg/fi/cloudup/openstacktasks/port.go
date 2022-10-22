@@ -42,8 +42,8 @@ type Port struct {
 }
 
 // GetDependencies returns the dependencies of the Port task
-func (e *Port) GetDependencies(tasks map[string]fi.Task) []fi.Task {
-	var deps []fi.Task
+func (e *Port) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
+	var deps []fi.Task[fi.CloudupContext]
 	for _, task := range tasks {
 		if _, ok := task.(*Subnet); ok {
 			deps = append(deps, task)
@@ -146,7 +146,7 @@ func newPortTaskFromCloud(cloud openstack.OpenstackCloud, lifecycle fi.Lifecycle
 	return actual, nil
 }
 
-func (s *Port) Find(context *fi.Context) (*Port, error) {
+func (s *Port) Find(context *fi.Context[fi.CloudupContext]) (*Port, error) {
 	cloud := context.Cloud.(openstack.OpenstackCloud)
 	opt := ports.ListOpts{
 		Name: fi.StringValue(s.Name),
@@ -167,8 +167,8 @@ func (s *Port) Find(context *fi.Context) (*Port, error) {
 	return newPortTaskFromCloud(cloud, s.Lifecycle, &rs[0], s)
 }
 
-func (s *Port) Run(context *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(s, context)
+func (s *Port) Run(context *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](s, context)
 }
 
 func (_ *Port) CheckChanges(a, e, changes *Port) error {

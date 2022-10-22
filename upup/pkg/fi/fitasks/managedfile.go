@@ -47,7 +47,7 @@ type ManagedFile struct {
 	Public *bool
 }
 
-func (e *ManagedFile) Find(c *fi.Context) (*ManagedFile, error) {
+func (e *ManagedFile) Find(c *fi.Context[fi.CloudupContext]) (*ManagedFile, error) {
 	managedFiles, err := getBasePath(c, e)
 	if err != nil {
 		return nil, err
@@ -105,8 +105,8 @@ func (e *ManagedFile) Find(c *fi.Context) (*ManagedFile, error) {
 	return actual, nil
 }
 
-func (e *ManagedFile) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *ManagedFile) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *ManagedFile) CheckChanges(a, e, changes *ManagedFile) error {
@@ -121,7 +121,7 @@ func (s *ManagedFile) CheckChanges(a, e, changes *ManagedFile) error {
 	return nil
 }
 
-func (e *ManagedFile) getACL(c *fi.Context, p vfs.Path) (vfs.ACL, error) {
+func (e *ManagedFile) getACL(c *fi.Context[fi.CloudupContext], p vfs.Path) (vfs.ACL, error) {
 	var acl vfs.ACL
 	if fi.BoolValue(e.Public) {
 		switch p := p.(type) {
@@ -145,7 +145,7 @@ func (e *ManagedFile) getACL(c *fi.Context, p vfs.Path) (vfs.ACL, error) {
 	return acls.GetACL(p, c.Cluster)
 }
 
-func (_ *ManagedFile) Render(c *fi.Context, a, e, changes *ManagedFile) error {
+func (_ *ManagedFile) Render(c *fi.Context[fi.CloudupContext], a, e, changes *ManagedFile) error {
 	location := fi.StringValue(e.Location)
 	if location == "" {
 		return fi.RequiredField("Location")
@@ -175,7 +175,7 @@ func (_ *ManagedFile) Render(c *fi.Context, a, e, changes *ManagedFile) error {
 	return nil
 }
 
-func getBasePath(c *fi.Context, e *ManagedFile) (vfs.Path, error) {
+func getBasePath(c *fi.Context[fi.CloudupContext], e *ManagedFile) (vfs.Path, error) {
 	base := fi.StringValue(e.Base)
 	if base != "" {
 		p, err := vfs.Context.BuildVfsPath(base)
@@ -189,7 +189,7 @@ func getBasePath(c *fi.Context, e *ManagedFile) (vfs.Path, error) {
 }
 
 // RenderTerraform is responsible for rendering the terraform json.
-func (f *ManagedFile) RenderTerraform(c *fi.Context, t *terraform.TerraformTarget, a, e, changes *ManagedFile) error {
+func (f *ManagedFile) RenderTerraform(c *fi.Context[fi.CloudupContext], t *terraform.TerraformTarget, a, e, changes *ManagedFile) error {
 	if !featureflag.TerraformManagedFiles.Enabled() {
 		return f.Render(c, a, e, changes)
 	}

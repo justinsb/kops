@@ -165,8 +165,8 @@ func runChannelBuilderTest(t *testing.T, key string, addonManifests []string) {
 		nil,
 	)
 
-	context := &fi.ModelBuilderContext{
-		Tasks: make(map[string]fi.Task),
+	context := &fi.ModelBuilderContext[fi.CloudupContext]{
+		Tasks: make(map[string]fi.Task[fi.CloudupContext]),
 	}
 	err = bcb.Build(context)
 	if err != nil {

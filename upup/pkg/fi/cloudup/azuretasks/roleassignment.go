@@ -53,8 +53,8 @@ type RoleAssignment struct {
 }
 
 var (
-	_ fi.Task          = &RoleAssignment{}
-	_ fi.CompareWithID = &RoleAssignment{}
+	_ fi.Task[fi.CloudupContext] = &RoleAssignment{}
+	_ fi.CompareWithID           = &RoleAssignment{}
 )
 
 // CompareWithID returns the Name of the VM Scale Set.
@@ -63,7 +63,7 @@ func (r *RoleAssignment) CompareWithID() *string {
 }
 
 // Find discovers the RoleAssignment in the cloud provider.
-func (r *RoleAssignment) Find(c *fi.Context) (*RoleAssignment, error) {
+func (r *RoleAssignment) Find(c *fi.Context[fi.CloudupContext]) (*RoleAssignment, error) {
 	if r.VMScaleSet.PrincipalID == nil {
 		// PrincipalID of the VM Scale Set hasn't yet been
 		// populated. No corresponding Role Assignment
@@ -127,8 +127,8 @@ func (r *RoleAssignment) Find(c *fi.Context) (*RoleAssignment, error) {
 }
 
 // Run implements fi.Task.Run.
-func (r *RoleAssignment) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(r, c)
+func (r *RoleAssignment) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](r, c)
 }
 
 // CheckChanges returns an error if a change is not allowed.

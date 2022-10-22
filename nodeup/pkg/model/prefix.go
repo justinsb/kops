@@ -25,9 +25,9 @@ type PrefixBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder = &PrefixBuilder{}
+var _ fi.ModelBuilder[fi.NodeupContext] = &PrefixBuilder{}
 
-func (b *PrefixBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *PrefixBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
 	if !b.Cluster.Spec.IsKopsControllerIPAM() {
 		return nil
 	}

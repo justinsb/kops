@@ -62,7 +62,7 @@ func (s *Instance) CompareWithID() *string {
 	return s.ID
 }
 
-func (e *Instance) Find(c *fi.Context) (*Instance, error) {
+func (e *Instance) Find(c *fi.Context[fi.CloudupContext]) (*Instance, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 	var request *ec2.DescribeInstancesInput
 
@@ -194,8 +194,8 @@ func nameFromIAMARN(arn *string) *string {
 	return &name
 }
 
-func (e *Instance) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *Instance) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (_ *Instance) CheckChanges(a, e, changes *Instance) error {

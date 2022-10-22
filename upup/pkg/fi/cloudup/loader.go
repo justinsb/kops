@@ -27,18 +27,18 @@ import (
 )
 
 type Loader struct {
-	Builders []fi.ModelBuilder
+	Builders []fi.ModelBuilder[fi.CloudupContext]
 
-	tasks map[string]fi.Task
+	tasks map[string]fi.Task[fi.CloudupContext]
 }
 
 func (l *Loader) Init() {
-	l.tasks = make(map[string]fi.Task)
+	l.tasks = make(map[string]fi.Task[fi.CloudupContext])
 }
 
-func (l *Loader) BuildTasks(lifecycleOverrides map[string]fi.Lifecycle) (map[string]fi.Task, error) {
+func (l *Loader) BuildTasks(lifecycleOverrides map[string]fi.Lifecycle) (map[string]fi.Task[fi.CloudupContext], error) {
 	for _, builder := range l.Builders {
-		context := &fi.ModelBuilderContext{
+		context := &fi.ModelBuilderContext[fi.CloudupContext]{
 			Tasks:              l.tasks,
 			LifecycleOverrides: lifecycleOverrides,
 		}
@@ -113,10 +113,10 @@ func (l *Loader) processDeferrals() error {
 	return nil
 }
 
-func (l *Loader) FindDeletions(cloud fi.Cloud, lifecycleOverrides map[string]fi.Lifecycle) (map[string]fi.Task, error) {
+func (l *Loader) FindDeletions(cloud fi.Cloud, lifecycleOverrides map[string]fi.Lifecycle) (map[string]fi.Task[fi.CloudupContext], error) {
 	for _, builder := range l.Builders {
 		if hasDeletions, ok := builder.(fi.HasDeletions); ok {
-			context := &fi.ModelBuilderContext{
+			context := &fi.ModelBuilderContext[fi.CloudupContext]{
 				Tasks:              l.tasks,
 				LifecycleOverrides: lifecycleOverrides,
 			}

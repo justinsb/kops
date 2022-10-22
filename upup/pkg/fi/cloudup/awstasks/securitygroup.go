@@ -49,8 +49,8 @@ type SecurityGroup struct {
 }
 
 var (
-	_ fi.CompareWithID     = &SecurityGroup{}
-	_ fi.ProducesDeletions = &SecurityGroup{}
+	_ fi.CompareWithID                        = &SecurityGroup{}
+	_ fi.ProducesDeletions[fi.CloudupContext] = &SecurityGroup{}
 )
 
 func (e *SecurityGroup) CompareWithID() *string {
@@ -66,7 +66,7 @@ func (a OrderSecurityGroupsById) Less(i, j int) bool {
 	return fi.StringValue(a[i].ID) < fi.StringValue(a[j].ID)
 }
 
-func (e *SecurityGroup) Find(c *fi.Context) (*SecurityGroup, error) {
+func (e *SecurityGroup) Find(c *fi.Context[fi.CloudupContext]) (*SecurityGroup, error) {
 	sg, err := e.findEc2(c)
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (e *SecurityGroup) Find(c *fi.Context) (*SecurityGroup, error) {
 	return actual, nil
 }
 
-func (e *SecurityGroup) findEc2(c *fi.Context) (*ec2.SecurityGroup, error) {
+func (e *SecurityGroup) findEc2(c *fi.Context[fi.CloudupContext]) (*ec2.SecurityGroup, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 	request := &ec2.DescribeSecurityGroupsInput{}
 
@@ -131,8 +131,8 @@ func (e *SecurityGroup) findEc2(c *fi.Context) (*ec2.SecurityGroup, error) {
 	return sg, nil
 }
 
-func (e *SecurityGroup) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *SecurityGroup) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (_ *SecurityGroup) ShouldCreate(a, e, changes *SecurityGroup) (bool, error) {
@@ -265,9 +265,9 @@ type deleteSecurityGroupRule struct {
 	rule *ec2.SecurityGroupRule
 }
 
-var _ fi.Deletion = &deleteSecurityGroupRule{}
+var _ fi.Deletion[fi.CloudupContext] = &deleteSecurityGroupRule{}
 
-func (d *deleteSecurityGroupRule) Delete(t fi.Target) error {
+func (d *deleteSecurityGroupRule) Delete(t fi.Target[fi.CloudupContext]) error {
 	klog.V(2).Infof("deleting security group permission: %v", fi.DebugAsJsonString(d.rule))
 
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
@@ -329,8 +329,8 @@ func (d *deleteSecurityGroupRule) Item() string {
 	return s
 }
 
-func (e *SecurityGroup) FindDeletions(c *fi.Context) ([]fi.Deletion, error) {
-	var removals []fi.Deletion
+func (e *SecurityGroup) FindDeletions(c *fi.Context[fi.CloudupContext]) ([]fi.Deletion[fi.CloudupContext], error) {
+	var removals []fi.Deletion[fi.CloudupContext]
 
 	if len(e.RemoveExtraRules) == 0 {
 		return nil, nil

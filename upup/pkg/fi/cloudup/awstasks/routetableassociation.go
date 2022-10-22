@@ -43,7 +43,7 @@ func (s *RouteTableAssociation) CompareWithID() *string {
 	return s.ID
 }
 
-func (e *RouteTableAssociation) Find(c *fi.Context) (*RouteTableAssociation, error) {
+func (e *RouteTableAssociation) Find(c *fi.Context[fi.CloudupContext]) (*RouteTableAssociation, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	routeTableID := e.RouteTable.ID
@@ -91,8 +91,8 @@ func (e *RouteTableAssociation) Find(c *fi.Context) (*RouteTableAssociation, err
 	return nil, nil
 }
 
-func (e *RouteTableAssociation) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *RouteTableAssociation) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *RouteTableAssociation) CheckChanges(a, e, changes *RouteTableAssociation) error {

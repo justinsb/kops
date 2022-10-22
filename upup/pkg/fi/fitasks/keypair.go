@@ -47,17 +47,17 @@ type Keypair struct {
 	// LegacyFormat is whether the keypair is stored in a legacy format.
 	LegacyFormat bool `json:"oldFormat"`
 
-	certificates *fi.TaskDependentResource
+	certificates *fi.TaskDependentResource[fi.CloudupContext]
 	keyset       *fi.Keyset
 }
 
 var (
-	_ fi.HasCheckExisting = &Keypair{}
-	_ fi.HasName          = &Keypair{}
+	_ fi.HasCheckExisting[fi.CloudupContext] = &Keypair{}
+	_ fi.HasName                             = &Keypair{}
 )
 
 // It's important always to check for the existing key, so we don't regenerate keys e.g. on terraform
-func (e *Keypair) CheckExisting(c *fi.Context) bool {
+func (e *Keypair) CheckExisting(c *fi.Context[fi.CloudupContext]) bool {
 	return true
 }
 
@@ -67,7 +67,7 @@ func (e *Keypair) CompareWithID() *string {
 	return &e.Subject
 }
 
-func (e *Keypair) Find(c *fi.Context) (*Keypair, error) {
+func (e *Keypair) Find(c *fi.Context[fi.CloudupContext]) (*Keypair, error) {
 	name := fi.StringValue(e.Name)
 	if name == "" {
 		return nil, nil
@@ -114,12 +114,12 @@ func (e *Keypair) Find(c *fi.Context) (*Keypair, error) {
 	return actual, nil
 }
 
-func (e *Keypair) Run(c *fi.Context) error {
+func (e *Keypair) Run(c *fi.Context[fi.CloudupContext]) error {
 	err := e.normalize()
 	if err != nil {
 		return err
 	}
-	return fi.DefaultDeltaRunMethod(e, c)
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (e *Keypair) normalize() error {
@@ -161,7 +161,7 @@ func (_ *Keypair) ShouldCreate(a, e, changes *Keypair) (bool, error) {
 	return true, nil
 }
 
-func (_ *Keypair) Render(c *fi.Context, a, e, changes *Keypair) error {
+func (_ *Keypair) Render(c *fi.Context[fi.CloudupContext], a, e, changes *Keypair) error {
 	name := fi.StringValue(e.Name)
 	if name == "" {
 		return fi.RequiredField("Name")
@@ -325,7 +325,7 @@ func parsePkixName(s string) (*pkix.Name, error) {
 
 func (e *Keypair) ensureResources() {
 	if e.certificates == nil {
-		e.certificates = &fi.TaskDependentResource{
+		e.certificates = &fi.TaskDependentResource[fi.CloudupContext]{
 			Resource: fi.NewStringResource("<< TO BE GENERATED >>\n"),
 			Task:     e,
 		}
@@ -355,7 +355,7 @@ func (e *Keypair) Keyset() *fi.Keyset {
 	return e.keyset
 }
 
-func (e *Keypair) Certificates() *fi.TaskDependentResource {
+func (e *Keypair) Certificates() *fi.TaskDependentResource[fi.CloudupContext] {
 	e.ensureResources()
 	return e.certificates
 }

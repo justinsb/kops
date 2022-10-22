@@ -31,10 +31,10 @@ type Chattr struct {
 	File string `json:"file"`
 	Mode string `json:"mode"`
 
-	Deps []fi.Task `json:"-"`
+	Deps []fi.Task[fi.NodeupContext] `json:"-"`
 }
 
-var _ fi.Task = &Chattr{}
+var _ fi.Task[fi.NodeupContext] = &Chattr{}
 
 func (s *Chattr) String() string {
 	return fmt.Sprintf("Chattr: chattr %s %s", s.Mode, s.File)
@@ -46,20 +46,20 @@ func (e *Chattr) GetName() *string {
 	return fi.String("Chattr-" + e.File)
 }
 
-var _ fi.HasDependencies = &Chattr{}
+var _ fi.HasDependencies[fi.NodeupContext] = &Chattr{}
 
 // GetDependencies implements HasDependencies::GetDependencies
-func (e *Chattr) GetDependencies(tasks map[string]fi.Task) []fi.Task {
+func (e *Chattr) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.Task[fi.NodeupContext] {
 	return e.Deps
 }
 
-func (e *Chattr) Find(c *fi.Context) (*Chattr, error) {
+func (e *Chattr) Find(c *fi.Context[fi.NodeupContext]) (*Chattr, error) {
 	// We always re-run the chattr command
 	return nil, nil
 }
 
-func (e *Chattr) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *Chattr) Run(c *fi.Context[fi.NodeupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.NodeupContext](e, c)
 }
 
 func (s *Chattr) CheckChanges(a, e, changes *Chattr) error {

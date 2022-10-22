@@ -48,7 +48,7 @@ func NewCloudformationTarget(cloud fi.Cloud, project string, outDir string) *Clo
 	}
 }
 
-var _ fi.Target = &CloudformationTarget{}
+var _ fi.Target[fi.CloudupContext] = &CloudformationTarget{}
 
 type cloudformationResource struct {
 	Type       string
@@ -106,7 +106,7 @@ func (t *CloudformationTarget) Find(ref *Literal) (interface{}, bool) {
 	return r.Properties, true
 }
 
-func (t *CloudformationTarget) Finish(taskMap map[string]fi.Task) error {
+func (t *CloudformationTarget) Finish(taskMap map[string]fi.Task[fi.CloudupContext]) error {
 	//resourcesByType := make(map[string]map[string]interface{})
 	//
 	//for _, res := range t.resources {

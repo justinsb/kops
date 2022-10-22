@@ -49,10 +49,10 @@ type KubeAPIServerBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder = &KubeAPIServerBuilder{}
+var _ fi.ModelBuilder[fi.NodeupContext] = &KubeAPIServerBuilder{}
 
 // Build is responsible for generating the configuration for the kube-apiserver.
-func (b *KubeAPIServerBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *KubeAPIServerBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
 	if !b.HasAPIServer {
 		return nil
 	}
@@ -216,7 +216,7 @@ func (b *KubeAPIServerBuilder) Build(c *fi.ModelBuilderContext) error {
 	return nil
 }
 
-func (b *KubeAPIServerBuilder) writeAuthenticationConfig(c *fi.ModelBuilderContext, kubeAPIServer *kops.KubeAPIServerConfig) error {
+func (b *KubeAPIServerBuilder) writeAuthenticationConfig(c *fi.ModelBuilderContext[fi.NodeupContext], kubeAPIServer *kops.KubeAPIServerConfig) error {
 	if b.Cluster.Spec.Authentication == nil || b.Cluster.Spec.Authentication.IsEmpty() {
 		return nil
 	}
@@ -354,7 +354,7 @@ func (b *KubeAPIServerBuilder) writeAuthenticationConfig(c *fi.ModelBuilderConte
 	return fmt.Errorf("unrecognized authentication config %v", b.Cluster.Spec.Authentication)
 }
 
-func (b *KubeAPIServerBuilder) writeServerCertificate(c *fi.ModelBuilderContext, kubeAPIServer *kops.KubeAPIServerConfig) error {
+func (b *KubeAPIServerBuilder) writeServerCertificate(c *fi.ModelBuilderContext[fi.NodeupContext], kubeAPIServer *kops.KubeAPIServerConfig) error {
 	pathSrvKAPI := filepath.Join(b.PathSrvKubernetes(), "kube-apiserver")
 
 	{
@@ -434,7 +434,7 @@ func (b *KubeAPIServerBuilder) writeServerCertificate(c *fi.ModelBuilderContext,
 	return nil
 }
 
-func (b *KubeAPIServerBuilder) writeKubeletAPICertificate(c *fi.ModelBuilderContext, kubeAPIServer *kops.KubeAPIServerConfig) error {
+func (b *KubeAPIServerBuilder) writeKubeletAPICertificate(c *fi.ModelBuilderContext[fi.NodeupContext], kubeAPIServer *kops.KubeAPIServerConfig) error {
 	pathSrvKAPI := filepath.Join(b.PathSrvKubernetes(), "kube-apiserver")
 
 	issueCert := &nodetasks.IssueCert{
@@ -457,7 +457,7 @@ func (b *KubeAPIServerBuilder) writeKubeletAPICertificate(c *fi.ModelBuilderCont
 	return nil
 }
 
-func (b *KubeAPIServerBuilder) writeStaticCredentials(c *fi.ModelBuilderContext, kubeAPIServer *kops.KubeAPIServerConfig) error {
+func (b *KubeAPIServerBuilder) writeStaticCredentials(c *fi.ModelBuilderContext[fi.NodeupContext], kubeAPIServer *kops.KubeAPIServerConfig) error {
 	pathSrvKAPI := filepath.Join(b.PathSrvKubernetes(), "kube-apiserver")
 
 	if b.SecretStore != nil {

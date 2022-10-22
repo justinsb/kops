@@ -41,10 +41,10 @@ type APILoadBalancerBuilder struct {
 	SecurityLifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder = &APILoadBalancerBuilder{}
+var _ fi.ModelBuilder[fi.CloudupContext] = &APILoadBalancerBuilder{}
 
 // Build is responsible for building the KubeAPI tasks for the aws model
-func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *APILoadBalancerBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
 	// Configuration where an ELB fronts the API
 	if !b.UseLoadBalancerForAPI() {
 		return nil

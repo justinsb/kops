@@ -52,7 +52,7 @@ func (e *DNSZone) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *DNSZone) Find(c *fi.Context) (*DNSZone, error) {
+func (e *DNSZone) Find(c *fi.Context[fi.CloudupContext]) (*DNSZone, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	z, err := e.findExisting(cloud)
@@ -161,8 +161,8 @@ func (e *DNSZone) findExisting(cloud awsup.AWSCloud) (*route53.GetHostedZoneOutp
 	}
 }
 
-func (e *DNSZone) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *DNSZone) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *DNSZone) CheckChanges(a, e, changes *DNSZone) error {

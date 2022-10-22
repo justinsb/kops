@@ -51,10 +51,10 @@ type EtcdManagerBuilder struct {
 	AssetBuilder *assets.AssetBuilder
 }
 
-var _ fi.ModelBuilder = &EtcdManagerBuilder{}
+var _ fi.ModelBuilder[fi.CloudupContext] = &EtcdManagerBuilder{}
 
 // Build creates the tasks
-func (b *EtcdManagerBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *EtcdManagerBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
 	for _, etcdCluster := range b.Cluster.Spec.EtcdClusters {
 		backupStore := ""
 		if etcdCluster.Backups != nil {

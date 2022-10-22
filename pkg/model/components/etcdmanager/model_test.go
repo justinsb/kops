@@ -41,8 +41,8 @@ func Test_RunEtcdManagerBuilder(t *testing.T) {
 		basedir := basedir
 
 		t.Run(fmt.Sprintf("basedir=%s", basedir), func(t *testing.T) {
-			context := &fi.ModelBuilderContext{
-				Tasks: make(map[string]fi.Task),
+			context := &fi.ModelBuilderContext[fi.CloudupContext]{
+				Tasks: make(map[string]fi.Task[fi.CloudupContext]),
 			}
 			kopsModelContext, err := LoadKopsModelContext(basedir)
 			if err != nil {

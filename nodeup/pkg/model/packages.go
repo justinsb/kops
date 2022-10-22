@@ -29,10 +29,10 @@ type PackagesBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder = &DockerBuilder{}
+var _ fi.ModelBuilder[fi.NodeupContext] = &PackagesBuilder{}
 
 // Build is responsible for installing packages
-func (b *PackagesBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *PackagesBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
 	// kubelet needs:
 	//   conntrack  - kops #5671
 	//   ebtables - kops #1711

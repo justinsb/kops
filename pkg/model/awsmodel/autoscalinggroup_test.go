@@ -82,8 +82,8 @@ func TestRootVolumeOptimizationFlag(t *testing.T) {
 		Cluster: cluster,
 	}
 
-	c := &fi.ModelBuilderContext{
-		Tasks: make(map[string]fi.Task),
+	c := &fi.ModelBuilderContext[fi.CloudupContext]{
+		Tasks: make(map[string]fi.Task[fi.CloudupContext]),
 	}
 
 	// We need the CA for the bootstrap script
@@ -186,8 +186,8 @@ func TestAPIServerAdditionalSecurityGroupsWithNLB(t *testing.T) {
 		Cluster: cluster,
 	}
 
-	c := &fi.ModelBuilderContext{
-		Tasks: make(map[string]fi.Task),
+	c := &fi.ModelBuilderContext[fi.CloudupContext]{
+		Tasks: make(map[string]fi.Task[fi.CloudupContext]),
 	}
 
 	// We need the CA for the bootstrap script

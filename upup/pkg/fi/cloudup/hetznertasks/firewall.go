@@ -45,7 +45,7 @@ func (v *Firewall) CompareWithID() *string {
 	return fi.String(strconv.Itoa(fi.IntValue(v.ID)))
 }
 
-func (v *Firewall) Find(c *fi.Context) (*Firewall, error) {
+func (v *Firewall) Find(c *fi.Context[fi.CloudupContext]) (*Firewall, error) {
 	cloud := c.Cloud.(hetzner.HetznerCloud)
 	client := cloud.FirewallClient()
 
@@ -85,8 +85,8 @@ func (v *Firewall) Find(c *fi.Context) (*Firewall, error) {
 	return nil, nil
 }
 
-func (v *Firewall) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(v, c)
+func (v *Firewall) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](v, c)
 }
 
 func (_ *Firewall) CheckChanges(a, e, changes *Firewall) error {
@@ -201,9 +201,9 @@ type FirewallRule struct {
 	Port      *string
 }
 
-var _ fi.HasDependencies = &FirewallRule{}
+var _ fi.HasDependencies[fi.CloudupContext] = &FirewallRule{}
 
-func (e *FirewallRule) GetDependencies(tasks map[string]fi.Task) []fi.Task {
+func (e *FirewallRule) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
 	return nil
 }
 

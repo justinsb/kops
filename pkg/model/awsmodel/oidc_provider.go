@@ -28,13 +28,13 @@ type OIDCProviderBuilder struct {
 	Lifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder = &OIDCProviderBuilder{}
+var _ fi.ModelBuilder[fi.CloudupContext] = &OIDCProviderBuilder{}
 
 const (
 	defaultAudience = "amazonaws.com"
 )
 
-func (b *OIDCProviderBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *OIDCProviderBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
 	if b.Cluster.Spec.ServiceAccountIssuerDiscovery == nil ||
 		!b.Cluster.Spec.ServiceAccountIssuerDiscovery.EnableAWSOIDCProvider {
 		return nil

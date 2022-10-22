@@ -24,47 +24,47 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type Task interface {
-	Run(*Context) error
+type Task[T SubContext] interface {
+	Run(*Context[T]) error
 }
 
 // TaskPreRun is implemented by tasks that perform some initial validation.
-type TaskPreRun interface {
+type TaskPreRun[T SubContext] interface {
 	// PreRun will be run for all TaskPreRuns, before any Run functions are invoked.
-	PreRun(*Context) error
+	PreRun(*Context[T]) error
 }
 
 // TaskAsString renders the task for debug output
 // TODO: Use reflection to make this cleaner: don't recurse into tasks - print their names instead
 // also print resources in a cleaner way (use the resource source information?)
-func TaskAsString(t Task) string {
+func TaskAsString[T SubContext](t Task[T]) string {
 	return fmt.Sprintf("%T %s", t, DebugAsJsonString(t))
 }
 
-type HasCheckExisting interface {
-	CheckExisting(c *Context) bool
+type HasCheckExisting[T SubContext] interface {
+	CheckExisting(c *Context[T]) bool
 }
 
 // ModelBuilder allows for plugins that configure an aspect of the model, based on the configuration
-type ModelBuilder interface {
-	Build(context *ModelBuilderContext) error
+type ModelBuilder[T SubContext] interface {
+	Build(context *ModelBuilderContext[T]) error
 }
 
-// HasDeletions is a ModelBuilder that creates tasks to delete cloud objects that no longer exist in the model.
+// HasDeletions is a ModelBuilder[CloudupContext] that creates tasks to delete cloud objects that no longer exist in the model.
 type HasDeletions interface {
-	ModelBuilder
+	ModelBuilder[CloudupContext]
 	// FindDeletions finds cloud objects that are owned by the cluster but no longer in the model and creates tasks to delete them.
 	// It is not called for the Terraform or Cloudformation targets.
-	FindDeletions(context *ModelBuilderContext, cloud Cloud) error
+	FindDeletions(context *ModelBuilderContext[CloudupContext], cloud Cloud) error
 }
 
 // ModelBuilderContext is a context object that holds state we want to pass to ModelBuilder
-type ModelBuilderContext struct {
-	Tasks              map[string]Task
+type ModelBuilderContext[T SubContext] struct {
+	Tasks              map[string]Task[T]
 	LifecycleOverrides map[string]Lifecycle
 }
 
-func (c *ModelBuilderContext) AddTask(task Task) {
+func (c *ModelBuilderContext[T]) AddTask(task Task[T]) {
 	task = c.setLifecycleOverride(task)
 	key := buildTaskKey(task)
 
@@ -79,7 +79,7 @@ func (c *ModelBuilderContext) AddTask(task Task) {
 // It adds the task if it does not already exist.
 // If it does exist, it verifies that the existing task reflect.DeepEqual the new task,
 // if they are different an error is returned.
-func (c *ModelBuilderContext) EnsureTask(task Task) error {
+func (c *ModelBuilderContext[T]) EnsureTask(task Task[T]) error {
 	task = c.setLifecycleOverride(task)
 	key := buildTaskKey(task)
 
@@ -102,7 +102,7 @@ func (c *ModelBuilderContext) EnsureTask(task Task) error {
 // setLifecycleOverride determines if a Lifecycle is in the LifecycleOverrides map for the current task.
 // If the lifecycle exist then the task lifecycle is set to the lifecycle provides in LifecycleOverrides.
 // This func allows for lifecycles to be passed in dynamically and have the task lifecycle set accordingly.
-func (c *ModelBuilderContext) setLifecycleOverride(task Task) Task {
+func (c *ModelBuilderContext[T]) setLifecycleOverride(task Task[T]) Task[T] {
 	// TODO(@chrislovecnm) - wonder if we should update the nodeup tasks to have lifecycle
 	// TODO - so that we can return an error here, rather than just returning.
 	// certain tasks have not implemented HasLifecycle interface
@@ -124,7 +124,7 @@ func (c *ModelBuilderContext) setLifecycleOverride(task Task) Task {
 	return task
 }
 
-func buildTaskKey(task Task) string {
+func buildTaskKey[T SubContext](task Task[T]) string {
 	hasName, ok := task.(HasName)
 	if !ok {
 		klog.Fatalf("task %T does not implement HasName", task)

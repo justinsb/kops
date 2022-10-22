@@ -27,8 +27,8 @@ func TestResourceGroupModelBuilder_Build(t *testing.T) {
 	b := ResourceGroupModelBuilder{
 		AzureModelContext: newTestAzureModelContext(),
 	}
-	c := &fi.ModelBuilderContext{
-		Tasks: make(map[string]fi.Task),
+	c := &fi.ModelBuilderContext[fi.CloudupContext]{
+		Tasks: make(map[string]fi.Task[fi.CloudupContext]),
 	}
 	err := b.Build(c)
 	if err != nil {
@@ -37,7 +37,7 @@ func TestResourceGroupModelBuilder_Build(t *testing.T) {
 	if len(c.Tasks) != 1 {
 		t.Errorf("unexpected number of tasks: %s", c.Tasks)
 	}
-	var task fi.Task
+	var task fi.Task[fi.CloudupContext]
 	for _, t := range c.Tasks {
 		task = t
 		break

@@ -52,7 +52,7 @@ func (e *DHCPOptions) CompareWithID() *string {
 	return e.ID
 }
 
-func (e *DHCPOptions) Find(c *fi.Context) (*DHCPOptions, error) {
+func (e *DHCPOptions) Find(c *fi.Context[fi.CloudupContext]) (*DHCPOptions, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	request := &ec2.DescribeDhcpOptionsInput{}
@@ -110,8 +110,8 @@ func (e *DHCPOptions) Find(c *fi.Context) (*DHCPOptions, error) {
 	return actual, nil
 }
 
-func (e *DHCPOptions) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *DHCPOptions) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *DHCPOptions) CheckChanges(a, e, changes *DHCPOptions) error {

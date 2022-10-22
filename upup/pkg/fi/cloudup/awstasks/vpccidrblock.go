@@ -40,7 +40,7 @@ type VPCCIDRBlock struct {
 	Shared *bool
 }
 
-func (e *VPCCIDRBlock) Find(c *fi.Context) (*VPCCIDRBlock, error) {
+func (e *VPCCIDRBlock) Find(c *fi.Context[fi.CloudupContext]) (*VPCCIDRBlock, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	vpcID := aws.StringValue(e.VPC.ID)
@@ -90,8 +90,8 @@ func (e *VPCCIDRBlock) Find(c *fi.Context) (*VPCCIDRBlock, error) {
 	return actual, nil
 }
 
-func (e *VPCCIDRBlock) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *VPCCIDRBlock) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *VPCCIDRBlock) CheckChanges(a, e, changes *VPCCIDRBlock) error {

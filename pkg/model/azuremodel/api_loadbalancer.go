@@ -33,10 +33,10 @@ type APILoadBalancerModelBuilder struct {
 	SecurityLifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder = &APILoadBalancerModelBuilder{}
+var _ fi.ModelBuilder[fi.CloudupContext] = &APILoadBalancerModelBuilder{}
 
 // Build builds tasks for creating a K8s API server for Azure.
-func (b *APILoadBalancerModelBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *APILoadBalancerModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
 	if !b.UseLoadBalancerForAPI() {
 		return nil
 	}

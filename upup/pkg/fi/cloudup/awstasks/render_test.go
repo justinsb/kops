@@ -69,7 +69,7 @@ func doRenderTests(t *testing.T, method string, cases []*renderTest) {
 			}
 
 			// @step: invoke the target finish up
-			in := []reflect.Value{reflect.ValueOf(make(map[string]fi.Task))}
+			in := []reflect.Value{reflect.ValueOf(make(map[string]fi.Task[fi.CloudupContext]))}
 			resp = reflect.ValueOf(target).MethodByName("Finish").Call(in)
 			if err := resp[0].Interface(); err != nil {
 				return err.(error)

@@ -27,9 +27,9 @@ type SSHKeyModelBuilder struct {
 	Lifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder = &SSHKeyModelBuilder{}
+var _ fi.ModelBuilder[fi.CloudupContext] = &SSHKeyModelBuilder{}
 
-func (b *SSHKeyModelBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *SSHKeyModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
 	name, err := b.SSHKeyName()
 	if err != nil {
 		return err

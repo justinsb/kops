@@ -99,7 +99,7 @@ func TestSecurityGroupCreate(t *testing.T) {
 	cloud.MockEC2 = c
 
 	// We define a function so we can rebuild the tasks, because we modify in-place when running
-	buildTasks := func() map[string]fi.Task {
+	buildTasks := func() map[string]fi.Task[fi.CloudupContext] {
 		vpc1 := &VPC{
 			Name:      s("vpc1"),
 			Lifecycle: fi.LifecycleSync,
@@ -114,7 +114,7 @@ func TestSecurityGroupCreate(t *testing.T) {
 			Tags:        map[string]string{"Name": "sg1"},
 		}
 
-		return map[string]fi.Task{
+		return map[string]fi.Task[fi.CloudupContext]{
 			"sg1":  sg1,
 			"vpc1": vpc1,
 		}
@@ -129,7 +129,7 @@ func TestSecurityGroupCreate(t *testing.T) {
 			Cloud: cloud,
 		}
 
-		context, err := fi.NewContext(target, nil, cloud, nil, nil, nil, true, allTasks)
+		context, err := fi.NewContext[fi.CloudupContext](target, nil, cloud, nil, nil, nil, true, fi.CloudupContext{}, allTasks)
 		if err != nil {
 			t.Fatalf("error building context: %v", err)
 		}

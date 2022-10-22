@@ -26,14 +26,14 @@ import (
 )
 
 type Loader struct {
-	Builders []fi.ModelBuilder
+	Builders []fi.ModelBuilder[fi.NodeupContext]
 }
 
 // Build is responsible for running the build tasks for nodeup
-func (l *Loader) Build() (map[string]fi.Task, error) {
-	tasks := make(map[string]fi.Task)
+func (l *Loader) Build() (map[string]fi.Task[fi.NodeupContext], error) {
+	tasks := make(map[string]fi.Task[fi.NodeupContext])
 	for _, builder := range l.Builders {
-		context := &fi.ModelBuilderContext{
+		context := &fi.ModelBuilderContext[fi.NodeupContext]{
 			Tasks: tasks,
 		}
 		err := builder.Build(context)

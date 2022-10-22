@@ -56,7 +56,7 @@ func (e *LoadBalancer) IsForAPIServer() bool {
 	return true
 }
 
-func (v *LoadBalancer) FindAddresses(c *fi.Context) ([]string, error) {
+func (v *LoadBalancer) FindAddresses(c *fi.Context[fi.CloudupContext]) ([]string, error) {
 	// TODO(hakman): Use mock to handle this more gracefully
 	if strings.HasPrefix(c.ClusterConfigBase.Path(), "memfs://tests/") {
 		return nil, nil
@@ -92,7 +92,7 @@ func (v *LoadBalancer) FindAddresses(c *fi.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (v *LoadBalancer) Find(c *fi.Context) (*LoadBalancer, error) {
+func (v *LoadBalancer) Find(c *fi.Context[fi.CloudupContext]) (*LoadBalancer, error) {
 	ctx := context.TODO()
 	cloud := c.Cloud.(hetzner.HetznerCloud)
 	client := cloud.LoadBalancerClient()
@@ -145,8 +145,8 @@ func (v *LoadBalancer) Find(c *fi.Context) (*LoadBalancer, error) {
 	return nil, nil
 }
 
-func (v *LoadBalancer) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(v, c)
+func (v *LoadBalancer) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](v, c)
 }
 
 func (_ *LoadBalancer) CheckChanges(a, e, changes *LoadBalancer) error {
@@ -311,9 +311,9 @@ type LoadBalancerService struct {
 	DestinationPort *int
 }
 
-var _ fi.HasDependencies = &LoadBalancerService{}
+var _ fi.HasDependencies[fi.CloudupContext] = &LoadBalancerService{}
 
-func (e *LoadBalancerService) GetDependencies(tasks map[string]fi.Task) []fi.Task {
+func (e *LoadBalancerService) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
 	return nil
 }
 

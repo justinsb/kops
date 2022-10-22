@@ -58,9 +58,9 @@ type Instance struct {
 }
 
 var (
-	_ fi.Task            = &Instance{}
-	_ fi.HasAddress      = &Instance{}
-	_ fi.HasDependencies = &Instance{}
+	_ fi.Task[fi.CloudupContext]            = &Instance{}
+	_ fi.HasAddress                         = &Instance{}
+	_ fi.HasDependencies[fi.CloudupContext] = &Instance{}
 )
 
 // Constants for truncating Tags
@@ -73,8 +73,8 @@ var TRUNCATE_OPT = truncate.TruncateStringOptions{
 }
 
 // GetDependencies returns the dependencies of the Instance task
-func (e *Instance) GetDependencies(tasks map[string]fi.Task) []fi.Task {
-	var deps []fi.Task
+func (e *Instance) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
+	var deps []fi.Task[fi.CloudupContext]
 	for _, task := range tasks {
 		if _, ok := task.(*ServerGroup); ok {
 			deps = append(deps, task)
@@ -108,7 +108,7 @@ func (e *Instance) IsForAPIServer() bool {
 	return e.ForAPIServer
 }
 
-func (e *Instance) FindAddresses(context *fi.Context) ([]string, error) {
+func (e *Instance) FindAddresses(context *fi.Context[fi.CloudupContext]) ([]string, error) {
 	cloud := context.Cloud.(openstack.OpenstackCloud)
 	if e.Port == nil {
 		return nil, nil
@@ -149,7 +149,7 @@ func filterInstancePorts(allPorts []ports.Port, clusterName string) []ports.Port
 	return taggedPorts
 }
 
-func (e *Instance) Find(c *fi.Context) (*Instance, error) {
+func (e *Instance) Find(c *fi.Context[fi.CloudupContext]) (*Instance, error) {
 	if e == nil || e.Name == nil {
 		return nil, nil
 	}
@@ -261,8 +261,8 @@ func (e *Instance) Find(c *fi.Context) (*Instance, error) {
 	return actual, nil
 }
 
-func (e *Instance) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *Instance) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (_ *Instance) CheckChanges(a, e, changes *Instance) error {

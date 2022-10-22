@@ -1175,8 +1175,8 @@ func RunGoldenTest(t *testing.T, basedir string, testCase serverGroupModelBuilde
 
 	builder := createBuilderForCluster(testCase.cluster, testCase.instanceGroups, clusterLifecycle, bootstrapScriptBuilder)
 
-	context := &fi.ModelBuilderContext{
-		Tasks:              make(map[string]fi.Task),
+	context := &fi.ModelBuilderContext[fi.CloudupContext]{
+		Tasks:              make(map[string]fi.Task[fi.CloudupContext]),
 		LifecycleOverrides: map[string]fi.Lifecycle{},
 	}
 

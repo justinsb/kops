@@ -44,7 +44,7 @@ func (e *ProjectIAMBinding) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *ProjectIAMBinding) Find(c *fi.Context) (*ProjectIAMBinding, error) {
+func (e *ProjectIAMBinding) Find(c *fi.Context[fi.CloudupContext]) (*ProjectIAMBinding, error) {
 	ctx := context.TODO()
 
 	cloud := c.Cloud.(gce.GCECloud)
@@ -80,8 +80,8 @@ func (e *ProjectIAMBinding) Find(c *fi.Context) (*ProjectIAMBinding, error) {
 	return actual, nil
 }
 
-func (e *ProjectIAMBinding) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *ProjectIAMBinding) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (_ *ProjectIAMBinding) CheckChanges(a, e, changes *ProjectIAMBinding) error {

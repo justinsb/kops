@@ -31,10 +31,10 @@ type KubectlBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder = &KubectlBuilder{}
+var _ fi.ModelBuilder[fi.NodeupContext] = &KubectlBuilder{}
 
 // Build is responsible for managing the kubectl on the nodes
-func (b *KubectlBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *KubectlBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
 	if !b.HasAPIServer {
 		return nil
 	}

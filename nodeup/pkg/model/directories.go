@@ -29,10 +29,10 @@ type DirectoryBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder = &DirectoryBuilder{}
+var _ fi.ModelBuilder[fi.NodeupContext] = &DirectoryBuilder{}
 
 // Build is responsible for specific directories are created - os dependent
-func (b *DirectoryBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *DirectoryBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
 	if b.Distribution == distributions.DistributionContainerOS {
 		dirname := "/home/kubernetes/bin"
 

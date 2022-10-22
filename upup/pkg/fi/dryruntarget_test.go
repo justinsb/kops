@@ -60,9 +60,9 @@ type testTask struct {
 	Tags      map[string]string
 }
 
-var _ Task = &testTask{}
+var _ Task[CloudupContext] = &testTask{}
 
-func (*testTask) Run(_ *Context) error {
+func (*testTask) Run(_ *Context[CloudupContext]) error {
 	panic("not implemented")
 }
 
@@ -73,8 +73,8 @@ func Test_DryrunTarget_PrintReport(t *testing.T) {
 		},
 	}, false)
 	var stdout bytes.Buffer
-	target := NewDryRunTarget(builder, &stdout)
-	tasks := map[string]Task{}
+	target := NewDryRunTarget[CloudupContext](builder, &stdout)
+	tasks := map[string]Task[CloudupContext]{}
 	a := &testTask{
 		Name:      String("TestName"),
 		Lifecycle: LifecycleSync,
@@ -85,7 +85,7 @@ func Test_DryrunTarget_PrintReport(t *testing.T) {
 		Lifecycle: LifecycleSync,
 		Tags:      map[string]string{"key": "value"},
 	}
-	changes := reflect.New(reflect.TypeOf(e).Elem()).Interface().(Task)
+	changes := reflect.New(reflect.TypeOf(e).Elem()).Interface().(Task[CloudupContext])
 	_ = BuildChanges(a, e, changes)
 	err := target.Render(a, e, changes)
 	tasks[*e.Name] = e

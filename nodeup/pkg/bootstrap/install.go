@@ -42,9 +42,9 @@ func (i *Installation) Run() error {
 		return fmt.Errorf("error determining OS distribution: %v", err)
 	}
 
-	tasks := make(map[string]fi.Task)
+	tasks := make(map[string]fi.Task[fi.NodeupContext])
 
-	buildContext := &fi.ModelBuilderContext{
+	buildContext := &fi.ModelBuilderContext[fi.NodeupContext]{
 		Tasks: tasks,
 	}
 	i.Build(buildContext)
@@ -72,7 +72,7 @@ func (i *Installation) Run() error {
 	}
 
 	checkExisting := true
-	context, err := fi.NewContext(target, nil, cloud, keyStore, secretStore, configBase, checkExisting, tasks)
+	context, err := fi.NewContext[fi.NodeupContext](target, nil, cloud, keyStore, secretStore, configBase, checkExisting, fi.NodeupContext{}, tasks)
 	if err != nil {
 		return fmt.Errorf("error building context: %v", err)
 	}
@@ -91,7 +91,7 @@ func (i *Installation) Run() error {
 	return nil
 }
 
-func (i *Installation) Build(c *fi.ModelBuilderContext) {
+func (i *Installation) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) {
 	c.AddTask(i.buildEnvFile())
 	c.AddTask(i.buildSystemdJob())
 }

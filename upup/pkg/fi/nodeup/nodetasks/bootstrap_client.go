@@ -54,19 +54,19 @@ type BootstrapClientTask struct {
 }
 
 type BootstrapCert struct {
-	Cert *fi.TaskDependentResource
-	Key  *fi.TaskDependentResource
+	Cert *fi.TaskDependentResource[fi.NodeupContext]
+	Key  *fi.TaskDependentResource[fi.NodeupContext]
 }
 
 var (
-	_ fi.Task            = &BootstrapClientTask{}
-	_ fi.HasName         = &BootstrapClientTask{}
-	_ fi.HasDependencies = &BootstrapClientTask{}
+	_ fi.Task[fi.NodeupContext]            = &BootstrapClientTask{}
+	_ fi.HasName                           = &BootstrapClientTask{}
+	_ fi.HasDependencies[fi.NodeupContext] = &BootstrapClientTask{}
 )
 
-func (b *BootstrapClientTask) GetDependencies(tasks map[string]fi.Task) []fi.Task {
+func (b *BootstrapClientTask) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.Task[fi.NodeupContext] {
 	// BootstrapClient depends on the protokube service to ensure gossip DNS
-	var deps []fi.Task
+	var deps []fi.Task[fi.NodeupContext]
 	for _, v := range tasks {
 		if svc, ok := v.(*Service); ok && svc.Name == protokubeService {
 			deps = append(deps, v)
@@ -84,7 +84,7 @@ func (b *BootstrapClientTask) String() string {
 	return "BootstrapClientTask"
 }
 
-func (b *BootstrapClientTask) Run(c *fi.Context) error {
+func (b *BootstrapClientTask) Run(c *fi.Context[fi.NodeupContext]) error {
 	ctx := context.TODO()
 
 	req := nodeup.BootstrapRequest{

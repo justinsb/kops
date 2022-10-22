@@ -166,8 +166,8 @@ func runContainerdBuilderTest(t *testing.T, key string, distro distributions.Dis
 		t.Fatalf("error from nodeupModelContext.Init(): %v", err)
 		return
 	}
-	context := &fi.ModelBuilderContext{
-		Tasks: make(map[string]fi.Task),
+	context := &fi.ModelBuilderContext[fi.NodeupContext]{
+		Tasks: make(map[string]fi.Task[fi.NodeupContext]),
 	}
 
 	builder := ContainerdBuilder{NodeupModelContext: nodeUpModelContext}

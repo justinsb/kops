@@ -52,7 +52,7 @@ func (e *IAMOIDCProvider) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *IAMOIDCProvider) Find(c *fi.Context) (*IAMOIDCProvider, error) {
+func (e *IAMOIDCProvider) Find(c *fi.Context[fi.CloudupContext]) (*IAMOIDCProvider, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	response, err := cloud.IAM().ListOpenIDConnectProviders(&iam.ListOpenIDConnectProvidersInput{})
@@ -95,8 +95,8 @@ func (e *IAMOIDCProvider) Find(c *fi.Context) (*IAMOIDCProvider, error) {
 	return nil, nil
 }
 
-func (e *IAMOIDCProvider) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *IAMOIDCProvider) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *IAMOIDCProvider) CheckChanges(a, e, changes *IAMOIDCProvider) error {

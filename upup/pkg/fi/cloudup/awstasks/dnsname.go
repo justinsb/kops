@@ -44,7 +44,7 @@ type DNSName struct {
 }
 
 type DNSTarget interface {
-	fi.Task
+	fi.Task[fi.CloudupContext]
 	getDNSName() *string
 	getHostedZoneId() *string
 	CloudformationAttrDNSName() *cloudformation.Literal
@@ -52,7 +52,7 @@ type DNSTarget interface {
 	TerraformLink(...string) *terraformWriter.Literal
 }
 
-func (e *DNSName) Find(c *fi.Context) (*DNSName, error) {
+func (e *DNSName) Find(c *fi.Context[fi.CloudupContext]) (*DNSName, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	if e.Zone == nil || e.Zone.ZoneID == nil {
@@ -190,8 +190,8 @@ func findDNSTargetELB(cloud awsup.AWSCloud, aliasTarget *route53.AliasTarget, dn
 	return nil, nil
 }
 
-func (e *DNSName) Run(c *fi.Context) error {
-	return fi.DefaultDeltaRunMethod(e, c)
+func (e *DNSName) Run(c *fi.Context[fi.CloudupContext]) error {
+	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
 }
 
 func (s *DNSName) CheckChanges(a, e, changes *DNSName) error {

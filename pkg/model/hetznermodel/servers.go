@@ -31,9 +31,9 @@ type ServerGroupModelBuilder struct {
 	BootstrapScriptBuilder *model.BootstrapScriptBuilder
 }
 
-var _ fi.ModelBuilder = &ServerGroupModelBuilder{}
+var _ fi.ModelBuilder[fi.CloudupContext] = &ServerGroupModelBuilder{}
 
-func (b *ServerGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *ServerGroupModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
 	var sshkeyTasks []*hetznertasks.SSHKey
 	for _, sshkey := range b.SSHPublicKeys {
 		fingerprint, err := pki.ComputeOpenSSHKeyFingerprint(string(sshkey))

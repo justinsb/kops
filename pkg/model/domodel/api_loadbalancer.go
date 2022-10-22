@@ -31,9 +31,9 @@ type APILoadBalancerModelBuilder struct {
 	Lifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder = &APILoadBalancerModelBuilder{}
+var _ fi.ModelBuilder[fi.CloudupContext] = &APILoadBalancerModelBuilder{}
 
-func (b *APILoadBalancerModelBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *APILoadBalancerModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
 	// Configuration where a load balancer fronts the API
 	if !b.UseLoadBalancerForAPI() {
 		return nil

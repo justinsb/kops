@@ -26,14 +26,14 @@ import (
 func TestLoadImageTask_Deps(t *testing.T) {
 	l := &LoadImageTask{}
 
-	tasks := make(map[string]fi.Task)
+	tasks := make(map[string]fi.Task[fi.NodeupContext])
 	tasks["LoadImageTask1"] = &LoadImageTask{}
 	tasks["FileTask1"] = &File{}
 	tasks["ServiceDocker"] = &Service{Name: "docker.service"}
 	tasks["Service2"] = &Service{Name: "two.service"}
 
 	deps := l.GetDependencies(tasks)
-	expected := []fi.Task{tasks["ServiceDocker"]}
+	expected := []fi.Task[fi.NodeupContext]{tasks["ServiceDocker"]}
 	if !reflect.DeepEqual(expected, deps) {
 		t.Fatalf("unexpected deps.  expected=%v, actual=%v", expected, deps)
 	}

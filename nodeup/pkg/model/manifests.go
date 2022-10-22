@@ -31,10 +31,10 @@ type ManifestsBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder = &ManifestsBuilder{}
+var _ fi.ModelBuilder[fi.NodeupContext] = &ManifestsBuilder{}
 
 // Build creates tasks for copying the manifests
-func (b *ManifestsBuilder) Build(c *fi.ModelBuilderContext) error {
+func (b *ManifestsBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
 	// Write etcd manifests (currently etcd <=> master)
 	if b.IsMaster {
 		for _, manifest := range b.NodeupConfig.EtcdManifests {

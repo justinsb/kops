@@ -29,10 +29,10 @@ import (
 	"k8s.io/kops/util/pkg/vfs"
 )
 
-type Context struct {
+type Context[T SubContext] struct {
 	Tmpdir string
 
-	Target            Target
+	Target            Target[T]
 	DNS               dnsprovider.Interface
 	Cloud             Cloud
 	Cluster           *kops.Cluster
@@ -42,19 +42,26 @@ type Context struct {
 
 	CheckExisting bool
 
-	tasks map[string]Task
+	tasks    map[string]Task[T]
+	warnings []*Warning[T]
 
-	warnings []*Warning
+	T T
 }
 
+type SubContext interface {
+	CloudupContext | NodeupContext
+}
+type CloudupContext struct{}
+type NodeupContext struct{}
+
 // Warning holds the details of a warning encountered during validation/creation
-type Warning struct {
-	Task    Task
+type Warning[T SubContext] struct {
+	Task    Task[T]
 	Message string
 }
 
-func NewContext(target Target, cluster *kops.Cluster, cloud Cloud, keystore Keystore, secretStore SecretStore, clusterConfigBase vfs.Path, checkExisting bool, tasks map[string]Task) (*Context, error) {
-	c := &Context{
+func NewContext[T SubContext](target Target[T], cluster *kops.Cluster, cloud Cloud, keystore Keystore, secretStore SecretStore, clusterConfigBase vfs.Path, checkExisting bool, sub T, tasks map[string]Task[T]) (*Context[T], error) {
+	c := &Context[T]{
 		Cloud:             cloud,
 		Cluster:           cluster,
 		Target:            target,
@@ -63,6 +70,7 @@ func NewContext(target Target, cluster *kops.Cluster, cloud Cloud, keystore Keys
 		ClusterConfigBase: clusterConfigBase,
 		CheckExisting:     checkExisting,
 		tasks:             tasks,
+		T:                 sub,
 	}
 
 	t, err := os.MkdirTemp("", "deploy")
@@ -74,19 +82,19 @@ func NewContext(target Target, cluster *kops.Cluster, cloud Cloud, keystore Keys
 	return c, nil
 }
 
-func (c *Context) AllTasks() map[string]Task {
+func (c *Context[T]) AllTasks() map[string]Task[T] {
 	return c.tasks
 }
 
-func (c *Context) RunTasks(options RunTasksOptions) error {
-	e := &executor{
+func (c *Context[T]) RunTasks(options RunTasksOptions) error {
+	e := &executor[T]{
 		context: c,
 		options: options,
 	}
 	return e.RunTasks(c.tasks)
 }
 
-func (c *Context) Close() {
+func (c *Context[T]) Close() {
 	klog.V(2).Infof("deleting temp dir: %q", c.Tmpdir)
 	if c.Tmpdir != "" {
 		err := os.RemoveAll(c.Tmpdir)
@@ -100,7 +108,7 @@ func (c *Context) Close() {
 //	return c.Options.Merge(options)
 //}
 
-func (c *Context) NewTempDir(prefix string) (string, error) {
+func (c *Context[T]) NewTempDir(prefix string) (string, error) {
 	t, err := os.MkdirTemp(c.Tmpdir, prefix)
 	if err != nil {
 		return "", fmt.Errorf("error creating temporary directory: %v", err)
@@ -108,12 +116,11 @@ func (c *Context) NewTempDir(prefix string) (string, error) {
 	return t, nil
 }
 
-var typeContextPtr = reflect.TypeOf((*Context)(nil))
-
 // Render dispatches the creation of an object to the appropriate handler defined on the Task,
 // it is typically called after we have checked the existing state of the Task and determined that is different
 // from the desired state.
-func (c *Context) Render(a, e, changes Task) error {
+func (c *Context[T]) Render(a, e, changes Task[T]) error {
+	typeContextPtr := reflect.TypeOf((*Context[T])(nil))
 	var lifecycle Lifecycle
 	if hl, ok := e.(HasLifecycle); ok {
 		lifecycle = hl.GetLifecycle()
@@ -164,8 +171,8 @@ func (c *Context) Render(a, e, changes Task) error {
 		}
 	}
 
-	if _, ok := c.Target.(*DryRunTarget); ok {
-		return c.Target.(*DryRunTarget).Render(a, e, changes)
+	if _, ok := c.Target.(*DryRunTarget[T]); ok {
+		return c.Target.(*DryRunTarget[T]).Render(a, e, changes)
 	}
 
 	v := reflect.ValueOf(e)
@@ -232,8 +239,8 @@ func (c *Context) Render(a, e, changes Task) error {
 
 // AddWarning records a warning encountered during validation / creation.
 // Typically this will be an error that we choose to ignore because of Lifecycle.
-func (c *Context) AddWarning(task Task, message string) {
-	warning := &Warning{
+func (c *Context[T]) AddWarning(task Task[T], message string) {
+	warning := &Warning[T]{
 		Task:    task,
 		Message: message,
 	}
