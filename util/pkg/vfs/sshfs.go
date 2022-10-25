@@ -99,7 +99,7 @@ func (p *SSHPath) String() string {
 }
 
 func (p *SSHPath) Remove() error {
-	sftpClient, err := p.newSFTPClient()
+	sftpClient, err := p.newClient()
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func mkdirAll(sftpClient *sftp.Client, dir string) error {
 }
 
 func (p *SSHPath) WriteFile(data io.ReadSeeker, acl ACL) error {
-	sftpClient, err := p.newSFTPClient()
+	sftpClient, err := p.newClient()
 	if err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func (p *SSHPath) WriteTo(out io.Writer) (int64, error) {
 	// 	scpClient := &scpClient{}
 	// 	return scpClient.ReadFile(context.TODO(), p.client, p.path, out)
 	// }
-	sftpClient, err := p.newSFTPClient()
+	sftpClient, err := p.newClient()
 	if err != nil {
 		return 0, fmt.Errorf("error creating sftp client: %w", err)
 	}
@@ -298,7 +298,7 @@ func (p *SSHPath) WriteTo(out io.Writer) (int64, error) {
 }
 
 func (p *SSHPath) ReadDir() ([]Path, error) {
-	sftpClient, err := p.newSFTPClient()
+	sftpClient, err := p.newClient()
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +318,7 @@ func (p *SSHPath) ReadDir() ([]Path, error) {
 }
 
 func (p *SSHPath) ReadTree() ([]Path, error) {
-	sftpClient, err := p.newSFTPClient()
+	sftpClient, err := p.newClient()
 	if err != nil {
 		return nil, err
 	}
