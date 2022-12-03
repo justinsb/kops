@@ -187,6 +187,7 @@ func RunDeleteCluster(ctx context.Context, f *util.Factory, out io.Writer, optio
 			}
 			return nil
 		}
+		klog.V(2).Infof("removing from state store")
 		clientset, err := f.KopsClient()
 		if err != nil {
 			return err
@@ -197,6 +198,7 @@ func RunDeleteCluster(ctx context.Context, f *util.Factory, out io.Writer, optio
 		}
 	}
 
+	klog.V(2).Infof("removing from kubeconfig")
 	b := kubeconfig.NewKubeconfigBuilder()
 	b.Context = clusterName
 	err = b.DeleteKubeConfig(clientcmd.NewDefaultPathOptions())

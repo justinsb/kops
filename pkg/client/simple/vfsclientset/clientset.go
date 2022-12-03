@@ -127,11 +127,13 @@ func pkiPath(cluster *kops.Cluster) (vfs.Path, error) {
 }
 
 func DeleteAllClusterState(basePath vfs.Path) error {
+	klog.V(4).Infof("reading tree %v", basePath)
 	paths, err := basePath.ReadTree()
 	if err != nil {
 		return fmt.Errorf("error listing files in state store: %v", err)
 	}
 
+	klog.V(4).Infof("tree contained %d paths", len(paths))
 	for _, path := range paths {
 		relativePath, err := vfs.RelativePath(basePath, path)
 		if err != nil {
@@ -172,13 +174,18 @@ func DeleteAllClusterState(basePath vfs.Path) error {
 			continue
 		}
 
+		// refusing to delete: unknown file found: s3://k8s-kops-prow/e2e-c0d41e2af2-13250.test-cncf-aws.k8s.io/cluster-completed.spec
+
 		return fmt.Errorf("refusing to delete: unknown file found: %s", path)
 	}
 
-	for _, path := range paths {
-		err = path.Remove()
-		if err != nil {
-			return fmt.Errorf("error deleting cluster file %s: %v", path, err)
+	if len(paths) != 0 {
+		klog.Infof("deleting %d files from %v", len(paths), basePath)
+		for _, path := range paths {
+			err = path.Remove()
+			if err != nil {
+				return fmt.Errorf("error deleting cluster file %s: %v", path, err)
+			}
 		}
 	}
 

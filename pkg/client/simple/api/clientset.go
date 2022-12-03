@@ -118,6 +118,7 @@ func (c *RESTClientset) DeleteCluster(ctx context.Context, cluster *kops.Cluster
 		return err
 	}
 
+	klog.V(2).Infof("removing cluster state")
 	err = vfsclientset.DeleteAllClusterState(configBase)
 	if err != nil {
 		return err
@@ -126,6 +127,7 @@ func (c *RESTClientset) DeleteCluster(ctx context.Context, cluster *kops.Cluster
 	name := cluster.Name
 	namespace := restNamespaceForClusterName(name)
 
+	klog.V(2).Infof("removing keysets")
 	{
 		keysets, err := c.KopsClient.Keysets(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
@@ -146,6 +148,7 @@ func (c *RESTClientset) DeleteCluster(ctx context.Context, cluster *kops.Cluster
 		}
 	}
 
+	klog.V(2).Infof("removing instance groups")
 	{
 		igs, err := c.KopsClient.InstanceGroups(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
@@ -166,6 +169,7 @@ func (c *RESTClientset) DeleteCluster(ctx context.Context, cluster *kops.Cluster
 		}
 	}
 
+	klog.V(2).Infof("removing cluster")
 	err = c.KopsClient.Clusters(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {

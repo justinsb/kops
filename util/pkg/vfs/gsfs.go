@@ -130,7 +130,7 @@ func (p *GSPath) Remove() error {
 		err := p.client.Objects.Delete(p.bucket, p.key).Do()
 		if err != nil {
 			// TODO: Check for not-exists, return os.NotExist
-
+			klog.V(2).Infof("error while deleting %s (may retry): %v", p, err)
 			return false, fmt.Errorf("error deleting %s: %v", p, err)
 		}
 

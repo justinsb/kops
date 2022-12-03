@@ -177,7 +177,7 @@ func awsValidateInstanceTypeAndImage(instanceTypeFieldPath *field.Path, imageFie
 	for _, instanceType := range strings.Split(instanceTypes, ",") {
 		machineInfo, err := cloud.DescribeInstanceType(instanceType)
 		if err != nil {
-			allErrs = append(allErrs, field.Invalid(instanceTypeFieldPath, instanceTypes, fmt.Sprintf("machine type specified is invalid: %q", instanceType)))
+			allErrs = append(allErrs, field.Invalid(instanceTypeFieldPath, instanceTypes, fmt.Sprintf("machine type %q is invalid: %v", instanceType, err)))
 			continue
 		}
 
@@ -227,7 +227,7 @@ func awsValidateMixedInstancesPolicy(path *field.Path, spec *kops.MixedInstances
 
 	mainMachineTypeInfo, err := awsup.GetMachineTypeInfo(cloud, ig.Spec.MachineType)
 	if err != nil {
-		errs = append(errs, field.Invalid(field.NewPath("spec", "machineType"), ig.Spec.MachineType, fmt.Sprintf("machine type specified is invalid: %q", ig.Spec.MachineType)))
+		errs = append(errs, field.Invalid(field.NewPath("spec", "machineType"), ig.Spec.MachineType, fmt.Sprintf("machine type %q is invalid: %v", ig.Spec.MachineType, err)))
 		return errs
 	}
 
@@ -241,7 +241,7 @@ func awsValidateMixedInstancesPolicy(path *field.Path, spec *kops.MixedInstances
 		for _, instanceType := range strings.Split(instanceTypes, ",") {
 			machineTypeInfo, err := awsup.GetMachineTypeInfo(cloud, instanceType)
 			if err != nil {
-				errs = append(errs, field.Invalid(field.NewPath("spec", "machineType"), ig.Spec.MachineType, fmt.Sprintf("machine type specified is invalid: %q", ig.Spec.MachineType)))
+				errs = append(errs, field.Invalid(field.NewPath("spec", "machineType"), ig.Spec.MachineType, fmt.Sprintf("machine type %q is invalid: %v", ig.Spec.MachineType, err)))
 				return errs
 			}
 			if machineTypeInfo.GPU != hasGPU {

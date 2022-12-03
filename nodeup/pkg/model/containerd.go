@@ -391,14 +391,42 @@ runtime-endpoint: unix:///run/containerd/containerd.sock
 func (b *ContainerdBuilder) buildIPMasqueradeRules(c *fi.ModelBuilderContext) error {
 	// TODO: Should we just rely on running nodeup on every boot, instead of setting up a systemd unit?
 
-	// This is based on rules from gce/cos/configure-helper.sh and the old logic in kubenet_linux.go
+	var script string
 
+	// This is based on rules from gce/cos/configure-helper.sh and the old logic in kubenet_linux.go
+	// Ref: https://github.com/kubernetes/cloud-provider-gcp/blob/master/cluster/gce/gci/configure-helper.sh
+	//
 	// We stick closer to the logic in kubenet_linux, both for compatibility, and because the GCE logic
 	// skips masquerading for all private CIDR ranges, but this depends on an assumption that is likely GCE-specific.
 	// On GCE custom routes are at the network level, on AWS they are at the route-table / subnet level.
 	// We cannot generally assume that because something is in the private network space, that it can reach us.
-	// If we adopt "native" pod IPs (GCE ip-alias, AWS VPC CNI, etc) we can likely move to rules closer to the upstream ones.
-	script := `#!/bin/bash
+	//
+	// For "native" pod IPs (GCE ip-alias) if the NonMasqueradeCIDR is not set,
+	// we use the upstream rules.
+	if b.Cluster.Spec.NonMasqueradeCIDR == "" {
+		// We could fall back to the pod CIDR, that is likely more correct anyway
+		klog.Infof("NonMasqueradeCIDR is not set, using private ranges for IP-MASQ")
+		script = `#!/bin/bash
+# Built by kOps - do not edit
+
+iptables -w -t nat -N IP-MASQ
+iptables -w -t nat -A POSTROUTING -m comment --comment "ip-masq: ensure nat POSTROUTING directs all non-LOCAL destination traffic to our custom IP-MASQ chain" -m addrtype ! --dst-type LOCAL -j IP-MASQ
+iptables -w -t nat -A IP-MASQ -d 169.254.0.0/16 -m comment --comment "ip-masq: local traffic is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 10.0.0.0/8 -m comment --comment "ip-masq: RFC 1918 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 172.16.0.0/12 -m comment --comment "ip-masq: RFC 1918 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 192.168.0.0/16 -m comment --comment "ip-masq: RFC 1918 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 240.0.0.0/4 -m comment --comment "ip-masq: RFC 5735 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 192.0.2.0/24 -m comment --comment "ip-masq: RFC 5737 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 198.51.100.0/24 -m comment --comment "ip-masq: RFC 5737 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 203.0.113.0/24 -m comment --comment "ip-masq: RFC 5737 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 100.64.0.0/10 -m comment --comment "ip-masq: RFC 6598 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 198.18.0.0/15 -m comment --comment "ip-masq: RFC 6815 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 192.0.0.0/24 -m comment --comment "ip-masq: RFC 6890 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -d 192.88.99.0/24 -m comment --comment "ip-masq: RFC 7526 reserved range is not subject to MASQUERADE" -j RETURN
+iptables -w -t nat -A IP-MASQ -m comment --comment "ip-masq: outbound traffic is subject to MASQUERADE (must be last in chain)" -j MASQUERADE
+`
+	} else {
+		script = `#!/bin/bash
 # Built by kOps - do not edit
 
 iptables -w -t nat -N IP-MASQ
@@ -407,12 +435,8 @@ iptables -w -t nat -A IP-MASQ -d {{.NonMasqueradeCIDR}} -m comment --comment "ip
 iptables -w -t nat -A IP-MASQ -m comment --comment "ip-masq: outbound traffic is subject to MASQUERADE (must be last in chain)" -j MASQUERADE
 `
 
-	if b.Cluster.Spec.NonMasqueradeCIDR == "" {
-		// We could fall back to the pod CIDR, that is likely more correct anyway
-		return fmt.Errorf("NonMasqueradeCIDR is not set")
+		script = strings.ReplaceAll(script, "{{.NonMasqueradeCIDR}}", b.Cluster.Spec.NonMasqueradeCIDR)
 	}
-
-	script = strings.ReplaceAll(script, "{{.NonMasqueradeCIDR}}", b.Cluster.Spec.NonMasqueradeCIDR)
 
 	c.AddTask(&nodetasks.File{
 		Path:     "/opt/kops/bin/cni-iptables-setup",

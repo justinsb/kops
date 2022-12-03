@@ -50,6 +50,9 @@ func (b *GCPCloudControllerManagerOptionsBuilder) BuildOptions(options interface
 	// Also, having multiple control plane nodes requires leader election.
 	ccmConfig.LeaderElection = &kops.LeaderElectionConfiguration{LeaderElect: fi.Bool(true)}
 
+	// The manifest is set up with per-serviceaccount credentials
+	// ccmConfig.UseServiceAccountCredentials = fi.Bool(true)
+
 	// CCM interacts directly with the GCP API, use the name safe for GCP
 	ccmConfig.ClusterName = gce.SafeClusterName(b.ClusterName)
 	ccmConfig.AllocateNodeCIDRs = fi.Bool(true)
@@ -65,6 +68,7 @@ func (b *GCPCloudControllerManagerOptionsBuilder) BuildOptions(options interface
 		default:
 			ccmConfig.Image = "k8scloudprovidergcp/cloud-controller-manager:latest"
 		}
+		// gcr.io/k8s-staging-cloud-provider-gcp/cloud-controller-manager
 	}
 
 	if b.IsKubernetesGTE("1.24") && b.IsKubernetesLT("1.25") {

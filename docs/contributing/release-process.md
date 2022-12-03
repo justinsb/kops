@@ -73,7 +73,8 @@ git add . && git commit -m "Release ${VERSION}"
 This is the "release commit". Push and create a PR.
 
 ```
-gh pr create -f -l tide/merge-method-squash
+RELEASE_BRANCH=$(echo $VERSION | awk -F. '{print "release-" $1 "." $2}')
+gh pr create -f -l tide/merge-method-squash -B ${RELEASE_BRANCH}
 ```
 
 Wait for the PR to merge.
@@ -132,6 +133,8 @@ The following tools are prerequisites:
 
 * [`gsutil`](https://cloud.google.com/storage/docs/gsutil_install)
 * [`kpromo`](https://github.com/kubernetes-sigs/promo-tools)
+
+You can install kpromo with `go install sigs.k8s.io/promo-tools/v3/cmd/kpromo@v3.4.4` and then copy it to your PATH.
 
 Create container promotion PR:
 
