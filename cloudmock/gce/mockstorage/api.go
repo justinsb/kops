@@ -52,6 +52,8 @@ func New() *storage.Service {
 }
 
 func (s *mockStorageService) RoundTrip(request *http.Request) (*http.Response, error) {
+	ctx := request.Context()
+
 	url := request.URL
 	if url.Host != "storage.googleapis.com" {
 		return nil, fmt.Errorf("unexpected host in request %#v", request)
@@ -82,6 +84,14 @@ func (s *mockStorageService) RoundTrip(request *http.Request) (*http.Response, e
 			if request.Method == "PUT" {
 				return s.buckets.setIAMPolicy(bucketName, request)
 			}
+		}
+	}
+
+	if len(pathTokens) == 6 && pathTokens[0] == "upload" && pathTokens[1] == "storage" && pathTokens[2] == "v1" && pathTokens[3] == "b" && pathTokens[5] == "o" {
+		bucket := pathTokens[4]
+
+		if request.Method == "POST" {
+			return s.buckets.createObject(ctx, bucket, request)
 		}
 	}
 

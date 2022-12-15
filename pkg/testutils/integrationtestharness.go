@@ -309,6 +309,7 @@ func (h *IntegrationTestHarness) SetupMockGCE(ctx context.Context) (*gcemock.Moc
 	}).Context(ctx).Do(); err != nil {
 		h.T.Fatalf("failed to create bucket mock-public-discovery: %v", err)
 	}
+
 	if _, err := cloud.Storage().Buckets.SetIamPolicy("mock-public-discovery", &storage.Policy{
 		Bindings: []*storage.PolicyBindings{
 			{
@@ -318,6 +319,17 @@ func (h *IntegrationTestHarness) SetupMockGCE(ctx context.Context) (*gcemock.Moc
 		},
 	}).Context(ctx).Do(); err != nil {
 		h.T.Fatalf("failed to set iam policy on bucket mock-public-discovery: %v", err)
+	}
+
+	if _, err := cloud.Storage().Buckets.Insert(project, &storage.Bucket{
+		Name: "mock-state-bucket",
+		IamConfiguration: &storage.BucketIamConfiguration{
+			UniformBucketLevelAccess: &storage.BucketIamConfigurationUniformBucketLevelAccess{
+				Enabled: true,
+			},
+		},
+	}).Context(ctx).Do(); err != nil {
+		h.T.Fatalf("failed to create bucket mock-state-bucket: %v", err)
 	}
 
 	vfsContext := vfs.FromContext(ctx)

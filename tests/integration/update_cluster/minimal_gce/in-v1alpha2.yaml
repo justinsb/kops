@@ -10,7 +10,7 @@ spec:
     rbac: {}
   channel: stable
   cloudProvider: gce
-  configBase: memfs://tests/minimal-gce.example.com
+  configBase: gs://mock-state-bucket/minimal-gce.example.com
   etcdClusters:
   - cpuRequest: 200m
     etcdMembers:
