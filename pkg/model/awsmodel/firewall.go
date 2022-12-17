@@ -39,9 +39,9 @@ type FirewallModelBuilder struct {
 	Lifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder[fi.CloudupContext] = &FirewallModelBuilder{}
+var _ fi.CloudupModelBuilder = &FirewallModelBuilder{}
 
-func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
+func (b *FirewallModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	nodeGroups, err := b.buildNodeRules(c)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext
 	return nil
 }
 
-func (b *FirewallModelBuilder) buildNodeRules(c *fi.ModelBuilderContext[fi.CloudupContext]) ([]SecurityGroupInfo, error) {
+func (b *FirewallModelBuilder) buildNodeRules(c *fi.CloudupModelBuilderContext) ([]SecurityGroupInfo, error) {
 	nodeGroups, err := b.GetSecurityGroups(kops.InstanceGroupRoleNode)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (b *FirewallModelBuilder) buildNodeRules(c *fi.ModelBuilderContext[fi.Cloud
 	return nodeGroups, nil
 }
 
-func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.ModelBuilderContext[fi.CloudupContext], nodeGroups []SecurityGroupInfo, masterGroups []SecurityGroupInfo) {
+func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.CloudupModelBuilderContext, nodeGroups []SecurityGroupInfo, masterGroups []SecurityGroupInfo) {
 	type portRange struct {
 		From int
 		To   int
@@ -231,7 +231,7 @@ func (b *FirewallModelBuilder) applyNodeToMasterBlockSpecificPorts(c *fi.ModelBu
 	}
 }
 
-func (b *FirewallModelBuilder) buildMasterRules(c *fi.ModelBuilderContext[fi.CloudupContext], nodeGroups []SecurityGroupInfo) ([]SecurityGroupInfo, error) {
+func (b *FirewallModelBuilder) buildMasterRules(c *fi.CloudupModelBuilderContext, nodeGroups []SecurityGroupInfo) ([]SecurityGroupInfo, error) {
 	masterGroups, err := b.GetSecurityGroups(kops.InstanceGroupRoleMaster)
 	if err != nil {
 		return nil, err
@@ -423,7 +423,7 @@ func JoinSuffixes(src SecurityGroupInfo, dest SecurityGroupInfo) string {
 	return s + d
 }
 
-func AddDirectionalGroupRule(c *fi.ModelBuilderContext[fi.CloudupContext], t *awstasks.SecurityGroupRule) {
+func AddDirectionalGroupRule(c *fi.CloudupModelBuilderContext, t *awstasks.SecurityGroupRule) {
 	name := generateName(t)
 	t.Name = fi.String(name)
 	tags := make(map[string]string)

@@ -31,13 +31,13 @@ type KubeConfig struct {
 	CA        fi.Resource
 	ServerURL string
 
-	config *fi.TaskDependentResource[fi.NodeupContext]
+	config *fi.NodeupTaskDependentResource
 }
 
 var (
-	_ fi.Task[fi.NodeupContext]            = &KubeConfig{}
-	_ fi.HasName                           = &KubeConfig{}
-	_ fi.HasDependencies[fi.NodeupContext] = &KubeConfig{}
+	_ fi.NodeupTask            = &KubeConfig{}
+	_ fi.HasName               = &KubeConfig{}
+	_ fi.NodeupHasDependencies = &KubeConfig{}
 )
 
 func (k *KubeConfig) GetName() *string {
@@ -49,30 +49,30 @@ func (k *KubeConfig) String() string {
 	return fmt.Sprintf("KubeConfig: %s", k.Name)
 }
 
-func (k *KubeConfig) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.Task[fi.NodeupContext] {
-	var deps []fi.Task[fi.NodeupContext]
+func (k *KubeConfig) GetDependencies(tasks map[string]fi.NodeupTask) []fi.NodeupTask {
+	var deps []fi.NodeupTask
 
-	if hasDep, ok := k.Cert.(fi.HasDependencies[fi.NodeupContext]); ok {
+	if hasDep, ok := k.Cert.(fi.NodeupHasDependencies); ok {
 		deps = append(deps, hasDep.GetDependencies(tasks)...)
 	}
-	if hasDep, ok := k.Key.(fi.HasDependencies[fi.NodeupContext]); ok {
+	if hasDep, ok := k.Key.(fi.NodeupHasDependencies); ok {
 		deps = append(deps, hasDep.GetDependencies(tasks)...)
 	}
-	if hasDep, ok := k.CA.(fi.HasDependencies[fi.NodeupContext]); ok {
+	if hasDep, ok := k.CA.(fi.NodeupHasDependencies); ok {
 		deps = append(deps, hasDep.GetDependencies(tasks)...)
 	}
 
 	return deps
 }
 
-func (k *KubeConfig) GetConfig() *fi.TaskDependentResource[fi.NodeupContext] {
+func (k *KubeConfig) GetConfig() *fi.NodeupTaskDependentResource {
 	if k.config == nil {
-		k.config = &fi.TaskDependentResource[fi.NodeupContext]{Task: k}
+		k.config = &fi.NodeupTaskDependentResource{Task: k}
 	}
 	return k.config
 }
 
-func (k *KubeConfig) Run(_ *fi.Context[fi.NodeupContext]) error {
+func (k *KubeConfig) Run(_ *fi.NodeupContext) error {
 	cert, err := fi.ResourceAsBytes(k.Cert)
 	if err != nil {
 		return err

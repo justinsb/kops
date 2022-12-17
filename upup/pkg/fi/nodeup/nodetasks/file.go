@@ -55,14 +55,14 @@ type File struct {
 }
 
 var (
-	_ fi.Task[fi.NodeupContext]            = &File{}
-	_ fi.HasDependencies[fi.NodeupContext] = &File{}
-	_ fi.HasName                           = &File{}
+	_ fi.NodeupTask            = &File{}
+	_ fi.NodeupHasDependencies = &File{}
+	_ fi.HasName               = &File{}
 )
 
 // GetDependencies implements HasDependencies::GetDependencies
-func (e *File) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.Task[fi.NodeupContext] {
-	var deps []fi.Task[fi.NodeupContext]
+func (e *File) GetDependencies(tasks map[string]fi.NodeupTask) []fi.NodeupTask {
+	var deps []fi.NodeupTask
 
 	if e.Owner != nil {
 		ownerTask := tasks["UserTask/"+*e.Owner]
@@ -77,7 +77,7 @@ func (e *File) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.
 	// Requires parent directories to be created
 	deps = append(deps, findCreatesDirParents(e.Path, tasks)...)
 
-	if hasDep, ok := e.Contents.(fi.HasDependencies[fi.NodeupContext]); ok {
+	if hasDep, ok := e.Contents.(fi.NodeupHasDependencies); ok {
 		deps = append(deps, hasDep.GetDependencies(tasks)...)
 	}
 
@@ -167,7 +167,7 @@ func findFile(p string) (*File, error) {
 	return actual, nil
 }
 
-func (e *File) Find(c *fi.Context[fi.NodeupContext]) (*File, error) {
+func (e *File) Find(c *fi.NodeupContext) (*File, error) {
 	actual, err := findFile(e.Path)
 	if err != nil {
 		return nil, err
@@ -186,8 +186,8 @@ func (e *File) Find(c *fi.Context[fi.NodeupContext]) (*File, error) {
 	return actual, nil
 }
 
-func (e *File) Run(c *fi.Context[fi.NodeupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.NodeupContext](e, c)
+func (e *File) Run(c *fi.NodeupContext) error {
+	return fi.NodeupDefaultDeltaRunMethod(e, c)
 }
 
 func (s *File) CheckChanges(a, e, changes *File) error {

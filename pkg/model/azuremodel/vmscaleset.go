@@ -37,10 +37,10 @@ type VMScaleSetModelBuilder struct {
 	Lifecycle              fi.Lifecycle
 }
 
-var _ fi.ModelBuilder[fi.CloudupContext] = &VMScaleSetModelBuilder{}
+var _ fi.CloudupModelBuilder = &VMScaleSetModelBuilder{}
 
 // Build is responsible for constructing the VM ScaleSet from the kops spec.
-func (b *VMScaleSetModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
+func (b *VMScaleSetModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	for _, ig := range b.InstanceGroups {
 		name := b.AutoscalingGroupName(ig)
 		vmss, err := b.buildVMScaleSetTask(c, name, ig)
@@ -67,7 +67,7 @@ func (b *VMScaleSetModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupConte
 }
 
 func (b *VMScaleSetModelBuilder) buildVMScaleSetTask(
-	c *fi.ModelBuilderContext[fi.CloudupContext],
+	c *fi.CloudupModelBuilderContext,
 	name string,
 	ig *kops.InstanceGroup,
 ) (*azuretasks.VMScaleSet, error) {

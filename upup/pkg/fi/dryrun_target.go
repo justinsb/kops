@@ -47,6 +47,9 @@ type DryRunTarget[T SubContext] struct {
 	assetBuilder *assets.AssetBuilder
 }
 
+type NodeupDryRunTarget = DryRunTarget[NodeupSubContext]
+type CloudupDryRunTarget = DryRunTarget[CloudupSubContext]
+
 type render[T SubContext] struct {
 	a       Task[T]
 	aIsNil  bool
@@ -72,13 +75,21 @@ func (a DeletionByTaskName[T]) Less(i, j int) bool {
 	return a[i].TaskName() < a[j].TaskName()
 }
 
-var _ Target[CloudupContext] = &DryRunTarget[CloudupContext]{}
+var _ Target[CloudupSubContext] = &DryRunTarget[CloudupSubContext]{}
 
 func NewDryRunTarget[T SubContext](assetBuilder *assets.AssetBuilder, out io.Writer) *DryRunTarget[T] {
 	t := &DryRunTarget[T]{}
 	t.out = out
 	t.assetBuilder = assetBuilder
 	return t
+}
+
+func NewCloudupDryRunTarget(assetBuilder *assets.AssetBuilder, out io.Writer) *CloudupDryRunTarget {
+	return NewDryRunTarget[CloudupSubContext](assetBuilder, out)
+}
+
+func NewNodeupDryRunTarget(assetBuilder *assets.AssetBuilder, out io.Writer) *NodeupDryRunTarget {
+	return NewDryRunTarget[NodeupSubContext](assetBuilder, out)
 }
 
 func (t *DryRunTarget[T]) ProcessDeletions() bool {

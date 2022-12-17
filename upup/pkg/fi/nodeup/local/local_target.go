@@ -30,9 +30,9 @@ type LocalTarget struct {
 	Cluster    *kops.Cluster
 }
 
-var _ fi.Target[fi.NodeupContext] = &LocalTarget{}
+var _ fi.NodeupTarget = &LocalTarget{}
 
-func (t *LocalTarget) Finish(taskMap map[string]fi.Task[fi.NodeupContext]) error {
+func (t *LocalTarget) Finish(taskMap map[string]fi.NodeupTask) error {
 	return nil
 }
 

@@ -34,8 +34,8 @@ type LBPool struct {
 }
 
 // GetDependencies returns the dependencies of the Instance task
-func (e *LBPool) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
-	var deps []fi.Task[fi.CloudupContext]
+func (e *LBPool) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
+	var deps []fi.CloudupTask
 	for _, task := range tasks {
 		if _, ok := task.(*LB); ok {
 			deps = append(deps, task)
@@ -80,7 +80,7 @@ func NewLBPoolTaskFromCloud(cloud openstack.OpenstackCloud, lifecycle fi.Lifecyc
 	return a, nil
 }
 
-func (p *LBPool) Find(context *fi.Context[fi.CloudupContext]) (*LBPool, error) {
+func (p *LBPool) Find(context *fi.CloudupContext) (*LBPool, error) {
 	if p.Name == nil && p.ID == nil {
 		return nil, nil
 	}
@@ -103,8 +103,8 @@ func (p *LBPool) Find(context *fi.Context[fi.CloudupContext]) (*LBPool, error) {
 	return NewLBPoolTaskFromCloud(cloud, p.Lifecycle, &poolList[0], p)
 }
 
-func (s *LBPool) Run(context *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](s, context)
+func (s *LBPool) Run(context *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(s, context)
 }
 
 func (_ *LBPool) CheckChanges(a, e, changes *LBPool) error {

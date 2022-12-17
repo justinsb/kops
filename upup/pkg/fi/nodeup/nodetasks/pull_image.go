@@ -32,15 +32,15 @@ type PullImageTask struct {
 }
 
 var (
-	_ fi.Task[fi.NodeupContext]            = &PullImageTask{}
-	_ fi.HasDependencies[fi.NodeupContext] = &PullImageTask{}
+	_ fi.NodeupTask            = &PullImageTask{}
+	_ fi.NodeupHasDependencies = &PullImageTask{}
 )
 
-func (t *PullImageTask) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.Task[fi.NodeupContext] {
+func (t *PullImageTask) GetDependencies(tasks map[string]fi.NodeupTask) []fi.NodeupTask {
 	// ImagePullTask depends on the container runtime service to ensure we
 	// sideload images after the container runtime is completely updated and
 	// configured.
-	var deps []fi.Task[fi.NodeupContext]
+	var deps []fi.NodeupTask
 	for _, v := range tasks {
 		if svc, ok := v.(*Service); ok && svc.Name == containerdService {
 			deps = append(deps, v)
@@ -59,7 +59,7 @@ func (t *PullImageTask) GetName() *string {
 	return &t.Name
 }
 
-func (e *PullImageTask) Run(c *fi.Context[fi.NodeupContext]) error {
+func (e *PullImageTask) Run(c *fi.NodeupContext) error {
 	runtime := e.Runtime
 	if runtime != "docker" && runtime != "containerd" {
 		return fmt.Errorf("no runtime specified")

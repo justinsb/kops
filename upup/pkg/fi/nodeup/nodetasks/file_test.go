@@ -28,8 +28,8 @@ func TestFileDependencies(t *testing.T) {
 
 	grid := []struct {
 		name   string
-		parent fi.Task[fi.NodeupContext]
-		child  fi.Task[fi.NodeupContext]
+		parent fi.NodeupTask
+		child  fi.NodeupTask
 	}{
 		{
 			name: "user",
@@ -76,20 +76,20 @@ func TestFileDependencies(t *testing.T) {
 
 	for _, g := range grid {
 		t.Run(g.name, func(t *testing.T) {
-			context := &fi.ModelBuilderContext[fi.NodeupContext]{
-				Tasks: make(map[string]fi.Task[fi.NodeupContext]),
+			context := &fi.NodeupModelBuilderContext{
+				Tasks: make(map[string]fi.NodeupTask),
 			}
 			context.AddTask(g.parent)
 			context.AddTask(g.child)
 
-			if _, ok := g.parent.(fi.HasDependencies[fi.NodeupContext]); ok {
-				deps := g.parent.(fi.HasDependencies[fi.NodeupContext]).GetDependencies(context.Tasks)
+			if _, ok := g.parent.(fi.NodeupHasDependencies); ok {
+				deps := g.parent.(fi.NodeupHasDependencies).GetDependencies(context.Tasks)
 				if len(deps) != 0 {
 					t.Errorf("found unexpected dependencies for parent: %v %v", g.parent, deps)
 				}
 			}
 
-			childDeps := g.child.(fi.HasDependencies[fi.NodeupContext]).GetDependencies(context.Tasks)
+			childDeps := g.child.(fi.NodeupHasDependencies).GetDependencies(context.Tasks)
 			if len(childDeps) != 1 {
 				t.Errorf("found unexpected dependencies for child: %v %v", g.child, childDeps)
 			}

@@ -26,9 +26,9 @@ type WarmPoolBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &WarmPoolBuilder{}
+var _ fi.NodeupModelBuilder = &WarmPoolBuilder{}
 
-func (b *WarmPoolBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *WarmPoolBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	// Check if the cloud provider is AWS
 	if b.CloudProvider != kops.CloudProviderAWS {
 		return nil

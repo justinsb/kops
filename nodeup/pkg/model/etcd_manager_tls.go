@@ -28,10 +28,10 @@ type EtcdManagerTLSBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &EtcdManagerTLSBuilder{}
+var _ fi.NodeupModelBuilder = &EtcdManagerTLSBuilder{}
 
 // Build is responsible for TLS configuration for etcd-manager
-func (b *EtcdManagerTLSBuilder) Build(ctx *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *EtcdManagerTLSBuilder) Build(ctx *fi.NodeupModelBuilderContext) error {
 	if !b.IsMaster {
 		return nil
 	}

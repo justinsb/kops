@@ -53,7 +53,7 @@ type IAMRolePolicy struct {
 	Managed bool
 }
 
-func (e *IAMRolePolicy) Find(c *fi.Context[fi.CloudupContext]) (*IAMRolePolicy, error) {
+func (e *IAMRolePolicy) Find(c *fi.CloudupContext) (*IAMRolePolicy, error) {
 	var actual IAMRolePolicy
 
 	cloud := c.Cloud.(awsup.AWSCloud)
@@ -143,8 +143,8 @@ func (e *IAMRolePolicy) Find(c *fi.Context[fi.CloudupContext]) (*IAMRolePolicy, 
 	return &actual, nil
 }
 
-func (e *IAMRolePolicy) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+func (e *IAMRolePolicy) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (s *IAMRolePolicy) CheckChanges(a, e, changes *IAMRolePolicy) error {

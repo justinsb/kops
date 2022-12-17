@@ -48,11 +48,15 @@ type Context[T SubContext] struct {
 	T T
 }
 
+type CloudupContext = Context[CloudupSubContext]
+type NodeupContext = Context[NodeupSubContext]
+
 type SubContext interface {
-	CloudupContext | NodeupContext
+	CloudupSubContext | NodeupSubContext
 }
-type CloudupContext struct{}
-type NodeupContext struct{}
+
+type CloudupSubContext struct{}
+type NodeupSubContext struct{}
 
 // Warning holds the details of a warning encountered during validation/creation
 type Warning[T SubContext] struct {
@@ -80,6 +84,16 @@ func NewContext[T SubContext](target Target[T], cluster *kops.Cluster, cloud Clo
 	c.Tmpdir = t
 
 	return c, nil
+}
+
+func NewNodeupContext(target NodeupTarget, cluster *kops.Cluster, cloud Cloud, keystore Keystore, secretStore SecretStore, clusterConfigBase vfs.Path, checkExisting bool, tasks map[string]NodeupTask) (*NodeupContext, error) {
+	sub := NodeupSubContext{}
+	return NewContext[NodeupSubContext](target, cluster, cloud, keystore, secretStore, clusterConfigBase, checkExisting, sub, tasks)
+}
+
+func NewCloudupContext(target CloudupTarget, cluster *kops.Cluster, cloud Cloud, keystore Keystore, secretStore SecretStore, clusterConfigBase vfs.Path, checkExisting bool, tasks map[string]CloudupTask) (*CloudupContext, error) {
+	sub := CloudupSubContext{}
+	return NewContext[CloudupSubContext](target, cluster, cloud, keystore, secretStore, clusterConfigBase, checkExisting, sub, tasks)
 }
 
 func (c *Context[T]) AllTasks() map[string]Task[T] {

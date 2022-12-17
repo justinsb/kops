@@ -38,8 +38,8 @@ type Subnet struct {
 }
 
 var (
-	_ fi.Task[fi.CloudupContext] = &Subnet{}
-	_ fi.CompareWithID           = &Subnet{}
+	_ fi.CloudupTask   = &Subnet{}
+	_ fi.CompareWithID = &Subnet{}
 )
 
 // CompareWithID returns the Name of the VM Scale Set.
@@ -48,7 +48,7 @@ func (s *Subnet) CompareWithID() *string {
 }
 
 // Find discovers the Subnet in the cloud provider.
-func (s *Subnet) Find(c *fi.Context[fi.CloudupContext]) (*Subnet, error) {
+func (s *Subnet) Find(c *fi.CloudupContext) (*Subnet, error) {
 	cloud := c.Cloud.(azure.AzureCloud)
 	l, err := cloud.Subnet().List(context.TODO(), *s.ResourceGroup.Name, *s.VirtualNetwork.Name)
 	if err != nil {
@@ -79,8 +79,8 @@ func (s *Subnet) Find(c *fi.Context[fi.CloudupContext]) (*Subnet, error) {
 }
 
 // Run implements fi.Task.Run.
-func (s *Subnet) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](s, c)
+func (s *Subnet) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(s, c)
 }
 
 // CheckChanges returns an error if a change is not allowed.

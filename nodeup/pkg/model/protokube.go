@@ -43,10 +43,10 @@ type ProtokubeBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &ProtokubeBuilder{}
+var _ fi.NodeupModelBuilder = &ProtokubeBuilder{}
 
 // Build is responsible for generating the options for protokube
-func (t *ProtokubeBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (t *ProtokubeBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	useGossip := t.Cluster.IsGossip()
 
 	// check is not a master and we are not using gossip (https://github.com/kubernetes/kops/pull/3091)

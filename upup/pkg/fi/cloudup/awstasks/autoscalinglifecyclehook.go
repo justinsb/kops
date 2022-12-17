@@ -53,7 +53,7 @@ func (h *AutoscalingLifecycleHook) CompareWithID() *string {
 	return h.Name
 }
 
-func (h *AutoscalingLifecycleHook) Find(c *fi.Context[fi.CloudupContext]) (*AutoscalingLifecycleHook, error) {
+func (h *AutoscalingLifecycleHook) Find(c *fi.CloudupContext) (*AutoscalingLifecycleHook, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	request := &autoscaling.DescribeLifecycleHooksInput{
@@ -92,8 +92,8 @@ func (h *AutoscalingLifecycleHook) Find(c *fi.Context[fi.CloudupContext]) (*Auto
 	return actual, nil
 }
 
-func (h *AutoscalingLifecycleHook) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](h, c)
+func (h *AutoscalingLifecycleHook) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(h, c)
 }
 
 func (_ *AutoscalingLifecycleHook) CheckChanges(a, e, changes *AutoscalingLifecycleHook) error {

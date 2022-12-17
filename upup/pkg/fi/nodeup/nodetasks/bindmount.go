@@ -36,7 +36,7 @@ type BindMount struct {
 	Recursive  bool     `json:"recursive"`
 }
 
-var _ fi.Task[fi.NodeupContext] = &BindMount{}
+var _ fi.NodeupTask = &BindMount{}
 
 func (s *BindMount) String() string {
 	return fmt.Sprintf("BindMount: %s->%s", s.Source, s.Mountpoint)
@@ -55,11 +55,11 @@ func (e *BindMount) GetName() *string {
 	return fi.String("BindMount-" + e.Mountpoint)
 }
 
-var _ fi.HasDependencies[fi.NodeupContext] = &BindMount{}
+var _ fi.NodeupHasDependencies = &BindMount{}
 
 // GetDependencies implements HasDependencies::GetDependencies
-func (e *BindMount) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) []fi.Task[fi.NodeupContext] {
-	var deps []fi.Task[fi.NodeupContext]
+func (e *BindMount) GetDependencies(tasks map[string]fi.NodeupTask) []fi.NodeupTask {
+	var deps []fi.NodeupTask
 
 	// Requires parent directories to be created
 	deps = append(deps, findCreatesDirParents(e.Mountpoint, tasks)...)
@@ -84,7 +84,7 @@ func (e *BindMount) GetDependencies(tasks map[string]fi.Task[fi.NodeupContext]) 
 	return deps
 }
 
-func findTaskInSlice(tasks []fi.Task[fi.NodeupContext], task fi.Task[fi.NodeupContext]) int {
+func findTaskInSlice(tasks []fi.NodeupTask, task fi.NodeupTask) int {
 	for i, t := range tasks {
 		if t == task {
 			return i
@@ -93,7 +93,7 @@ func findTaskInSlice(tasks []fi.Task[fi.NodeupContext], task fi.Task[fi.NodeupCo
 	return -1
 }
 
-func (e *BindMount) Find(c *fi.Context[fi.NodeupContext]) (*BindMount, error) {
+func (e *BindMount) Find(c *fi.NodeupContext) (*BindMount, error) {
 	mounts, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {
 		return nil, fmt.Errorf("error reading /proc/self/mountinfo: %v", err)
@@ -172,8 +172,8 @@ func (e *BindMount) Find(c *fi.Context[fi.NodeupContext]) (*BindMount, error) {
 	return nil, nil
 }
 
-func (e *BindMount) Run(c *fi.Context[fi.NodeupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.NodeupContext](e, c)
+func (e *BindMount) Run(c *fi.NodeupContext) error {
+	return fi.NodeupDefaultDeltaRunMethod(e, c)
 }
 
 func (s *BindMount) CheckChanges(a, e, changes *BindMount) error {

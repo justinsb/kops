@@ -38,8 +38,8 @@ type Subnet struct {
 }
 
 // GetDependencies returns the dependencies of the Port task
-func (e *Subnet) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
-	var deps []fi.Task[fi.CloudupContext]
+func (e *Subnet) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
+	var deps []fi.CloudupTask
 	for _, task := range tasks {
 		if _, ok := task.(*Network); ok {
 			deps = append(deps, task)
@@ -89,7 +89,7 @@ func NewSubnetTaskFromCloud(cloud openstack.OpenstackCloud, lifecycle fi.Lifecyc
 	return actual, nil
 }
 
-func (s *Subnet) Find(context *fi.Context[fi.CloudupContext]) (*Subnet, error) {
+func (s *Subnet) Find(context *fi.CloudupContext) (*Subnet, error) {
 	cloud := context.Cloud.(openstack.OpenstackCloud)
 	opt := subnets.ListOpts{
 		ID:         fi.StringValue(s.ID),
@@ -111,8 +111,8 @@ func (s *Subnet) Find(context *fi.Context[fi.CloudupContext]) (*Subnet, error) {
 	return NewSubnetTaskFromCloud(cloud, s.Lifecycle, &rs[0], s)
 }
 
-func (s *Subnet) Run(context *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](s, context)
+func (s *Subnet) Run(context *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(s, context)
 }
 
 func (*Subnet) CheckChanges(a, e, changes *Subnet) error {

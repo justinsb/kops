@@ -28,10 +28,10 @@ type FirewallBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &FirewallBuilder{}
+var _ fi.NodeupModelBuilder = &FirewallBuilder{}
 
 // Build is responsible for generating any node firewall rules
-func (b *FirewallBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *FirewallBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	// We need forwarding enabled (https://github.com/kubernetes/kubernetes/issues/40182)
 	c.AddTask(b.buildFirewallScript())
 	c.AddTask(b.buildSystemdService())

@@ -28,9 +28,9 @@ type NetworkModelBuilder struct {
 	Lifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder[fi.CloudupContext] = &NetworkModelBuilder{}
+var _ fi.CloudupModelBuilder = &NetworkModelBuilder{}
 
-func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
+func (b *NetworkModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	network := &hetznertasks.Network{
 		Name:      fi.String(b.ClusterName()),
 		Lifecycle: b.Lifecycle,

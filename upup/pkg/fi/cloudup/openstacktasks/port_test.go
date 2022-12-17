@@ -31,7 +31,7 @@ import (
 )
 
 func Test_Port_GetDependencies(t *testing.T) {
-	tasks := map[string]fi.Task[fi.CloudupContext]{
+	tasks := map[string]fi.CloudupTask{
 		"foo": &SecurityGroup{Name: fi.String("security-group")},
 		"bar": &Subnet{Name: fi.String("subnet")},
 		"baz": &Instance{Name: fi.String("instance")},
@@ -43,7 +43,7 @@ func Test_Port_GetDependencies(t *testing.T) {
 
 	actual := port.GetDependencies(tasks)
 
-	expected := []fi.Task[fi.CloudupContext]{
+	expected := []fi.CloudupTask{
 		&Subnet{Name: fi.String("subnet")},
 		&Network{Name: fi.String("network")},
 		&SecurityGroup{Name: fi.String("security-group")},
@@ -360,14 +360,14 @@ func Test_NewPortTaskFromCloud(t *testing.T) {
 func Test_Port_Find(t *testing.T) {
 	tests := []struct {
 		desc             string
-		context          *fi.Context[fi.CloudupContext]
+		context          *fi.CloudupContext
 		port             *Port
 		expectedPortTask *Port
 		expectedError    error
 	}{
 		{
 			desc: "nothing found",
-			context: &fi.Context[fi.CloudupContext]{
+			context: &fi.CloudupContext{
 				Cluster: &kops.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterName",
@@ -384,7 +384,7 @@ func Test_Port_Find(t *testing.T) {
 		},
 		{
 			desc: "port found no tags",
-			context: &fi.Context[fi.CloudupContext]{
+			context: &fi.CloudupContext{
 				Cluster: &kops.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterName",
@@ -431,7 +431,7 @@ func Test_Port_Find(t *testing.T) {
 		},
 		{
 			desc: "port found with tags",
-			context: &fi.Context[fi.CloudupContext]{
+			context: &fi.CloudupContext{
 				Cluster: &kops.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterName",
@@ -480,7 +480,7 @@ func Test_Port_Find(t *testing.T) {
 		},
 		{
 			desc: "multiple ports found",
-			context: &fi.Context[fi.CloudupContext]{
+			context: &fi.CloudupContext{
 				Cluster: &kops.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterName",
@@ -510,7 +510,7 @@ func Test_Port_Find(t *testing.T) {
 		},
 		{
 			desc: "error listing ports",
-			context: &fi.Context[fi.CloudupContext]{
+			context: &fi.CloudupContext{
 				Cluster: &kops.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "clusterName",
@@ -910,7 +910,7 @@ func (p *portCloud) ListSecurityGroups(opt sg.ListOpts) ([]sg.SecGroup, error) {
 	return p.listSecurityGroups[opt.Name], p.listSecurityGroupsError
 }
 
-type sortedTasks []fi.Task[fi.CloudupContext]
+type sortedTasks []fi.CloudupTask
 
 func (s sortedTasks) Len() int           { return len(s) }
 func (s sortedTasks) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }

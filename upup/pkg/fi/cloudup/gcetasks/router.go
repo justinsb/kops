@@ -65,7 +65,7 @@ func (r *Router) CompareWithID() *string {
 }
 
 // Find discovers the Router in the cloud provider.
-func (r *Router) Find(c *fi.Context[fi.CloudupContext]) (*Router, error) {
+func (r *Router) Find(c *fi.CloudupContext) (*Router, error) {
 	cloud := c.Cloud.(gce.GCECloud)
 
 	found, err := cloud.Compute().Routers().Get(cloud.Project(), *r.Region, *r.Name)
@@ -118,8 +118,8 @@ func (r *Router) url(project string) string {
 }
 
 // Run implements fi.Task.Run.
-func (r *Router) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](r, c)
+func (r *Router) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(r, c)
 }
 
 // CheckChanges returns an error if a change is not allowed.

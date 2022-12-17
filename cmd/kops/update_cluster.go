@@ -140,10 +140,10 @@ func NewCmdUpdateCluster(f *util.Factory, out io.Writer) *cobra.Command {
 
 type UpdateClusterResults struct {
 	// Target is the fi.Target we will operate against.  This can be used to get dryrun results (primarily for tests)
-	Target fi.Target[fi.CloudupContext]
+	Target fi.CloudupTarget
 
 	// TaskMap is the map of tasks that we built (output)
-	TaskMap map[string]fi.Task[fi.CloudupContext]
+	TaskMap map[string]fi.CloudupTask
 
 	// ImageAssets are the image assets we use (output).
 	ImageAssets []*assets.ImageAsset
@@ -304,7 +304,7 @@ func RunUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer, c *Up
 	results.Cluster = cluster
 
 	if isDryrun && !c.GetAssets {
-		target := applyCmd.Target.(*fi.DryRunTarget[fi.CloudupContext])
+		target := applyCmd.Target.(*fi.CloudupDryRunTarget)
 		if target.HasChanges() {
 			fmt.Fprintf(out, "Must specify --yes to apply changes\n")
 		} else {

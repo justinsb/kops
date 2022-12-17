@@ -28,6 +28,9 @@ type Task[T SubContext] interface {
 	Run(*Context[T]) error
 }
 
+type CloudupTask = Task[CloudupSubContext]
+type NodeupTask = Task[NodeupSubContext]
+
 // TaskPreRun is implemented by tasks that perform some initial validation.
 type TaskPreRun[T SubContext] interface {
 	// PreRun will be run for all TaskPreRuns, before any Run functions are invoked.
@@ -41,21 +44,41 @@ func TaskAsString[T SubContext](t Task[T]) string {
 	return fmt.Sprintf("%T %s", t, DebugAsJsonString(t))
 }
 
+// CloudupTaskAsString renders the task for debug output
+// TODO: Use reflection to make this cleaner: don't recurse into tasks - print their names instead
+// also print resources in a cleaner way (use the resource source information?)
+func CloudupTaskAsString(t CloudupTask) string {
+	return TaskAsString(t)
+}
+
+// NodeupTaskAsString renders the task for debug output
+// TODO: Use reflection to make this cleaner: don't recurse into tasks - print their names instead
+// also print resources in a cleaner way (use the resource source information?)
+func NodeupTaskAsString(t NodeupTask) string {
+	return TaskAsString(t)
+}
+
 type HasCheckExisting[T SubContext] interface {
 	CheckExisting(c *Context[T]) bool
 }
+
+type NodeupHasCheckExisting = HasCheckExisting[NodeupSubContext]
+type CloudupHasCheckExisting = HasCheckExisting[CloudupSubContext]
 
 // ModelBuilder allows for plugins that configure an aspect of the model, based on the configuration
 type ModelBuilder[T SubContext] interface {
 	Build(context *ModelBuilderContext[T]) error
 }
 
+type CloudupModelBuilder = ModelBuilder[CloudupSubContext]
+type NodeupModelBuilder = ModelBuilder[NodeupSubContext]
+
 // HasDeletions is a ModelBuilder[CloudupContext] that creates tasks to delete cloud objects that no longer exist in the model.
 type HasDeletions interface {
-	ModelBuilder[CloudupContext]
+	ModelBuilder[CloudupSubContext]
 	// FindDeletions finds cloud objects that are owned by the cluster but no longer in the model and creates tasks to delete them.
 	// It is not called for the Terraform or Cloudformation targets.
-	FindDeletions(context *ModelBuilderContext[CloudupContext], cloud Cloud) error
+	FindDeletions(context *ModelBuilderContext[CloudupSubContext], cloud Cloud) error
 }
 
 // ModelBuilderContext is a context object that holds state we want to pass to ModelBuilder
@@ -63,6 +86,9 @@ type ModelBuilderContext[T SubContext] struct {
 	Tasks              map[string]Task[T]
 	LifecycleOverrides map[string]Lifecycle
 }
+
+type NodeupModelBuilderContext = ModelBuilderContext[NodeupSubContext]
+type CloudupModelBuilderContext = ModelBuilderContext[CloudupSubContext]
 
 func (c *ModelBuilderContext[T]) AddTask(task Task[T]) {
 	task = c.setLifecycleOverride(task)

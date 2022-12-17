@@ -37,8 +37,8 @@ type PublicIPAddress struct {
 }
 
 var (
-	_ fi.Task[fi.CloudupContext] = &PublicIPAddress{}
-	_ fi.CompareWithID           = &PublicIPAddress{}
+	_ fi.CloudupTask   = &PublicIPAddress{}
+	_ fi.CompareWithID = &PublicIPAddress{}
 )
 
 // CompareWithID returns the Name of the Public IP Address
@@ -47,7 +47,7 @@ func (p *PublicIPAddress) CompareWithID() *string {
 }
 
 // Find discovers the Public IP Address in the cloud provider
-func (p *PublicIPAddress) Find(c *fi.Context[fi.CloudupContext]) (*PublicIPAddress, error) {
+func (p *PublicIPAddress) Find(c *fi.CloudupContext) (*PublicIPAddress, error) {
 	cloud := c.Cloud.(azure.AzureCloud)
 	l, err := cloud.PublicIPAddress().List(context.TODO(), *p.ResourceGroup.Name)
 	if err != nil {
@@ -76,9 +76,9 @@ func (p *PublicIPAddress) Find(c *fi.Context[fi.CloudupContext]) (*PublicIPAddre
 }
 
 // Run implements fi.Task.Run.
-func (p *PublicIPAddress) Run(c *fi.Context[fi.CloudupContext]) error {
+func (p *PublicIPAddress) Run(c *fi.CloudupContext) error {
 	c.Cloud.(azure.AzureCloud).AddClusterTags(p.Tags)
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](p, c)
+	return fi.CloudupDefaultDeltaRunMethod(p, c)
 }
 
 // CheckChanges returns an error if a change is not allowed.

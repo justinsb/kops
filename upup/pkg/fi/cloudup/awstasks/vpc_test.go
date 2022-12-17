@@ -33,14 +33,14 @@ func TestVPCCreate(t *testing.T) {
 	cloud.MockEC2 = c
 
 	// We define a function so we can rebuild the tasks, because we modify in-place when running
-	buildTasks := func() map[string]fi.Task[fi.CloudupContext] {
+	buildTasks := func() map[string]fi.CloudupTask {
 		vpc1 := &VPC{
 			Name:      s("vpc1"),
 			Lifecycle: fi.LifecycleSync,
 			CIDR:      s("172.21.0.0/16"),
 			Tags:      map[string]string{"Name": "vpc1"},
 		}
-		return map[string]fi.Task[fi.CloudupContext]{
+		return map[string]fi.CloudupTask{
 			"vpc1": vpc1,
 		}
 	}
@@ -53,7 +53,7 @@ func TestVPCCreate(t *testing.T) {
 			Cloud: cloud,
 		}
 
-		context, err := fi.NewContext[fi.CloudupContext](target, nil, cloud, nil, nil, nil, true, fi.CloudupContext{}, allTasks)
+		context, err := fi.NewCloudupContext(target, nil, cloud, nil, nil, nil, true, allTasks)
 		if err != nil {
 			t.Fatalf("error building context: %v", err)
 		}
@@ -156,7 +156,7 @@ func TestSharedVPCAdditionalCIDR(t *testing.T) {
 	cloud.MockEC2 = c
 
 	// We define a function so we can rebuild the tasks, because we modify in-place when running
-	buildTasks := func() map[string]fi.Task[fi.CloudupContext] {
+	buildTasks := func() map[string]fi.CloudupTask {
 		vpc1 := &VPC{
 			Name:      s("vpc-1"),
 			Lifecycle: fi.LifecycleSync,
@@ -164,7 +164,7 @@ func TestSharedVPCAdditionalCIDR(t *testing.T) {
 			Tags:      map[string]string{"Name": "vpc-1"},
 			Shared:    fi.Bool(true),
 		}
-		return map[string]fi.Task[fi.CloudupContext]{
+		return map[string]fi.CloudupTask{
 			"vpc-1": vpc1,
 		}
 	}
@@ -177,7 +177,7 @@ func TestSharedVPCAdditionalCIDR(t *testing.T) {
 			Cloud: cloud,
 		}
 
-		context, err := fi.NewContext[fi.CloudupContext](target, nil, cloud, nil, nil, nil, true, fi.CloudupContext{}, allTasks)
+		context, err := fi.NewCloudupContext(target, nil, cloud, nil, nil, nil, true, allTasks)
 		if err != nil {
 			t.Fatalf("error building context: %v", err)
 		}

@@ -70,7 +70,7 @@ func (e *EBSVolume) FindResourceID(c fi.Cloud) (*string, error) {
 	return actual.ID, nil
 }
 
-func (e *EBSVolume) Find(context *fi.Context[fi.CloudupContext]) (*EBSVolume, error) {
+func (e *EBSVolume) Find(context *fi.CloudupContext) (*EBSVolume, error) {
 	actual, err := e.find(context.Cloud.(awsup.AWSCloud))
 	if actual != nil && err == nil {
 		e.ID = actual.ID
@@ -119,9 +119,9 @@ func (e *EBSVolume) find(cloud awsup.AWSCloud) (*EBSVolume, error) {
 	return actual, nil
 }
 
-func (e *EBSVolume) Run(c *fi.Context[fi.CloudupContext]) error {
+func (e *EBSVolume) Run(c *fi.CloudupContext) error {
 	c.Cloud.(awsup.AWSCloud).AddTags(e.Name, e.Tags)
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (_ *EBSVolume) CheckChanges(a, e, changes *EBSVolume) error {
@@ -261,7 +261,7 @@ func (e *EBSVolume) TerraformName() (string, bool) {
 }
 
 // PreRun is run before general task execution, and checks for terraform breaking changes.
-func (e *EBSVolume) PreRun(c *fi.Context[fi.CloudupContext]) error {
+func (e *EBSVolume) PreRun(c *fi.CloudupContext) error {
 	if _, ok := c.Target.(*terraform.TerraformTarget); ok {
 		_, usedPrefix := e.TerraformName()
 		if usedPrefix {

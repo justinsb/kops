@@ -35,7 +35,7 @@ type NetworkModelBuilder struct {
 	Lifecycle fi.Lifecycle
 }
 
-var _ fi.ModelBuilder[fi.CloudupContext] = &NetworkModelBuilder{}
+var _ fi.CloudupModelBuilder = &NetworkModelBuilder{}
 
 type zoneInfo struct {
 	NATSubnets           []*kops.ClusterSubnetSpec
@@ -47,7 +47,7 @@ func isUnmanaged(subnet *kops.ClusterSubnetSpec) bool {
 	return subnet.Egress == kops.EgressExternal
 }
 
-func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
+func (b *NetworkModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	sharedVPC := b.Cluster.SharedVPC()
 	vpcName := b.ClusterName()
 	tags := b.CloudTags(vpcName, sharedVPC)
@@ -641,7 +641,7 @@ func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]
 	return nil
 }
 
-func addAdditionalRoutes(routes []kops.RouteSpec, sbName string, rt *awstasks.RouteTable, lf fi.Lifecycle, c *fi.ModelBuilderContext[fi.CloudupContext]) error {
+func addAdditionalRoutes(routes []kops.RouteSpec, sbName string, rt *awstasks.RouteTable, lf fi.Lifecycle, c *fi.CloudupModelBuilderContext) error {
 	for _, r := range routes {
 		t := &awstasks.Route{
 			Name:       fi.String(sbName + "." + r.CIDR),

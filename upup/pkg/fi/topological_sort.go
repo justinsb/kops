@@ -28,10 +28,17 @@ type HasDependencies[T SubContext] interface {
 	GetDependencies(tasks map[string]Task[T]) []Task[T]
 }
 
+type CloudupHasDependencies = HasDependencies[CloudupSubContext]
+type NodeupHasDependencies = HasDependencies[NodeupSubContext]
+
 // NotADependency is a marker type to prevent FindTaskDependencies() from considering it a potential dependency.
 type NotADependency[T SubContext] struct{}
 
-var _ HasDependencies[CloudupContext] = &NotADependency[CloudupContext]{}
+type NodeupNotADependency = NotADependency[NodeupSubContext]
+type CloudupNotADependency = NotADependency[CloudupSubContext]
+
+var _ CloudupHasDependencies = &CloudupNotADependency{}
+var _ NodeupHasDependencies = &NodeupNotADependency{}
 
 func (NotADependency[T]) GetDependencies(map[string]Task[T]) []Task[T] {
 	return nil

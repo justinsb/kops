@@ -24,3 +24,6 @@ type Target[T SubContext] interface {
 	// Some providers (e.g. Terraform) actively keep state, and will delete resources automatically
 	ProcessDeletions() bool
 }
+
+type CloudupTarget = Target[CloudupSubContext]
+type NodeupTarget = Target[NodeupSubContext]

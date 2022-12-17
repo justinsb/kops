@@ -87,8 +87,8 @@ func waitLoadbalancerActiveProvisioningStatus(client *gophercloud.ServiceClient,
 }
 
 // GetDependencies returns the dependencies of the Instance task
-func (e *LB) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
-	var deps []fi.Task[fi.CloudupContext]
+func (e *LB) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
+	var deps []fi.CloudupTask
 	for _, task := range tasks {
 		if _, ok := task.(*Subnet); ok {
 			deps = append(deps, task)
@@ -144,7 +144,7 @@ func NewLBTaskFromCloud(cloud openstack.OpenstackCloud, lifecycle fi.Lifecycle, 
 	return actual, nil
 }
 
-func (s *LB) Find(context *fi.Context[fi.CloudupContext]) (*LB, error) {
+func (s *LB) Find(context *fi.CloudupContext) (*LB, error) {
 	if s.Name == nil {
 		return nil, nil
 	}
@@ -170,8 +170,8 @@ func (s *LB) Find(context *fi.Context[fi.CloudupContext]) (*LB, error) {
 	return NewLBTaskFromCloud(cloud, s.Lifecycle, &lbs[0], s)
 }
 
-func (s *LB) Run(context *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](s, context)
+func (s *LB) Run(context *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(s, context)
 }
 
 func (_ *LB) CheckChanges(a, e, changes *LB) error {

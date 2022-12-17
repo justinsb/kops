@@ -131,16 +131,16 @@ type VMScaleSetStorageProfile struct {
 	*compute.VirtualMachineScaleSetStorageProfile
 }
 
-var _ fi.HasDependencies[fi.CloudupContext] = &VMScaleSetStorageProfile{}
+var _ fi.CloudupHasDependencies = &VMScaleSetStorageProfile{}
 
 // GetDependencies returns a slice of tasks on which the tasks depends on.
-func (p *VMScaleSetStorageProfile) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
+func (p *VMScaleSetStorageProfile) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
 	return nil
 }
 
 var (
-	_ fi.Task[fi.CloudupContext] = &VMScaleSet{}
-	_ fi.CompareWithID           = &VMScaleSet{}
+	_ fi.CloudupTask   = &VMScaleSet{}
+	_ fi.CompareWithID = &VMScaleSet{}
 )
 
 // CompareWithID returns the Name of the VM Scale Set.
@@ -149,7 +149,7 @@ func (s *VMScaleSet) CompareWithID() *string {
 }
 
 // Find discovers the VMScaleSet in the cloud provider.
-func (s *VMScaleSet) Find(c *fi.Context[fi.CloudupContext]) (*VMScaleSet, error) {
+func (s *VMScaleSet) Find(c *fi.CloudupContext) (*VMScaleSet, error) {
 	cloud := c.Cloud.(azure.AzureCloud)
 	l, err := cloud.VMScaleSet().List(context.TODO(), *s.ResourceGroup.Name)
 	if err != nil {
@@ -241,9 +241,9 @@ func (s *VMScaleSet) Find(c *fi.Context[fi.CloudupContext]) (*VMScaleSet, error)
 }
 
 // Run implements fi.Task.Run.
-func (s *VMScaleSet) Run(c *fi.Context[fi.CloudupContext]) error {
+func (s *VMScaleSet) Run(c *fi.CloudupContext) error {
 	c.Cloud.(azure.AzureCloud).AddClusterTags(s.Tags)
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](s, c)
+	return fi.CloudupDefaultDeltaRunMethod(s, c)
 }
 
 // CheckChanges returns an error if a change is not allowed.

@@ -42,7 +42,7 @@ func TestElasticIPCreate(t *testing.T) {
 	c := &mockec2.MockEC2{}
 	cloud.MockEC2 = c
 	// We define a function so we can rebuild the tasks, because we modify in-place when running
-	buildTasks := func() map[string]fi.Task[fi.CloudupContext] {
+	buildTasks := func() map[string]fi.CloudupTask {
 		vpc1 := &VPC{
 			Name:      s("vpc1"),
 			Lifecycle: fi.LifecycleSync,
@@ -63,7 +63,7 @@ func TestElasticIPCreate(t *testing.T) {
 			Tags:        map[string]string{"Name": "eip1"},
 		}
 
-		return map[string]fi.Task[fi.CloudupContext]{
+		return map[string]fi.CloudupTask{
 			"eip1":    eip1,
 			"subnet1": subnet1,
 			"vpc1":    vpc1,
@@ -78,7 +78,7 @@ func TestElasticIPCreate(t *testing.T) {
 			Cloud: cloud,
 		}
 
-		context, err := fi.NewContext[fi.CloudupContext](target, nil, cloud, nil, nil, nil, true, fi.CloudupContext{}, allTasks)
+		context, err := fi.NewCloudupContext(target, nil, cloud, nil, nil, nil, true, allTasks)
 		if err != nil {
 			t.Fatalf("error building context: %v", err)
 		}
@@ -119,15 +119,15 @@ func TestElasticIPCreate(t *testing.T) {
 	}
 }
 
-func checkNoChanges(t *testing.T, cloud fi.Cloud, allTasks map[string]fi.Task[fi.CloudupContext]) {
+func checkNoChanges(t *testing.T, cloud fi.Cloud, allTasks map[string]fi.CloudupTask) {
 	cluster := &kops.Cluster{
 		Spec: kops.ClusterSpec{
 			KubernetesVersion: "v1.9.0",
 		},
 	}
 	assetBuilder := assets.NewAssetBuilder(cluster, false)
-	target := fi.NewDryRunTarget[fi.CloudupContext](assetBuilder, os.Stderr)
-	context, err := fi.NewContext[fi.CloudupContext](target, nil, cloud, nil, nil, nil, true, fi.CloudupContext{}, allTasks)
+	target := fi.NewCloudupDryRunTarget(assetBuilder, os.Stderr)
+	context, err := fi.NewCloudupContext(target, nil, cloud, nil, nil, nil, true, allTasks)
 	if err != nil {
 		t.Fatalf("error building context: %v", err)
 	}

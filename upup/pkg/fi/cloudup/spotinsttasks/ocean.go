@@ -66,17 +66,17 @@ type Ocean struct {
 }
 
 var (
-	_ fi.Task[fi.CloudupContext]            = &Ocean{}
-	_ fi.CompareWithID                      = &Ocean{}
-	_ fi.HasDependencies[fi.CloudupContext] = &Ocean{}
+	_ fi.CloudupTask            = &Ocean{}
+	_ fi.CompareWithID          = &Ocean{}
+	_ fi.CloudupHasDependencies = &Ocean{}
 )
 
 func (o *Ocean) CompareWithID() *string {
 	return o.Name
 }
 
-func (o *Ocean) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
-	var deps []fi.Task[fi.CloudupContext]
+func (o *Ocean) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
+	var deps []fi.CloudupTask
 
 	if o.IAMInstanceProfile != nil {
 		deps = append(deps, o.IAMInstanceProfile)
@@ -128,9 +128,9 @@ func (o *Ocean) find(svc spotinst.InstanceGroupService) (*aws.Cluster, error) {
 	return out, nil
 }
 
-var _ fi.HasCheckExisting[fi.CloudupContext] = &Ocean{}
+var _ fi.CloudupHasCheckExisting = &Ocean{}
 
-func (o *Ocean) Find(c *fi.Context[fi.CloudupContext]) (*Ocean, error) {
+func (o *Ocean) Find(c *fi.CloudupContext) (*Ocean, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	ocean, err := o.find(cloud.Spotinst().Ocean())
@@ -326,14 +326,14 @@ func (o *Ocean) Find(c *fi.Context[fi.CloudupContext]) (*Ocean, error) {
 	return actual, nil
 }
 
-func (o *Ocean) CheckExisting(c *fi.Context[fi.CloudupContext]) bool {
+func (o *Ocean) CheckExisting(c *fi.CloudupContext) bool {
 	cloud := c.Cloud.(awsup.AWSCloud)
 	ocean, err := o.find(cloud.Spotinst().Ocean())
 	return err == nil && ocean != nil
 }
 
-func (o *Ocean) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](o, c)
+func (o *Ocean) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(o, c)
 }
 
 func (s *Ocean) CheckChanges(a, e, changes *Ocean) error {

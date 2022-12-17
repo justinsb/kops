@@ -104,9 +104,9 @@ func (e *ClassicLoadBalancerListener) mapToAWS(loadBalancerPort int64) *elb.List
 	return l
 }
 
-var _ fi.HasDependencies[fi.CloudupContext] = &ClassicLoadBalancerListener{}
+var _ fi.CloudupHasDependencies = &ClassicLoadBalancerListener{}
 
-func (e *ClassicLoadBalancerListener) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
+func (e *ClassicLoadBalancerListener) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
 	return nil
 }
 
@@ -209,7 +209,7 @@ func (e *ClassicLoadBalancer) getHostedZoneId() *string {
 	return e.HostedZoneId
 }
 
-func (e *ClassicLoadBalancer) Find(c *fi.Context[fi.CloudupContext]) (*ClassicLoadBalancer, error) {
+func (e *ClassicLoadBalancer) Find(c *fi.CloudupContext) (*ClassicLoadBalancer, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	lb, err := cloud.FindELBByNameTag(fi.StringValue(e.Name))
@@ -346,7 +346,7 @@ func (e *ClassicLoadBalancer) IsForAPIServer() bool {
 	return e.ForAPIServer
 }
 
-func (e *ClassicLoadBalancer) FindAddresses(context *fi.Context[fi.CloudupContext]) ([]string, error) {
+func (e *ClassicLoadBalancer) FindAddresses(context *fi.CloudupContext) ([]string, error) {
 	cloud := context.Cloud.(awsup.AWSCloud)
 
 	lb, err := cloud.FindELBByNameTag(fi.StringValue(e.Name))
@@ -364,11 +364,11 @@ func (e *ClassicLoadBalancer) FindAddresses(context *fi.Context[fi.CloudupContex
 	return []string{lbDnsName}, nil
 }
 
-func (e *ClassicLoadBalancer) Run(c *fi.Context[fi.CloudupContext]) error {
+func (e *ClassicLoadBalancer) Run(c *fi.CloudupContext) error {
 	// TODO: Make Normalize a standard method
 	e.Normalize()
 
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (_ *ClassicLoadBalancer) ShouldCreate(a, e, changes *ClassicLoadBalancer) (bool, error) {

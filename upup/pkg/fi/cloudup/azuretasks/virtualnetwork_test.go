@@ -64,7 +64,7 @@ func TestVirtualNetworkRenderAzure(t *testing.T) {
 
 func TestVirtualNetworkFind(t *testing.T) {
 	cloud := NewMockAzureCloud("eastus")
-	ctx := &fi.Context[fi.CloudupContext]{
+	ctx := &fi.CloudupContext{
 		Cloud: cloud,
 	}
 
@@ -121,7 +121,7 @@ func TestVirtualNetworkFind(t *testing.T) {
 
 func TestVirtualNetworkRun(t *testing.T) {
 	cloud := NewMockAzureCloud("eastus")
-	ctx := &fi.Context[fi.CloudupContext]{
+	ctx := &fi.CloudupContext{
 		Cloud:  cloud,
 		Target: azure.NewAzureAPITarget(cloud),
 	}

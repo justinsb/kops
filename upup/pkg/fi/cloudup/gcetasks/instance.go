@@ -62,7 +62,7 @@ func (e *Instance) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *Instance) Find(c *fi.Context[fi.CloudupContext]) (*Instance, error) {
+func (e *Instance) Find(c *fi.CloudupContext) (*Instance, error) {
 	cloud := c.Cloud.(gce.GCECloud)
 
 	r, err := cloud.Compute().Instances().Get(cloud.Project(), *e.Zone, *e.Name)
@@ -148,8 +148,8 @@ func (e *Instance) Find(c *fi.Context[fi.CloudupContext]) (*Instance, error) {
 	return actual, nil
 }
 
-func (e *Instance) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+func (e *Instance) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (_ *Instance) CheckChanges(a, e, changes *Instance) error {

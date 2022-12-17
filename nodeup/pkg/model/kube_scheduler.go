@@ -61,10 +61,10 @@ type KubeSchedulerBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &KubeSchedulerBuilder{}
+var _ fi.NodeupModelBuilder = &KubeSchedulerBuilder{}
 
 // Build is responsible for building the manifest for the kube-scheduler
-func (b *KubeSchedulerBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *KubeSchedulerBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	if !b.IsMaster {
 		return nil
 	}
@@ -155,7 +155,7 @@ func NewSchedulerConfig(apiVersion string) *SchedulerConfig {
 	return schedConfig
 }
 
-func (b *KubeSchedulerBuilder) writeServerCertificate(c *fi.ModelBuilderContext[fi.NodeupContext], kubeScheduler *kops.KubeSchedulerConfig) error {
+func (b *KubeSchedulerBuilder) writeServerCertificate(c *fi.NodeupModelBuilderContext, kubeScheduler *kops.KubeSchedulerConfig) error {
 	pathSrvScheduler := filepath.Join(b.PathSrvKubernetes(), "kube-scheduler")
 
 	if kubeScheduler.TLSCertFile == nil {

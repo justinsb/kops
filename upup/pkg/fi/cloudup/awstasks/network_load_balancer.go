@@ -123,9 +123,9 @@ func (e *NetworkLoadBalancerListener) mapToAWS(targetGroups []*TargetGroup, load
 	return l, nil
 }
 
-var _ fi.HasDependencies[fi.CloudupContext] = &NetworkLoadBalancerListener{}
+var _ fi.CloudupHasDependencies = &NetworkLoadBalancerListener{}
 
-func (e *NetworkLoadBalancerListener) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
+func (e *NetworkLoadBalancerListener) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
 	return nil
 }
 
@@ -238,7 +238,7 @@ func (e *NetworkLoadBalancer) getHostedZoneId() *string {
 	return e.HostedZoneId
 }
 
-func (e *NetworkLoadBalancer) Find(c *fi.Context[fi.CloudupContext]) (*NetworkLoadBalancer, error) {
+func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	lb, err := cloud.FindELBV2ByNameTag(e.Tags["Name"])
@@ -434,7 +434,7 @@ func (e *NetworkLoadBalancer) IsForAPIServer() bool {
 	return e.ForAPIServer
 }
 
-func (e *NetworkLoadBalancer) FindAddresses(context *fi.Context[fi.CloudupContext]) ([]string, error) {
+func (e *NetworkLoadBalancer) FindAddresses(context *fi.CloudupContext) ([]string, error) {
 	cloud := context.Cloud.(awsup.AWSCloud)
 
 	lb, err := cloud.FindELBV2ByNameTag(e.Tags["Name"])
@@ -452,11 +452,11 @@ func (e *NetworkLoadBalancer) FindAddresses(context *fi.Context[fi.CloudupContex
 	return []string{lbDnsName}, nil
 }
 
-func (e *NetworkLoadBalancer) Run(c *fi.Context[fi.CloudupContext]) error {
+func (e *NetworkLoadBalancer) Run(c *fi.CloudupContext) error {
 	// TODO: Make Normalize a standard method
 	e.Normalize()
 
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (e *NetworkLoadBalancer) Normalize() {

@@ -30,7 +30,7 @@ func TestProjectIAMBinding(t *testing.T) {
 	cloud := gcemock.InstallMockGCECloud(region, project)
 
 	// We define a function so we can rebuild the tasks, because we modify in-place when running
-	buildTasks := func() map[string]fi.Task[fi.CloudupContext] {
+	buildTasks := func() map[string]fi.CloudupTask {
 		binding := &ProjectIAMBinding{
 			Lifecycle: fi.LifecycleSync,
 
@@ -39,7 +39,7 @@ func TestProjectIAMBinding(t *testing.T) {
 			Role:    fi.String("roles/owner"),
 		}
 
-		return map[string]fi.Task[fi.CloudupContext]{
+		return map[string]fi.CloudupTask{
 			"binding": binding,
 		}
 	}

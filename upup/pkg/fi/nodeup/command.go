@@ -362,7 +362,7 @@ func (c *NodeUpCommand) Run(out io.Writer) error {
 	}
 	// Protokube load image task is in ProtokubeBuilder
 
-	var target fi.Target[fi.NodeupContext]
+	var target fi.NodeupTarget
 	checkExisting := true
 
 	switch c.Target {
@@ -375,7 +375,7 @@ func (c *NodeUpCommand) Run(out io.Writer) error {
 		}
 	case "dryrun":
 		assetBuilder := assets.NewAssetBuilder(c.cluster, false)
-		target = fi.NewDryRunTarget[fi.NodeupContext](assetBuilder, out)
+		target = fi.NewNodeupDryRunTarget(assetBuilder, out)
 	case "cloudinit":
 		checkExisting = false
 		target = cloudinit.NewCloudInitTarget(out)
@@ -383,7 +383,7 @@ func (c *NodeUpCommand) Run(out io.Writer) error {
 		return fmt.Errorf("unsupported target type %q", c.Target)
 	}
 
-	context, err := fi.NewContext(target, c.cluster, cloud, keyStore, secretStore, configBase, checkExisting, fi.NodeupContext{}, taskMap)
+	context, err := fi.NewNodeupContext(target, c.cluster, cloud, keyStore, secretStore, configBase, checkExisting, taskMap)
 	if err != nil {
 		klog.Exitf("error building context: %v", err)
 	}

@@ -44,7 +44,7 @@ func (e *StorageBucketIAM) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *StorageBucketIAM) Find(c *fi.Context[fi.CloudupContext]) (*StorageBucketIAM, error) {
+func (e *StorageBucketIAM) Find(c *fi.CloudupContext) (*StorageBucketIAM, error) {
 	ctx := context.TODO()
 
 	cloud := c.Cloud.(gce.GCECloud)
@@ -79,8 +79,8 @@ func (e *StorageBucketIAM) Find(c *fi.Context[fi.CloudupContext]) (*StorageBucke
 	return actual, nil
 }
 
-func (e *StorageBucketIAM) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+func (e *StorageBucketIAM) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (_ *StorageBucketIAM) CheckChanges(a, e, changes *StorageBucketIAM) error {

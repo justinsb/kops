@@ -26,10 +26,10 @@ type EtcHostsBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &EtcHostsBuilder{}
+var _ fi.NodeupModelBuilder = &EtcHostsBuilder{}
 
 // Build is responsible for configuring the gossip DNS tasks.
-func (b *EtcHostsBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *EtcHostsBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	useGossip := b.Cluster.IsGossip()
 	if !useGossip {
 		return nil

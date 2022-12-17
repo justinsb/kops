@@ -37,8 +37,8 @@ type RouteTable struct {
 }
 
 var (
-	_ fi.Task[fi.CloudupContext] = &RouteTable{}
-	_ fi.CompareWithID           = &RouteTable{}
+	_ fi.CloudupTask   = &RouteTable{}
+	_ fi.CompareWithID = &RouteTable{}
 )
 
 // CompareWithID returns the Name of the VM Scale Set.
@@ -47,7 +47,7 @@ func (r *RouteTable) CompareWithID() *string {
 }
 
 // Find discovers the RouteTable in the cloud provider.
-func (r *RouteTable) Find(c *fi.Context[fi.CloudupContext]) (*RouteTable, error) {
+func (r *RouteTable) Find(c *fi.CloudupContext) (*RouteTable, error) {
 	cloud := c.Cloud.(azure.AzureCloud)
 	l, err := cloud.RouteTable().List(context.TODO(), *r.ResourceGroup.Name)
 	if err != nil {
@@ -74,9 +74,9 @@ func (r *RouteTable) Find(c *fi.Context[fi.CloudupContext]) (*RouteTable, error)
 }
 
 // Run implements fi.Task.Run.
-func (r *RouteTable) Run(c *fi.Context[fi.CloudupContext]) error {
+func (r *RouteTable) Run(c *fi.CloudupContext) error {
 	c.Cloud.(azure.AzureCloud).AddClusterTags(r.Tags)
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](r, c)
+	return fi.CloudupDefaultDeltaRunMethod(r, c)
 }
 
 // CheckChanges returns an error if a change is not allowed.

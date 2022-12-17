@@ -20,8 +20,12 @@ type ProducesDeletions[T SubContext] interface {
 	FindDeletions(*Context[T]) ([]Deletion[T], error)
 }
 
+type CloudupProducesDeletions = ProducesDeletions[CloudupSubContext]
+
 type Deletion[T SubContext] interface {
 	Delete(target Target[T]) error
 	TaskName() string
 	Item() string
 }
+
+type CloudupDeletion = Deletion[CloudupSubContext]

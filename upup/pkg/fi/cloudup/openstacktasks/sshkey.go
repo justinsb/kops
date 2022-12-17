@@ -44,7 +44,7 @@ func (e *SSHKey) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *SSHKey) Find(c *fi.Context[fi.CloudupContext]) (*SSHKey, error) {
+func (e *SSHKey) Find(c *fi.CloudupContext) (*SSHKey, error) {
 	cloud := c.Cloud.(openstack.OpenstackCloud)
 	rs, err := cloud.GetKeypair(openstackKeyPairName(fi.StringValue(e.Name)))
 	if err != nil {
@@ -69,7 +69,7 @@ func (e *SSHKey) Find(c *fi.Context[fi.CloudupContext]) (*SSHKey, error) {
 	return actual, nil
 }
 
-func (e *SSHKey) Run(c *fi.Context[fi.CloudupContext]) error {
+func (e *SSHKey) Run(c *fi.CloudupContext) error {
 	if e.KeyFingerprint == nil && e.PublicKey != nil {
 		publicKey, err := fi.ResourceAsString(e.PublicKey)
 		if err != nil {
@@ -83,7 +83,7 @@ func (e *SSHKey) Run(c *fi.Context[fi.CloudupContext]) error {
 		klog.V(2).Infof("Computed SSH key fingerprint as %q", keyFingerprint)
 		e.KeyFingerprint = &keyFingerprint
 	}
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (s *SSHKey) CheckChanges(a, e, changes *SSHKey) error {

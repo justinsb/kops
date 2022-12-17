@@ -204,10 +204,13 @@ type TaskDependentResource[T SubContext] struct {
 	Task     Task[T]  `json:"task,omitempty"`
 }
 
+type CloudupTaskDependentResource = TaskDependentResource[CloudupSubContext]
+type NodeupTaskDependentResource = TaskDependentResource[NodeupSubContext]
+
 var (
-	_ Resource                        = &TaskDependentResource[CloudupContext]{}
-	_ HasDependencies[CloudupContext] = &TaskDependentResource[CloudupContext]{}
-	_ HasIsReady                      = &TaskDependentResource[CloudupContext]{}
+	_ Resource                           = &TaskDependentResource[CloudupSubContext]{}
+	_ HasDependencies[CloudupSubContext] = &TaskDependentResource[CloudupSubContext]{}
+	_ HasIsReady                         = &TaskDependentResource[CloudupSubContext]{}
 )
 
 func (r *TaskDependentResource[T]) Open() (io.Reader, error) {

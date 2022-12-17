@@ -43,8 +43,8 @@ type LoadBalancer struct {
 }
 
 var (
-	_ fi.Task[fi.CloudupContext] = &LoadBalancer{}
-	_ fi.CompareWithID           = &LoadBalancer{}
+	_ fi.CloudupTask   = &LoadBalancer{}
+	_ fi.CompareWithID = &LoadBalancer{}
 )
 
 // CompareWithID returns the Name of the LoadBalancer
@@ -58,7 +58,7 @@ func (lb *LoadBalancer) IsForAPIServer() bool {
 }
 
 // Find discovers the LoadBalancer in the cloud provider
-func (lb *LoadBalancer) Find(c *fi.Context[fi.CloudupContext]) (*LoadBalancer, error) {
+func (lb *LoadBalancer) Find(c *fi.CloudupContext) (*LoadBalancer, error) {
 	cloud := c.Cloud.(azure.AzureCloud)
 	l, err := cloud.LoadBalancer().List(context.TODO(), *lb.ResourceGroup.Name)
 	if err != nil {
@@ -99,9 +99,9 @@ func (lb *LoadBalancer) Find(c *fi.Context[fi.CloudupContext]) (*LoadBalancer, e
 }
 
 // Run implements fi.Task.Run.
-func (lb *LoadBalancer) Run(c *fi.Context[fi.CloudupContext]) error {
+func (lb *LoadBalancer) Run(c *fi.CloudupContext) error {
 	c.Cloud.(azure.AzureCloud).AddClusterTags(lb.Tags)
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](lb, c)
+	return fi.CloudupDefaultDeltaRunMethod(lb, c)
 }
 
 // CheckChanges returns an error if a change is not allowed.

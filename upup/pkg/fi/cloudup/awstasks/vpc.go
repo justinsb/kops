@@ -59,15 +59,15 @@ type VPC struct {
 }
 
 var (
-	_ fi.CompareWithID                        = &VPC{}
-	_ fi.ProducesDeletions[fi.CloudupContext] = &VPC{}
+	_ fi.CompareWithID            = &VPC{}
+	_ fi.CloudupProducesDeletions = &VPC{}
 )
 
 func (e *VPC) CompareWithID() *string {
 	return e.ID
 }
 
-func (e *VPC) Find(c *fi.Context[fi.CloudupContext]) (*VPC, error) {
+func (e *VPC) Find(c *fi.CloudupContext) (*VPC, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	request := &ec2.DescribeVpcsInput{}
@@ -168,8 +168,8 @@ func (s *VPC) CheckChanges(a, e, changes *VPC) error {
 	return nil
 }
 
-func (e *VPC) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+func (e *VPC) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (_ *VPC) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *VPC) error {
@@ -233,12 +233,12 @@ func (_ *VPC) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *VPC) error {
 	return t.AddAWSTags(*e.ID, e.Tags)
 }
 
-func (e *VPC) FindDeletions(c *fi.Context[fi.CloudupContext]) ([]fi.Deletion[fi.CloudupContext], error) {
+func (e *VPC) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletion, error) {
 	if fi.IsNilOrEmpty(e.ID) || fi.BoolValue(e.Shared) {
 		return nil, nil
 	}
 
-	var removals []fi.Deletion[fi.CloudupContext]
+	var removals []fi.CloudupDeletion
 	request := &ec2.DescribeVpcsInput{
 		VpcIds: []*string{e.ID},
 	}
@@ -375,9 +375,9 @@ type deleteVPCCIDRBlock struct {
 	associationID *string
 }
 
-var _ fi.Deletion[fi.CloudupContext] = &deleteVPCCIDRBlock{}
+var _ fi.CloudupDeletion = &deleteVPCCIDRBlock{}
 
-func (d *deleteVPCCIDRBlock) Delete(t fi.Target[fi.CloudupContext]) error {
+func (d *deleteVPCCIDRBlock) Delete(t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)

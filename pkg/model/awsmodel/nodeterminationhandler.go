@@ -51,7 +51,7 @@ type event struct {
 }
 
 var (
-	_ fi.ModelBuilder[fi.CloudupContext] = &NodeTerminationHandlerBuilder{}
+	_ fi.CloudupModelBuilder = &NodeTerminationHandlerBuilder{}
 
 	events = []event{
 		{
@@ -83,7 +83,7 @@ type NodeTerminationHandlerBuilder struct {
 	Lifecycle fi.Lifecycle
 }
 
-func (b *NodeTerminationHandlerBuilder) Build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
+func (b *NodeTerminationHandlerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	for _, ig := range b.InstanceGroups {
 		if ig.Spec.Manager == kops.InstanceManagerCloudGroup {
 			err := b.configureASG(c, ig)
@@ -101,7 +101,7 @@ func (b *NodeTerminationHandlerBuilder) Build(c *fi.ModelBuilderContext[fi.Cloud
 	return nil
 }
 
-func (b *NodeTerminationHandlerBuilder) configureASG(c *fi.ModelBuilderContext[fi.CloudupContext], ig *kops.InstanceGroup) error {
+func (b *NodeTerminationHandlerBuilder) configureASG(c *fi.CloudupModelBuilderContext, ig *kops.InstanceGroup) error {
 	name := ig.Name + "-NTHLifecycleHook"
 
 	lifecyleTask := &awstasks.AutoscalingLifecycleHook{
@@ -120,7 +120,7 @@ func (b *NodeTerminationHandlerBuilder) configureASG(c *fi.ModelBuilderContext[f
 	return nil
 }
 
-func (b *NodeTerminationHandlerBuilder) build(c *fi.ModelBuilderContext[fi.CloudupContext]) error {
+func (b *NodeTerminationHandlerBuilder) build(c *fi.CloudupModelBuilderContext) error {
 	queueName := model.QueueNamePrefix(b.ClusterName()) + "-nth"
 	policy := strings.ReplaceAll(NTHTemplate, "{{ AWS_REGION }}", b.Region)
 	policy = strings.ReplaceAll(policy, "{{ AWS_PARTITION }}", b.AWSPartition)

@@ -27,10 +27,10 @@ type CalicoBuilder struct {
 	*model.NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &CalicoBuilder{}
+var _ fi.NodeupModelBuilder = &CalicoBuilder{}
 
 // Build is responsible for performing setup for CNIs that need etcd TLS support
-func (b *CalicoBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *CalicoBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	networking := b.Cluster.Spec.Networking
 
 	if networking.Calico == nil {

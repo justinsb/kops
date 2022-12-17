@@ -44,7 +44,7 @@ func (v *Volume) CompareWithID() *string {
 	return fi.String(strconv.Itoa(fi.IntValue(v.ID)))
 }
 
-func (v *Volume) Find(c *fi.Context[fi.CloudupContext]) (*Volume, error) {
+func (v *Volume) Find(c *fi.CloudupContext) (*Volume, error) {
 	cloud := c.Cloud.(hetzner.HetznerCloud)
 	client := cloud.VolumeClient()
 
@@ -75,8 +75,8 @@ func (v *Volume) Find(c *fi.Context[fi.CloudupContext]) (*Volume, error) {
 	return nil, nil
 }
 
-func (v *Volume) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](v, c)
+func (v *Volume) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(v, c)
 }
 
 func (_ *Volume) CheckChanges(a, e, changes *Volume) error {

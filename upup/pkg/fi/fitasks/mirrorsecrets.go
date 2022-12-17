@@ -31,11 +31,11 @@ type MirrorSecrets struct {
 	MirrorPath vfs.Path
 }
 
-var _ fi.HasDependencies[fi.CloudupContext] = &MirrorSecrets{}
+var _ fi.CloudupHasDependencies = &MirrorSecrets{}
 
 // GetDependencies returns the dependencies for a MirrorSecrets task - it must run after all secrets have been run
-func (e *MirrorSecrets) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
-	var deps []fi.Task[fi.CloudupContext]
+func (e *MirrorSecrets) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
+	var deps []fi.CloudupTask
 	for _, task := range tasks {
 		if _, ok := task.(*Secret); ok {
 			deps = append(deps, task)
@@ -45,7 +45,7 @@ func (e *MirrorSecrets) GetDependencies(tasks map[string]fi.Task[fi.CloudupConte
 }
 
 // Find implements fi.Task::Find
-func (e *MirrorSecrets) Find(c *fi.Context[fi.CloudupContext]) (*MirrorSecrets, error) {
+func (e *MirrorSecrets) Find(c *fi.CloudupContext) (*MirrorSecrets, error) {
 	if vfsSecretStore, ok := c.SecretStore.(*secrets.VFSSecretStore); ok {
 		if vfsSecretStore.VFSPath().Path() == e.MirrorPath.Path() {
 			return e, nil
@@ -58,8 +58,8 @@ func (e *MirrorSecrets) Find(c *fi.Context[fi.CloudupContext]) (*MirrorSecrets, 
 }
 
 // Run implements fi.Task::Run
-func (e *MirrorSecrets) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+func (e *MirrorSecrets) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 // CheckChanges implements fi.Task::CheckChanges
@@ -73,7 +73,7 @@ func (s *MirrorSecrets) CheckChanges(a, e, changes *MirrorSecrets) error {
 }
 
 // Render implements fi.Task::Render
-func (_ *MirrorSecrets) Render(c *fi.Context[fi.CloudupContext], a, e, changes *MirrorSecrets) error {
+func (_ *MirrorSecrets) Render(c *fi.CloudupContext, a, e, changes *MirrorSecrets) error {
 	secrets := c.SecretStore
 	return secrets.MirrorTo(e.MirrorPath)
 }

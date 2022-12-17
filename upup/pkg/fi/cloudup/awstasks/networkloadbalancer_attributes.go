@@ -33,7 +33,7 @@ type NetworkLoadBalancerAccessLog struct {
 	S3BucketPrefix *string
 }
 
-func (_ *NetworkLoadBalancerAccessLog) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
+func (_ *NetworkLoadBalancerAccessLog) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
 	return nil
 }
 

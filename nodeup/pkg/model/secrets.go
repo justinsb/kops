@@ -29,7 +29,7 @@ type SecretBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &SecretBuilder{}
+var _ fi.NodeupModelBuilder = &SecretBuilder{}
 
 const (
 	adminUser  = "admin"
@@ -37,7 +37,7 @@ const (
 )
 
 // Build is responsible for pulling down the secrets
-func (b *SecretBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *SecretBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	// @step: write out the platform ca
 	c.AddTask(&nodetasks.File{
 		Path:     filepath.Join(b.PathSrvKubernetes(), "ca.crt"),

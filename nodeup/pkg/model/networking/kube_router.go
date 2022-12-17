@@ -28,10 +28,10 @@ type KuberouterBuilder struct {
 	*model.NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &KuberouterBuilder{}
+var _ fi.NodeupModelBuilder = &KuberouterBuilder{}
 
 // Build is responsible for configuring the kube-router
-func (b *KuberouterBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *KuberouterBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	networking := b.Cluster.Spec.Networking
 
 	if networking.Kuberouter == nil {

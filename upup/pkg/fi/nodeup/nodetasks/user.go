@@ -37,7 +37,7 @@ type UserTask struct {
 	Home  string `json:"home"`
 }
 
-var _ fi.Task[fi.NodeupContext] = &UserTask{}
+var _ fi.NodeupTask = &UserTask{}
 
 func (e *UserTask) String() string {
 	return fmt.Sprintf("User: %s", e.Name)
@@ -49,7 +49,7 @@ func (f *UserTask) GetName() *string {
 	return &f.Name
 }
 
-func (e *UserTask) Find(c *fi.Context[fi.NodeupContext]) (*UserTask, error) {
+func (e *UserTask) Find(c *fi.NodeupContext) (*UserTask, error) {
 	info, err := fi.LookupUser(e.Name)
 	if err != nil {
 		return nil, err
@@ -68,8 +68,8 @@ func (e *UserTask) Find(c *fi.Context[fi.NodeupContext]) (*UserTask, error) {
 	return actual, nil
 }
 
-func (e *UserTask) Run(c *fi.Context[fi.NodeupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.NodeupContext](e, c)
+func (e *UserTask) Run(c *fi.NodeupContext) error {
+	return fi.NodeupDefaultDeltaRunMethod(e, c)
 }
 
 func (_ *UserTask) CheckChanges(a, e, changes *UserTask) error {

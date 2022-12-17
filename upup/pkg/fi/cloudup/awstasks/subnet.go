@@ -70,7 +70,7 @@ func (a OrderSubnetsById) Less(i, j int) bool {
 	return fi.StringValue(a[i].ID) < fi.StringValue(a[j].ID)
 }
 
-func (e *Subnet) Find(c *fi.Context[fi.CloudupContext]) (*Subnet, error) {
+func (e *Subnet) Find(c *fi.CloudupContext) (*Subnet, error) {
 	subnet, err := e.findEc2Subnet(c)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (e *Subnet) Find(c *fi.Context[fi.CloudupContext]) (*Subnet, error) {
 	return actual, nil
 }
 
-func (e *Subnet) findEc2Subnet(c *fi.Context[fi.CloudupContext]) (*ec2.Subnet, error) {
+func (e *Subnet) findEc2Subnet(c *fi.CloudupContext) (*ec2.Subnet, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	request := &ec2.DescribeSubnetsInput{}
@@ -162,8 +162,8 @@ func (e *Subnet) findEc2Subnet(c *fi.Context[fi.CloudupContext]) (*ec2.Subnet, e
 	return subnet, nil
 }
 
-func (e *Subnet) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+func (e *Subnet) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (s *Subnet) CheckChanges(a, e, changes *Subnet) error {
@@ -481,7 +481,7 @@ func (e *Subnet) CloudformationLink() *cloudformation.Literal {
 	return cloudformation.Ref("AWS::EC2::Subnet", *e.Name)
 }
 
-func (e *Subnet) FindDeletions(c *fi.Context[fi.CloudupContext]) ([]fi.Deletion[fi.CloudupContext], error) {
+func (e *Subnet) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletion, error) {
 	if e.ID == nil || aws.BoolValue(e.Shared) {
 		return nil, nil
 	}
@@ -495,7 +495,7 @@ func (e *Subnet) FindDeletions(c *fi.Context[fi.CloudupContext]) ([]fi.Deletion[
 		return nil, nil
 	}
 
-	var removals []fi.Deletion[fi.CloudupContext]
+	var removals []fi.CloudupDeletion
 	for _, association := range subnet.Ipv6CidrBlockAssociationSet {
 		// Skip when without state
 		if association == nil || association.Ipv6CidrBlockState == nil {
@@ -529,9 +529,9 @@ type deleteSubnetIPv6CIDRBlock struct {
 	associationID *string
 }
 
-var _ fi.Deletion[fi.CloudupContext] = &deleteSubnetIPv6CIDRBlock{}
+var _ fi.CloudupDeletion = &deleteSubnetIPv6CIDRBlock{}
 
-func (d *deleteSubnetIPv6CIDRBlock) Delete(t fi.Target[fi.CloudupContext]) error {
+func (d *deleteSubnetIPv6CIDRBlock) Delete(t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)

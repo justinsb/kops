@@ -113,17 +113,17 @@ type AutoScalerResourceLimitsOpts struct {
 }
 
 var (
-	_ fi.Task[fi.CloudupContext]            = &Elastigroup{}
-	_ fi.CompareWithID                      = &Elastigroup{}
-	_ fi.HasDependencies[fi.CloudupContext] = &Elastigroup{}
+	_ fi.CloudupTask            = &Elastigroup{}
+	_ fi.CompareWithID          = &Elastigroup{}
+	_ fi.CloudupHasDependencies = &Elastigroup{}
 )
 
 func (e *Elastigroup) CompareWithID() *string {
 	return e.Name
 }
 
-func (e *Elastigroup) GetDependencies(tasks map[string]fi.Task[fi.CloudupContext]) []fi.Task[fi.CloudupContext] {
-	var deps []fi.Task[fi.CloudupContext]
+func (e *Elastigroup) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
+	var deps []fi.CloudupTask
 
 	if e.IAMInstanceProfile != nil {
 		deps = append(deps, e.IAMInstanceProfile)
@@ -187,9 +187,9 @@ func (e *Elastigroup) find(svc spotinst.InstanceGroupService) (*aws.Group, error
 	return out, nil
 }
 
-var _ fi.HasCheckExisting[fi.CloudupContext] = &Elastigroup{}
+var _ fi.CloudupHasCheckExisting = &Elastigroup{}
 
-func (e *Elastigroup) Find(c *fi.Context[fi.CloudupContext]) (*Elastigroup, error) {
+func (e *Elastigroup) Find(c *fi.CloudupContext) (*Elastigroup, error) {
 	cloud := c.Cloud.(awsup.AWSCloud)
 
 	group, err := e.find(cloud.Spotinst().Elastigroup())
@@ -479,14 +479,14 @@ func (e *Elastigroup) Find(c *fi.Context[fi.CloudupContext]) (*Elastigroup, erro
 	return actual, nil
 }
 
-func (e *Elastigroup) CheckExisting(c *fi.Context[fi.CloudupContext]) bool {
+func (e *Elastigroup) CheckExisting(c *fi.CloudupContext) bool {
 	cloud := c.Cloud.(awsup.AWSCloud)
 	group, err := e.find(cloud.Spotinst().Elastigroup())
 	return err == nil && group != nil
 }
 
-func (e *Elastigroup) Run(c *fi.Context[fi.CloudupContext]) error {
-	return fi.DefaultDeltaRunMethod[fi.CloudupContext](e, c)
+func (e *Elastigroup) Run(c *fi.CloudupContext) error {
+	return fi.CloudupDefaultDeltaRunMethod(e, c)
 }
 
 func (s *Elastigroup) CheckChanges(a, e, changes *Elastigroup) error {

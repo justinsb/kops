@@ -29,10 +29,10 @@ type MiscUtilsBuilder struct {
 	*NodeupModelContext
 }
 
-var _ fi.ModelBuilder[fi.NodeupContext] = &MiscUtilsBuilder{}
+var _ fi.NodeupModelBuilder = &MiscUtilsBuilder{}
 
 // Build is responsible for configuring the miscellaneous packages we want installed
-func (b *MiscUtilsBuilder) Build(c *fi.ModelBuilderContext[fi.NodeupContext]) error {
+func (b *MiscUtilsBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	switch b.Distribution {
 	case distributions.DistributionContainerOS:
 		klog.V(2).Infof("Detected ContainerOS; won't install misc. utils")
