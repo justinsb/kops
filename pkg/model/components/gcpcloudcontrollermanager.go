@@ -65,27 +65,33 @@ func (b *GCPCloudControllerManagerOptionsBuilder) BuildOptions(options interface
 	}
 
 	if ccmConfig.Controllers == nil {
-		ccmConfig.Controllers = []string{
-			"*",
+		var changes []string
 
-			// Don't run gkenetworkparamset controller, looks for some CRDs (GKENetworkParamSet and Network) which are only installed on GKE
-			// However, the version we're current running doesn't support this controller anyway, so we need to introduce this later,
-			// possibly based on the image version.
-			// "-gkenetworkparams",
+		// Don't run gkenetworkparamset controller, looks for some CRDs (GKENetworkParamSet and Network) which are only installed on GKE
+		// However, the version we're current running doesn't support this controller anyway, so we need to introduce this later,
+		// possibly based on the image version.
+		// changes = append(ccmConfig.Controllers, "-gkenetworkparams")
+
+		if clusterSpec.IsKopsControllerIPAM() {
+			changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
+		}
+
+		if len(changes) != 0 {
+			ccmConfig.Controllers = append([]string{"*"}, changes...)
 		}
 	}
 
-	// if len(ccmConfig.Controllers) == 0 {
-	// 	var changes []string
+	if len(ccmConfig.Controllers) == 0 {
+		var changes []string
 
-	// 	if clusterSpec.IsKopsControllerIPAM() {
-	// 		changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
-	// 	}
+		if clusterSpec.IsKopsControllerIPAM() {
+			changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
+		}
 
-	// 	if len(changes) != 0 {
-	// 		ccmConfig.Controllers = append([]string{"*"}, changes...)
-	// 	}
-	// }
+		if len(changes) != 0 {
+			ccmConfig.Controllers = append([]string{"*"}, changes...)
+		}
+	}
 
 	// // TODO: we want to consolidate this with the logic from KCM
 	// networking := clusterSpec.Networking
