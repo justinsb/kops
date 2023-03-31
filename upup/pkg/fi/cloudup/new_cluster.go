@@ -1279,8 +1279,12 @@ func setupTopology(opt *NewClusterOptions, cluster *api.Cluster, allZones sets.S
 		}
 
 	case api.TopologyPrivate:
-		if cluster.Spec.Networking.Kubenet != nil {
-			return nil, fmt.Errorf("invalid networking option %s. Kubenet does not support private topology", opt.Networking)
+		// if cluster.Spec.Networking.Kubenet != nil {
+		// 	return nil, fmt.Errorf("invalid networking option %s. Kubenet does not support private topology", opt.Networking)
+		// }
+		cluster.Spec.Networking.Topology = &api.TopologySpec{
+			ControlPlane: api.TopologyPrivate,
+			Nodes:        api.TopologyPrivate,
 		}
 
 		for i := range cluster.Spec.Networking.Subnets {
