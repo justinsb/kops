@@ -71,17 +71,17 @@ func (b *GCPCloudControllerManagerOptionsBuilder) BuildOptions(options interface
 		ccmConfig.Controllers = changes
 	}
 
-	// if len(ccmConfig.Controllers) == 0 {
-	// 	var changes []string
+	if len(ccmConfig.Controllers) == 0 {
+		var changes []string
 
-	// 	if clusterSpec.IsKopsControllerIPAM() {
-	// 		changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
-	// 	}
+		if clusterSpec.IsKopsControllerIPAM() {
+			changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
+		}
 
-	// 	if len(changes) != 0 {
-	// 		ccmConfig.Controllers = append([]string{"*"}, changes...)
-	// 	}
-	// }
+		if len(changes) != 0 {
+			ccmConfig.Controllers = append([]string{"*"}, changes...)
+		}
+	}
 
 	// // TODO: we want to consolidate this with the logic from KCM
 	// networking := clusterSpec.Networking
