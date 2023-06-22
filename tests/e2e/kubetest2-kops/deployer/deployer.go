@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/octago/sflags/gen/gpflag"
 	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
@@ -54,7 +55,6 @@ type deployer struct {
 	Env              []string `flag:"env" desc:"Additional env vars to set for kops commands in NAME=VALUE format"`
 	CreateArgs       string   `flag:"create-args" desc:"Extra space-separated arguments passed to 'kops create cluster'"`
 	KopsBinaryPath   string   `flag:"kops-binary-path" desc:"The path to kops executable used for testing"`
-	createBucket     bool     `flag:"-"`
 
 	ControlPlaneIGOverrides []string `flag:"control-plane-instance-group-overrides" desc:"overrides for the control plane instance groups"`
 	NodeIGOverrides         []string `flag:"node-instance-group-overrides" desc:"overrides for the node instance groups"`
@@ -85,13 +85,13 @@ type deployer struct {
 
 	boskos boskosHelper
 
-	// awsStaticCredentials holds credentials for AWS loaded from boskos
-	awsStaticCredentials *awsStaticCredentials
-}
+	// awsCredentials holds credentials for AWS loaded from boskos
+	awsCredentials *credentials.Credentials
 
-type awsStaticCredentials struct {
-	AccessKeyID     string
-	SecretAccessKey string
+	// stateStore holds the kops state-store URL
+	stateStore string
+
+	createStateStoreBucket bool `flag:"-"`
 }
 
 // assert that New implements types.NewDeployer
