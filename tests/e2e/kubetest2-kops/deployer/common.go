@@ -17,30 +17,29 @@ limitations under the License.
 package deployer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"k8s.io/klog/v2"
 	"k8s.io/kops/tests/e2e/kubetest2-kops/gce"
 	"k8s.io/kops/tests/e2e/pkg/kops"
 	"k8s.io/kops/tests/e2e/pkg/target"
 	"k8s.io/kops/tests/e2e/pkg/util"
-	"sigs.k8s.io/kubetest2/pkg/boskos"
 )
 
 func (d *deployer) init() error {
 	var err error
-	d.doInit.Do(func() { err = d.initialize() })
+	d.doInit.Do(func() { err = d.initialize(context.TODO()) })
 	return err
 }
 
 // initialize should only be called by init(), behind a sync.Once
-func (d *deployer) initialize() error {
+func (d *deployer) initialize(ctx context.Context) error {
 	if d.commonOptions.ShouldBuild() {
 		if err := d.verifyBuildFlags(); err != nil {
 			return fmt.Errorf("init failed to check build flags: %v", err)
@@ -67,6 +66,29 @@ func (d *deployer) initialize() error {
 
 	switch d.CloudProvider {
 	case "aws":
+		if d.BoskosResourceType != "" {
+			klog.V(1).Info("acquiring AWS credentials from Boskos")
+
+			resource, err := d.boskos.Acquire(ctx, d.BoskosResourceType)
+			if err != nil {
+				return fmt.Errorf("init failed to get resource %q from boskos: %w", d.BoskosResourceType, err)
+			}
+			klog.V(1).Infof("Got AWS account %s from boskos", resource.Name)
+
+			accessKeyIDObj, ok := resource.UserData.Load("access-key-id")
+			if !ok {
+				return fmt.Errorf("access-key-id not found in boskos resource %q", resource.Name)
+			}
+			secretAccessKeyObj, ok := resource.UserData.Load("secret-access-key")
+			if !ok {
+				return fmt.Errorf("secret-access-key not found in boskos resource %q", resource.Name)
+			}
+			d.awsStaticCredentials = &awsStaticCredentials{
+				AccessKeyID:     accessKeyIDObj.(string),
+				SecretAccessKey: secretAccessKeyObj.(string),
+			}
+		}
+
 		if d.SSHPrivateKeyPath == "" || d.SSHPublicKeyPath == "" {
 			publicKeyPath, privateKeyPath, err := util.CreateSSHKeyPair(d.ClusterName)
 			if err != nil {
@@ -87,21 +109,10 @@ func (d *deployer) initialize() error {
 		if d.GCPProject == "" {
 			klog.V(1).Info("No GCP project provided, acquiring from Boskos")
 
-			boskosClient, err := boskos.NewClient("http://boskos.test-pods.svc.cluster.local.")
+			resourceType := "gce-project"
+			resource, err := d.boskos.Acquire(ctx, resourceType)
 			if err != nil {
-				return fmt.Errorf("failed to make boskos client: %s", err)
-			}
-			d.boskos = boskosClient
-
-			resource, err := boskos.Acquire(
-				d.boskos,
-				"gce-project",
-				5*time.Minute,
-				5*time.Minute,
-				d.boskosHeartbeatClose,
-			)
-			if err != nil {
-				return fmt.Errorf("init failed to get project from boskos: %s", err)
+				return fmt.Errorf("init failed to get %q resource from boskos: %w", resourceType, err)
 			}
 			d.GCPProject = resource.Name
 			klog.V(1).Infof("Got project %s from boskos", d.GCPProject)
@@ -201,6 +212,11 @@ func (d *deployer) env() []string {
 		// Recognized by the e2e framework
 		// https://github.com/kubernetes/kubernetes/blob/a750d8054a6cb3167f495829ce3e77ab0ccca48e/test/e2e/framework/ssh/ssh.go#L59-L62
 		vars = append(vars, fmt.Sprintf("KUBE_SSH_KEY_PATH=%v", d.SSHPrivateKeyPath))
+
+		if d.awsStaticCredentials != nil {
+			vars = append(vars, fmt.Sprintf("AWS_ACCESS_KEY_ID=%v", d.awsStaticCredentials.AccessKeyID))
+			vars = append(vars, fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%v", d.awsStaticCredentials.SecretAccessKey))
+		}
 	} else if d.CloudProvider == "digitalocean" {
 		// Pass through some env vars if set
 		for _, k := range []string{"DIGITALOCEAN_ACCESS_TOKEN", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"} {

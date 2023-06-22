@@ -17,16 +17,17 @@ limitations under the License.
 package deployer
 
 import (
-	"fmt"
+	"context"
 	"strings"
 
 	"k8s.io/klog/v2"
 	"k8s.io/kops/tests/e2e/kubetest2-kops/gce"
-	"sigs.k8s.io/kubetest2/pkg/boskos"
 	"sigs.k8s.io/kubetest2/pkg/exec"
 )
 
 func (d *deployer) Down() error {
+	ctx := context.TODO()
+
 	if err := d.init(); err != nil {
 		return err
 	}
@@ -58,16 +59,8 @@ func (d *deployer) Down() error {
 		gce.DeleteGCSBucket(d.stateStore(), d.GCPProject)
 	}
 
-	if d.boskos != nil {
-		klog.V(2).Info("releasing boskos project")
-		err := boskos.Release(
-			d.boskos,
-			[]string{d.GCPProject},
-			d.boskosHeartbeatClose,
-		)
-		if err != nil {
-			return fmt.Errorf("down failed to release boskos project: %s", err)
-		}
+	if err := d.boskos.Cleanup(ctx); err != nil {
+		return err
 	}
 	return nil
 }

@@ -28,7 +28,6 @@ import (
 	"k8s.io/kops/tests/e2e/kubetest2-kops/builder"
 	"k8s.io/kops/tests/e2e/pkg/target"
 
-	"sigs.k8s.io/boskos/client"
 	"sigs.k8s.io/kubetest2/pkg/types"
 )
 
@@ -82,13 +81,17 @@ type deployer struct {
 	manifestPath string
 	terraform    *target.Terraform
 
-	// boskos struct field will be non-nil when the deployer is
-	// using boskos to acquire a GCP project
-	boskos *client.Client
+	BoskosResourceType string `flag:"boskos-resource-type" desc:"Resource type to acquire from boskos, for credentials"`
 
-	// this channel serves as a signal channel for the hearbeat goroutine
-	// so that it can be explicitly closed
-	boskosHeartbeatClose chan struct{}
+	boskos boskosHelper
+
+	// awsStaticCredentials holds credentials for AWS loaded from boskos
+	awsStaticCredentials *awsStaticCredentials
+}
+
+type awsStaticCredentials struct {
+	AccessKeyID     string
+	SecretAccessKey string
 }
 
 // assert that New implements types.NewDeployer
@@ -106,9 +109,8 @@ func (d *deployer) Provider() string {
 func New(opts types.Options) (types.Deployer, *pflag.FlagSet) {
 	// create a deployer object and set fields that are not flag controlled
 	d := &deployer{
-		commonOptions:        opts,
-		BuildOptions:         &builder.BuildOptions{},
-		boskosHeartbeatClose: make(chan struct{}),
+		commonOptions: opts,
+		BuildOptions:  &builder.BuildOptions{},
 	}
 
 	dir, err := defaultArtifactsDir()
