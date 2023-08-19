@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	compute "google.golang.org/api/compute/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
@@ -212,12 +213,16 @@ func (_ *FirewallRule) RenderGCE(t *gce.GCEAPITarget, a, e, changes *FirewallRul
 	if a == nil {
 		_, err := t.Cloud.Compute().Firewalls().Insert(t.Cloud.Project(), firewall)
 		if err != nil {
-			return fmt.Errorf("error creating FirewallRule: %v", err)
+			return fmt.Errorf("error creating FirewallRule: %w", err)
 		}
 	} else {
-		_, err := t.Cloud.Compute().Firewalls().Update(t.Cloud.Project(), *e.Name, firewall)
+		// TODO: Do we have to specify everything?  Move to mapToGCE?
+		firewall.ForceSendFields = append(firewall.ForceSendFields, "SourceTags")
+		firewall.ForceSendFields = append(firewall.ForceSendFields, "SourceRanges")
+		klog.V(2).Infof("patching firewall %v/%v with %v", t.Cloud.Project(), *e.Name, fi.DebugAsJsonString(firewall))
+		_, err := t.Cloud.Compute().Firewalls().Patch(t.Cloud.Project(), *e.Name, firewall)
 		if err != nil {
-			return fmt.Errorf("error creating FirewallRule: %v", err)
+			return fmt.Errorf("error updating FirewallRule: %w", err)
 		}
 	}
 

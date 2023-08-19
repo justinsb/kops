@@ -61,9 +61,9 @@ func (b *KopsControllerBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 		Subject:        nodetasks.PKIXName{CommonName: "kops-controller"},
 		AlternateNames: []string{"kops-controller.internal." + b.NodeupConfig.ClusterName},
 	}
-	if len(b.BootConfig.APIServerIPs) > 0 {
-		issueCert.AlternateNames = append(issueCert.AlternateNames, b.BootConfig.APIServerIPs...)
-	}
+	// if len(b.BootConfig.APIServerIPs) > 0 {
+	// 	issueCert.AlternateNames = append(issueCert.AlternateNames, b.BootConfig.APIServerIPs...)
+	// }
 	c.AddTask(issueCert)
 
 	certResource, keyResource, _ := issueCert.GetResources()

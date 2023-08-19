@@ -24,6 +24,7 @@ import (
 	secgroup "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"k8s.io/klog/v2"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
 )
@@ -39,8 +40,10 @@ type Port struct {
 	AdditionalSecurityGroups []string
 	Lifecycle                fi.Lifecycle
 	Tags                     []string
-	ForAPIServer             bool
 	AllowedAddressPairs      []ports.AddressPair
+
+	// WellKnownServices indicates which services are supported by this resource (internal only)
+	WellKnownServices []wellknownservices.WellKnownService
 }
 
 // GetDependencies returns the dependencies of the Port task
@@ -82,8 +85,9 @@ func (s *Port) FindAddresses(context *fi.CloudupContext) ([]string, error) {
 	return addrs, nil
 }
 
-func (s *Port) IsForAPIServer() bool {
-	return s.ForAPIServer
+// GetWellKnownServices implements fi.HasAddress.
+func (s *Port) GetWellKnownServices() []wellknownservices.WellKnownService {
+	return s.WellKnownServices
 }
 
 // getActualAllowedAddressPairs returns the actual allowed address pairs which kOps currently manages.
@@ -188,7 +192,7 @@ func newPortTaskFromCloud(cloud openstack.OpenstackCloud, lifecycle fi.Lifecycle
 		find.ID = actual.ID
 		actual.InstanceGroupName = find.InstanceGroupName
 		actual.AdditionalSecurityGroups = find.AdditionalSecurityGroups
-		actual.ForAPIServer = find.ForAPIServer
+		actual.WellKnownServices = find.WellKnownServices
 	}
 	return actual, nil
 }

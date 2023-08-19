@@ -27,6 +27,7 @@ import (
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	"k8s.io/klog/v2"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/hetzner"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
@@ -56,8 +57,9 @@ func (v *LoadBalancer) CompareWithID() *string {
 
 var _ fi.HasAddress = &LoadBalancer{}
 
-func (e *LoadBalancer) IsForAPIServer() bool {
-	return true
+// GetWellKnownServices indicates which services we support with this load balancer.
+func (v *LoadBalancer) GetWellKnownServices() []wellknownservices.WellKnownService {
+	return []wellknownservices.WellKnownService{wellknownservices.KubeAPIServer}
 }
 
 func (v *LoadBalancer) FindAddresses(c *fi.CloudupContext) ([]string, error) {

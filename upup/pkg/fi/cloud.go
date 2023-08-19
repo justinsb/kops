@@ -81,4 +81,7 @@ type ApiIngressStatus struct {
 	// (typically AWS load-balancers)
 	// +optional
 	Hostname string `json:"hostname,omitempty" protobuf:"bytes,2,opt,name=hostname"`
+
+	// Internal should be set if this is an internal IP, if we have multiple choices it helps us pick.
+	Internal bool `json:"internal"`
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"k8s.io/klog/v2"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
@@ -433,8 +434,9 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 
 var _ fi.HasAddress = &NetworkLoadBalancer{}
 
-func (e *NetworkLoadBalancer) IsForAPIServer() bool {
-	return e.ForAPIServer
+// GetWellKnownServices implements fi.HasAddress::GetWellKnownServices.
+func (e *NetworkLoadBalancer) GetWellKnownServices() []wellknownservices.WellKnownService {
+	return e.GetWellKnownServices()
 }
 
 func (e *NetworkLoadBalancer) FindAddresses(context *fi.CloudupContext) ([]string, error) {

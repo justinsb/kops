@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"k8s.io/klog/v2"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/scaleway"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
@@ -42,7 +43,9 @@ type LoadBalancer struct {
 	Tags                  []string
 	Description           string
 	SslCompatibilityLevel string
-	ForAPIServer          bool
+
+	// WellKnownServices indicates which services are supported by this resource (internal only)
+	WellKnownServices []wellknownservices.WellKnownService
 }
 
 var _ fi.CompareWithID = &LoadBalancer{}
@@ -52,8 +55,9 @@ func (l *LoadBalancer) CompareWithID() *string {
 	return l.LBID
 }
 
-func (l *LoadBalancer) IsForAPIServer() bool {
-	return l.ForAPIServer
+// GetWellKnownServices implements fi.HasAddress.
+func (l *LoadBalancer) GetWellKnownServices() []wellknownservices.WellKnownService {
+	return l.WellKnownServices
 }
 
 func (l *LoadBalancer) Find(context *fi.CloudupContext) (*LoadBalancer, error) {
@@ -78,13 +82,13 @@ func (l *LoadBalancer) Find(context *fi.CloudupContext) (*LoadBalancer, error) {
 	}
 
 	return &LoadBalancer{
-		Name:         fi.PtrTo(loadBalancer.Name),
-		LBID:         fi.PtrTo(loadBalancer.ID),
-		Zone:         fi.PtrTo(string(loadBalancer.Zone)),
-		LBAddresses:  lbIPs,
-		Tags:         loadBalancer.Tags,
-		Lifecycle:    l.Lifecycle,
-		ForAPIServer: l.ForAPIServer,
+		Name:              fi.PtrTo(loadBalancer.Name),
+		LBID:              fi.PtrTo(loadBalancer.ID),
+		Zone:              fi.PtrTo(string(loadBalancer.Zone)),
+		LBAddresses:       lbIPs,
+		Tags:              loadBalancer.Tags,
+		Lifecycle:         l.Lifecycle,
+		WellKnownServices: l.WellKnownServices,
 	}, nil
 }
 

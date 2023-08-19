@@ -92,6 +92,20 @@ func (c *firewallClient) Update(project, name string, fw *compute.Firewall) (*co
 	return doneOperation(), nil
 }
 
+func (c *firewallClient) Patch(project, name string, fw *compute.Firewall) (*compute.Operation, error) {
+	c.Lock()
+	defer c.Unlock()
+	firewalls, ok := c.firewalls[project]
+	if !ok {
+		return nil, notFoundError()
+	}
+	if _, ok := firewalls[name]; !ok {
+		return nil, notFoundError()
+	}
+	firewalls[name] = fw
+	return doneOperation(), nil
+}
+
 func (c *firewallClient) Get(project, name string) (*compute.Firewall, error) {
 	c.Lock()
 	defer c.Unlock()

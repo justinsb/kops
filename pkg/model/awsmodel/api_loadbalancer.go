@@ -26,6 +26,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/wellknownports"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awstasks"
 	"k8s.io/kops/upup/pkg/fi/utils"
@@ -221,8 +222,8 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 				Timeout: fi.PtrTo(int64(300)),
 			},
 
-			Tags:         tags,
-			ForAPIServer: true,
+			Tags:              tags,
+			WellKnownServices: []wellknownservices.WellKnownService{wellknownservices.KubeAPIServer},
 		}
 
 		if b.Cluster.UsesNoneDNS() {

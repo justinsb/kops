@@ -328,6 +328,9 @@ func buildChangeList[T SubContext](a, e, changes Task[T]) ([]change, error) {
 
 			case reflect.String:
 				changed = fieldValC.Convert(reflect.TypeOf("")).Interface() != ""
+
+			case reflect.Bool:
+				changed = fieldValE.Bool() != fieldValA.Bool()
 			}
 			if !changed {
 				continue

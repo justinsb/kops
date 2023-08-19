@@ -307,7 +307,9 @@ func (c *gceCloudImplementation) WaitForOp(op *compute.Operation) error {
 }
 
 func (c *gceCloudImplementation) GetApiIngressStatus(cluster *kops.Cluster) ([]fi.ApiIngressStatus, error) {
-	var ingresses []fi.ApiIngressStatus
+	ctx := context.TODO()
+
+	var results []fi.ApiIngressStatus
 
 	klog.V(2).Infof("Querying GCE to find ForwardingRules for API")
 	// These are the ingress rules, so we search for them in the network project.
@@ -318,12 +320,12 @@ func (c *gceCloudImplementation) GetApiIngressStatus(cluster *kops.Cluster) ([]f
 		project = c.Project()
 	}
 
-	forwardingRules, err := c.compute.ForwardingRules().List(context.Background(), project, c.region)
+	forwardingRules, err := c.compute.ForwardingRules().List(ctx, project, c.region)
 	if err != nil {
 		if !IsNotFound(err) {
 			forwardingRules = nil
 		} else {
-			return nil, fmt.Errorf("error listing ForwardingRules: %v", err)
+			return nil, fmt.Errorf("error listing ForwardingRules: %w", err)
 		}
 	}
 
@@ -339,15 +341,26 @@ func (c *gceCloudImplementation) GetApiIngressStatus(cluster *kops.Cluster) ([]f
 		}
 
 		if forwardingRule.IPAddress == "" {
-			return nil, fmt.Errorf("found forward rule %q, but it did not have an IPAddress", forwardingRule.Name)
+			return nil, fmt.Errorf("found forwarding rule %q, but it did not have an IPAddress", forwardingRule.Name)
 		}
 
-		ingresses = append(ingresses, fi.ApiIngressStatus{
+		status := fi.ApiIngressStatus{
 			IP: forwardingRule.IPAddress,
-		})
+		}
+
+		switch forwardingRule.LoadBalancingScheme {
+		case "INTERNAL":
+			status.Internal = true
+		case "EXTERNAL":
+			status.Internal = false
+		default:
+			return nil, fmt.Errorf("found forwarding rule %q, with unknown loadBalancingSchema %q", forwardingRule.LoadBalancingScheme)
+		}
+
+		results = append(results, status)
 	}
 
-	return ingresses, nil
+	return results, nil
 }
 
 // FindInstanceTemplates finds all instance templates that are associated with the current cluster

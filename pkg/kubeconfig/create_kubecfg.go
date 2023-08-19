@@ -55,12 +55,22 @@ func BuildKubecfg(ctx context.Context, cluster *kops.Cluster, keyStore fi.Keysto
 			}
 
 			var targets []string
-			for _, ingress := range ingresses {
-				if ingress.Hostname != "" {
-					targets = append(targets, ingress.Hostname)
+			for i := 0; i < 2; i++ {
+				for _, ingress := range ingresses {
+					// First time through, only get external IPs
+					if i == 0 && ingress.Internal {
+						continue
+					}
+					if ingress.Hostname != "" {
+						targets = append(targets, ingress.Hostname)
+					}
+					if ingress.IP != "" {
+						targets = append(targets, ingress.IP)
+					}
 				}
-				if ingress.IP != "" {
-					targets = append(targets, ingress.IP)
+				// If we didn't find anything, go back so we get internal IPs this time
+				if len(targets) > 0 {
+					break
 				}
 			}
 

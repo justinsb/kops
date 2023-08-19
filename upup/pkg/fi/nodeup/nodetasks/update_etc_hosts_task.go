@@ -17,6 +17,7 @@ limitations under the License.
 package nodetasks
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/klog/v2"
@@ -72,6 +73,20 @@ func (_ *UpdateEtcHostsTask) CheckChanges(a, e, changes *UpdateEtcHostsTask) err
 }
 
 func (_ *UpdateEtcHostsTask) RenderLocal(t *local.LocalTarget, a, e, changes *UpdateEtcHostsTask) error {
+	ctx := context.TODO()
+
+	updateHosts := make(map[string][]string)
+	for _, record := range e.Records {
+		updateHosts[record.Hostname] = record.Addresses
+	}
+	return UpdateEtcHosts(ctx, updateHosts)
+}
+
+func UpdateEtcHosts(ctx context.Context, updateHosts map[string][]string) error {
+	if len(updateHosts) == 0 {
+		return nil
+	}
+
 	etcHostsPath := "/etc/hosts"
 
 	mutator := func(existing []string) (*hosts.HostMap, error) {
@@ -81,8 +96,8 @@ func (_ *UpdateEtcHostsTask) RenderLocal(t *local.LocalTarget, a, e, changes *Up
 			klog.Warningf("ignoring unexpected lines in /etc/hosts: %v", badLines)
 		}
 
-		for _, record := range e.Records {
-			hostMap.ReplaceRecords(record.Hostname, record.Addresses)
+		for hostname, addresses := range updateHosts {
+			hostMap.ReplaceRecords(hostname, addresses)
 		}
 
 		return hostMap, nil

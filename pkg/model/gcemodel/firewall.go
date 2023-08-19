@@ -65,6 +65,7 @@ func (b *FirewallModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 			},
 			TargetTags: []string{b.GCETagForRole(kops.InstanceGroupRoleControlPlane)},
 			Allowed:    []string{"tcp"},
+			// TODO: Should this be more locked down?
 		})
 	}
 

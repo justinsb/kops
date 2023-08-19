@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/wellknownports"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/azure"
 )
@@ -40,8 +41,10 @@ type LoadBalancer struct {
 	// External is set to true when the loadbalancer is used for external traffic
 	External *bool
 
-	Tags         map[string]*string
-	ForAPIServer bool
+	Tags map[string]*string
+
+	// WellKnownServices indicates which services are supported by this resource (internal only)
+	WellKnownServices []wellknownservices.WellKnownService
 }
 
 var (
@@ -55,9 +58,9 @@ func (lb *LoadBalancer) CompareWithID() *string {
 	return lb.Name
 }
 
-// IsForAPIServer for api server.
-func (lb *LoadBalancer) IsForAPIServer() bool {
-	return lb.ForAPIServer
+// GetWellKnownServices indicates which services we support with this load balancer.
+func (lb *LoadBalancer) GetWellKnownServices() []wellknownservices.WellKnownService {
+	return lb.WellKnownServices
 }
 
 func (lb *LoadBalancer) FindAddresses(c *fi.CloudupContext) ([]string, error) {
@@ -111,9 +114,9 @@ func (lb *LoadBalancer) Find(c *fi.CloudupContext) (*LoadBalancer, error) {
 	subnet := feConfig.FrontendIPConfigurationPropertiesFormat.Subnet
 
 	actual := &LoadBalancer{
-		Name:         lb.Name,
-		Lifecycle:    lb.Lifecycle,
-		ForAPIServer: lb.ForAPIServer,
+		Name:              lb.Name,
+		Lifecycle:         lb.Lifecycle,
+		WellKnownServices: lb.WellKnownServices,
 		ResourceGroup: &ResourceGroup{
 			Name: lb.ResourceGroup.Name,
 		},

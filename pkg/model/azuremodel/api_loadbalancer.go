@@ -21,6 +21,7 @@ import (
 
 	"github.com/Azure/go-autorest/autorest/to"
 	"k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/azuretasks"
 )
@@ -81,7 +82,7 @@ func (b *APILoadBalancerModelBuilder) Build(c *fi.CloudupModelBuilderContext) er
 	c.AddTask(lb)
 
 	if b.Cluster.UsesLegacyGossip() || b.Cluster.UsesPrivateDNS() || b.Cluster.UsesNoneDNS() {
-		lb.ForAPIServer = true
+		lb.WellKnownServices = append(lb.WellKnownServices, wellknownservices.KubeAPIServer)
 	}
 
 	return nil

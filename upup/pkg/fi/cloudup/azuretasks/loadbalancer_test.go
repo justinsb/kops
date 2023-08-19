@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2022-05-01/network"
 	"github.com/Azure/go-autorest/autorest/to"
+	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/azure"
 )
@@ -42,8 +43,8 @@ func newTestLoadBalancer() *LoadBalancer {
 				Name: to.StringPtr("vnet"),
 			},
 		},
-		External:     to.BoolPtr(true),
-		ForAPIServer: true,
+		External:          to.BoolPtr(true),
+		WellKnownServices: []wellknownservices.WellKnownService{wellknownservices.KubeAPIServer},
 		Tags: map[string]*string{
 			testTagKey: to.StringPtr(testTagValue),
 		},

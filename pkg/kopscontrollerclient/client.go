@@ -69,7 +69,7 @@ func (b *Client) dial(ctx context.Context, network, addr string) (net.Conn, erro
 		return nil, err
 	}
 
-	klog.Infof("resolved %q to %v", host, addresses)
+	klog.Infof("resolved %q to %v with custom resolver %T", host, addresses, b.Resolver)
 
 	for _, addr := range addresses {
 		timeout := 5 * time.Second

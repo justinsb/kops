@@ -1454,24 +1454,25 @@ func (n *nodeUpConfigBuilder) BuildConfig(ig *kops.InstanceGroup, apiserverAddit
 		}
 	}
 
+	bootConfig.HostAliases = make(map[string][]string)
+
 	if cluster.UsesNoneDNS() {
-		bootConfig.APIServerIPs = controlPlaneIPs
+		bootConfig.HostAliases["kops-controller.internal."+cluster.ObjectMeta.Name] = controlPlaneIPs
+		bootConfig.HostAliases["api.internal."+cluster.ObjectMeta.Name] = controlPlaneIPs
 	} else {
 		// If we do have a fixed IP, we use it (on some clouds, initially)
 		// This covers the clouds in UseKopsControllerForNodeConfig which use kops-controller for node config,
 		// but don't have a specialized discovery mechanism for finding kops-controller etc.
 		switch cluster.Spec.GetCloudProvider() {
-		case kops.CloudProviderHetzner, kops.CloudProviderScaleway, kops.CloudProviderDO:
-			bootConfig.APIServerIPs = controlPlaneIPs
+		case kops.CloudProviderHetzner, kops.CloudProviderScaleway, kops.CloudProviderDO, kops.CloudProviderGCE:
+			bootConfig.HostAliases["kops-controller.internal."+cluster.ObjectMeta.Name] = controlPlaneIPs
+			bootConfig.HostAliases["api.internal."+cluster.ObjectMeta.Name] = controlPlaneIPs
 		}
 	}
 
 	useConfigServer := apiModel.UseKopsControllerForNodeConfig(cluster) && !ig.HasAPIServer()
 	if useConfigServer {
 		hosts := []string{"kops-controller.internal." + cluster.ObjectMeta.Name}
-		if len(bootConfig.APIServerIPs) > 0 {
-			hosts = bootConfig.APIServerIPs
-		}
 
 		configServer := &nodeup.ConfigServerOptions{
 			CACertificates: config.CAs[fi.CertificateIDCA],

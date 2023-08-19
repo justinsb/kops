@@ -54,7 +54,6 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/azure"
 	"k8s.io/kops/upup/pkg/fi/cloudup/do"
-	"k8s.io/kops/upup/pkg/fi/cloudup/gce/gcediscovery"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce/tpm/gcetpmsigner"
 	"k8s.io/kops/upup/pkg/fi/cloudup/hetzner"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
@@ -110,6 +109,10 @@ func (c *NodeUpCommand) Run(out io.Writer) error {
 	}
 
 	var configBase vfs.Path
+
+	if err := nodetasks.UpdateEtcHosts(ctx, bootConfig.HostAliases); err != nil {
+		return err
+	}
 
 	// If we're using a config server instead of vfs, nodeConfig will hold our configuration
 	var nodeConfig *nodeup.NodeConfig
@@ -713,11 +716,11 @@ func getNodeConfigFromServers(ctx context.Context, bootConfig *nodeup.BootConfig
 		}
 		authenticator = a
 
-		discovery, err := gcediscovery.New()
-		if err != nil {
-			return nil, err
-		}
-		resolver = discovery
+		// discovery, err := gcediscovery.New()
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// resolver = discovery
 	case api.CloudProviderHetzner:
 		a, err := hetzner.NewHetznerAuthenticator()
 		if err != nil {

@@ -288,7 +288,7 @@ func (b *BootstrapScript) GetDependencies(tasks map[string]fi.CloudupTask) []fi.
 	var deps []fi.CloudupTask
 
 	for _, task := range tasks {
-		if hasAddress, ok := task.(fi.HasAddress); ok && hasAddress.IsForAPIServer() {
+		if hasAddress, ok := task.(fi.HasAddress); ok && len(hasAddress.GetWellKnownServices()) != 0 {
 			deps = append(deps, task)
 			b.alternateNameTasks = append(b.alternateNameTasks, hasAddress)
 		}

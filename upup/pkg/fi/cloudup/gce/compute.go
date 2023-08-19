@@ -391,6 +391,10 @@ func (c *forwardingRuleClientImpl) SetLabels(ctx context.Context, project string
 	return c.srv.SetLabels(project, region, resource, request).Context(ctx).Do()
 }
 
+// func (c *forwardingRuleClientImpl) Patch(ctx context.Context, project string, region string, resource string, request *compute.RegionSetLabelsRequest) (*compute.Operation, error) {
+// 	return c.srv.Patch(project, region, resource, request).Context(ctx).Do()
+// }
+
 func (c *forwardingRuleClientImpl) List(ctx context.Context, project, region string) ([]*compute.ForwardingRule, error) {
 	var frs []*compute.ForwardingRule
 	if err := c.srv.List(project, region).Pages(ctx, func(p *compute.ForwardingRuleList) error {
@@ -522,7 +526,13 @@ func (c *addressClientImpl) ListWithFilter(project, region, filter string) ([]*c
 type FirewallClient interface {
 	Insert(project string, fw *compute.Firewall) (*compute.Operation, error)
 	Delete(project, name string) (*compute.Operation, error)
+
+	// Update issues an update request, replacing all the fields of the firewall.
+	// Deprecated: prefer Patch to avoid errors.
+	// ("Error 400: Unsupported update operation. Please use firewall.patch API to update the firewall resource.")
 	Update(project, name string, fw *compute.Firewall) (*compute.Operation, error)
+
+	Patch(project, name string, fw *compute.Firewall) (*compute.Operation, error)
 	Get(project, name string) (*compute.Firewall, error)
 	List(ctx context.Context, project string) ([]*compute.Firewall, error)
 }
@@ -543,6 +553,10 @@ func (c *firewallClientImpl) Delete(project, name string) (*compute.Operation, e
 
 func (c *firewallClientImpl) Update(project, name string, fw *compute.Firewall) (*compute.Operation, error) {
 	return c.srv.Update(project, name, fw).Do()
+}
+
+func (c *firewallClientImpl) Patch(project, name string, fw *compute.Firewall) (*compute.Operation, error) {
+	return c.srv.Patch(project, name, fw).Do()
 }
 
 func (c *firewallClientImpl) Get(project, name string) (*compute.Firewall, error) {

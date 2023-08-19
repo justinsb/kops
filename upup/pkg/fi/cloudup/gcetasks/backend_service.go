@@ -37,8 +37,8 @@ type BackendService struct {
 	Protocol              *string
 	InstanceGroupManagers []*InstanceGroupManager
 
-	Lifecycle    fi.Lifecycle
-	ForAPIServer bool
+	Lifecycle fi.Lifecycle
+	// ForAPIServer bool
 }
 
 var _ fi.CompareWithID = &BackendService{}
@@ -52,7 +52,7 @@ func (e *BackendService) Find(c *fi.CloudupContext) (*BackendService, error) {
 	if actual != nil && err == nil {
 		// Ignore system fields
 		actual.Lifecycle = e.Lifecycle
-		actual.ForAPIServer = e.ForAPIServer
+		// actual.ForAPIServer = e.ForAPIServer
 	}
 	return actual, err
 }
