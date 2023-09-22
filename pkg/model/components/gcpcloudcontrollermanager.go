@@ -70,7 +70,9 @@ func (b *GCPCloudControllerManagerOptionsBuilder) BuildOptions(options interface
 
 		// Turn off some controllers if kops-controller is running them
 		if clusterSpec.IsKopsControllerIPAM() {
-			changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
+			// changes = append(ccmConfig.Controllers, "-nodeipam", "-route")
+			changes = append(ccmConfig.Controllers, "-node-route-controller")
+			// -node-route-controller
 		}
 
 		if len(changes) != 0 {
@@ -83,6 +85,7 @@ func (b *GCPCloudControllerManagerOptionsBuilder) BuildOptions(options interface
 		switch b.KubernetesVersion.Minor {
 		default:
 			ccmConfig.Image = "k8scloudprovidergcp/cloud-controller-manager:latest"
+			ccmConfig.Image = "gcr.io/k8s-staging-cloud-provider-gcp/cloud-controller-manager:master"
 		}
 	}
 

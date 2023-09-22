@@ -1050,9 +1050,9 @@ func validateNetworking(cluster *kops.Cluster, v *kops.NetworkingSpec, fldPath *
 	if v.Kubenet != nil {
 		optionTaken = true
 
-		if cluster.Spec.IsIPv6Only() {
-			allErrs = append(allErrs, field.Forbidden(fldPath.Child("kubenet"), "Kubenet does not support IPv6"))
-		}
+		// if cluster.Spec.IsIPv6Only() {
+		// 	allErrs = append(allErrs, field.Forbidden(fldPath.Child("kubenet"), "Kubenet does not support IPv6"))
+		// }
 	}
 
 	if v.External != nil {

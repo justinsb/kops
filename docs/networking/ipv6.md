@@ -52,3 +52,15 @@ CNIs must not masquerade IPv6 addresses.
 ### Calico
 
 Running IPv6 with Calico requires a Ubuntu 22.04 or Flatcar based AMI.
+
+
+
+#  GCP Support
+
+# Need a newer k8s version for https://github.com/kubernetes/kubernetes/pull/116879/commits/985cf718a43a579a73c812af37af831003a4d1fe
+go run ./cmd/kops create cluster foo.k8s.local --ipv6 --zones us-east4-a --networking kubenet --kubernetes-version 1.28.2
+
+go run ./cmd/kops update cluster foo.k8s.local --yes --admin
+
+go run ./cmd/kops validate cluster foo.k8s.local --wait=10m
+

@@ -347,11 +347,12 @@ func setupCloudIPAM(mgr manager.Manager, opt *config.Options) error {
 		}
 		controller = ipamController
 	case "gce":
-		ipamController, err := controllers.NewGCEIPAMReconciler(mgr)
-		if err != nil {
-			return fmt.Errorf("creating gce IPAM controller: %w", err)
-		}
-		controller = ipamController
+		return nil
+		// ipamController, err := controllers.NewGCEIPAMReconciler(mgr)
+		// if err != nil {
+		// 	return fmt.Errorf("creating gce IPAM controller: %w", err)
+		// }
+		// controller = ipamController
 	default:
 		return fmt.Errorf("kOps IPAM controller is not supported on cloud %q", opt.Cloud)
 	}
