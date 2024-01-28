@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"k8s.io/klog/v2"
@@ -50,6 +51,9 @@ type TargetGroup struct {
 	Port      *int64
 	Protocol  *string
 
+	// NetworkLoadBalancer, if set, will create a new Target Group for each revision of the Network Load Balancer
+	NetworkLoadBalancer *NetworkLoadBalancer
+
 	// ARN is the Amazon Resource Name for the Target Group
 	ARN *string
 
@@ -61,6 +65,8 @@ type TargetGroup struct {
 	Interval           *int64
 	HealthyThreshold   *int64
 	UnhealthyThreshold *int64
+
+	revision string
 }
 
 var _ fi.CompareWithID = &TargetGroup{}
@@ -80,7 +86,7 @@ func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWS
 	var latest *awsup.TargetGroupInfo
 	var latestRevision int
 	for _, targetGroup := range targetGroups {
-		if targetGroup.NameTag() != name {
+		if aws.StringValue(targetGroup.TargetGroup.TargetGroupName) != name && targetGroup.NameTag() != name {
 			continue
 		}
 		revisionTag, _ := targetGroup.GetTag(KopsResourceRevisionTag)
@@ -100,6 +106,16 @@ func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWS
 		if latest == nil || revision > latestRevision {
 			latestRevision = revision
 			latest = targetGroup
+		}
+	}
+
+	if latest != nil && e.NetworkLoadBalancer != nil {
+		findRevision := e.NetworkLoadBalancer.revision
+		revisionTag, _ := latest.GetTag(KopsResourceRevisionTag)
+
+		if revisionTag != findRevision {
+			klog.Warningf("found target group but revision %q does not match load balancer revision %q", revisionTag, findRevision)
+			latest = nil
 		}
 	}
 
@@ -158,7 +174,6 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 		if err != nil {
 			return nil, err
 		}
-
 	} else {
 		var err error
 		targetGroupInfo, err = e.findTargetGroupByARN(ctx, cloud)
@@ -182,6 +197,8 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 		UnhealthyThreshold: tg.UnhealthyThresholdCount,
 		VPC:                &VPC{ID: tg.VpcId},
 	}
+	actual.revision, _ = targetGroupInfo.GetTag(KopsResourceRevisionTag)
+
 	// Interval cannot be changed after TargetGroup creation
 	e.Interval = actual.Interval
 
@@ -190,10 +207,12 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 	tags := make(map[string]string)
 	for _, tag := range targetGroupInfo.Tags {
 		k := fi.ValueOf(tag.Key)
+		v := fi.ValueOf(tag.Value)
 		if k == KopsResourceRevisionTag {
+			actual.revision = v
 			continue
 		}
-		tags[k] = fi.ValueOf(tag.Value)
+		tags[k] = v
 	}
 	actual.Tags = tags
 
@@ -241,6 +260,34 @@ func (_ *TargetGroup) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *TargetGrou
 		return nil
 	}
 
+	tags := make(map[string]string)
+	for k, v := range e.Tags {
+		tags[k] = v
+	}
+	if a != nil {
+		if a.revision != "" {
+			tags[KopsResourceRevisionTag] = a.revision
+		}
+	}
+
+	if e.NetworkLoadBalancer != nil {
+		if e.NetworkLoadBalancer.loadBalancerArn == "" {
+			return fmt.Errorf("load balancer not yet ready (arn is empty)")
+		}
+		nlbRevision := e.NetworkLoadBalancer.revision
+		if a == nil {
+			klog.Infof("nlbRevision is %v; actual is nil", nlbRevision)
+			if nlbRevision != "" {
+				tags[KopsResourceRevisionTag] = nlbRevision
+			}
+		} else {
+			klog.Infof("nlbRevision is %v; actual revision is %v", nlbRevision, a.revision)
+			if a.revision != nlbRevision {
+				a = nil
+			}
+		}
+	}
+
 	// You register targets for your Network Load Balancer with a target group. By default, the load balancer sends requests
 	// to registered targets using the port and protocol that you specified for the target group. You can override this port
 	// when you register each target with the target group.
@@ -254,7 +301,7 @@ func (_ *TargetGroup) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *TargetGrou
 			HealthCheckIntervalSeconds: e.Interval,
 			HealthyThresholdCount:      e.HealthyThreshold,
 			UnhealthyThresholdCount:    e.UnhealthyThreshold,
-			Tags:                       awsup.ELBv2Tags(e.Tags),
+			Tags:                       awsup.ELBv2Tags(tags),
 		}
 
 		klog.V(2).Infof("Creating Target Group for NLB")

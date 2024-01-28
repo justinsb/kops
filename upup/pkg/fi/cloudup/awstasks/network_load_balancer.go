@@ -90,6 +90,9 @@ type NetworkLoadBalancer struct {
 
 	// After this is found/created, we store the ARN
 	loadBalancerArn string
+
+	// After this is found/created, we store the revision
+	revision string
 }
 
 func (e *NetworkLoadBalancer) SetWaitForLoadBalancerReady(v bool) {
@@ -394,8 +397,20 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 	// Store for other tasks
 	e.loadBalancerArn = aws.StringValue(lb.LoadBalancerArn)
 	actual.loadBalancerArn = e.loadBalancerArn
+	e.revision, _ = lbInfo.GetTag(KopsResourceRevisionTag)
+	actual.revision = e.revision
 
 	klog.V(4).Infof("Found NLB %+v", actual)
+
+	// AWS does not allow us to add security groups to an ELB that was initially created without them.
+	// This forces a new revision (currently, the only operation that forces a new revision)
+	if len(actual.SecurityGroups) == 0 && len(e.SecurityGroups) > 0 {
+		klog.Warningf("setting securityGroups on an existing NLB created without securityGroups; will force a new NLB")
+		t := time.Now()
+		revision := strconv.FormatInt(t.Unix(), 10)
+		actual = nil
+		e.revision = revision
+	}
 
 	return actual, nil
 }
@@ -599,6 +614,7 @@ func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Ne
 			e.VPC = &VPC{ID: lb.VpcId}
 			loadBalancerArn = aws.StringValue(lb.LoadBalancerArn)
 			e.loadBalancerArn = loadBalancerArn
+			e.revision = revision
 		}
 
 		if e.waitForLoadBalancerReady {

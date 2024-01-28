@@ -317,6 +317,8 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 					HealthyThreshold:   fi.PtrTo(int64(2)),
 					UnhealthyThreshold: fi.PtrTo(int64(2)),
 					Shared:             fi.PtrTo(false),
+
+					NetworkLoadBalancer: b.LinkToNLB("api"),
 				}
 
 				c.AddTask(tg)
@@ -341,6 +343,8 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 					HealthyThreshold:   fi.PtrTo(int64(2)),
 					UnhealthyThreshold: fi.PtrTo(int64(2)),
 					Shared:             fi.PtrTo(false),
+
+					NetworkLoadBalancer: b.LinkToNLB("api"),
 				}
 
 				c.AddTask(tg)
@@ -364,6 +368,8 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 					HealthyThreshold:   fi.PtrTo(int64(2)),
 					UnhealthyThreshold: fi.PtrTo(int64(2)),
 					Shared:             fi.PtrTo(false),
+
+					NetworkLoadBalancer: b.LinkToNLB("api"),
 				}
 				c.AddTask(secondaryTG)
 			}
