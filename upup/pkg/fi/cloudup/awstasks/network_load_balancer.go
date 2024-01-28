@@ -474,10 +474,12 @@ func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Ne
 			request.IpAddressType = e.IpAddressType
 			request.Tags = awsup.ELBv2Tags(e.Tags)
 
+			allocationID := "eni-0a77a58fd10070cb8"
+
 			for _, subnetMapping := range e.SubnetMappings {
 				request.SubnetMappings = append(request.SubnetMappings, &elbv2.SubnetMapping{
 					SubnetId:           subnetMapping.Subnet.ID,
-					AllocationId:       subnetMapping.AllocationID,
+					AllocationId:       &allocationID, // subnetMapping.AllocationID,
 					PrivateIPv4Address: subnetMapping.PrivateIPv4Address,
 				})
 			}
