@@ -17,7 +17,9 @@ limitations under the License.
 package awstasks
 
 import (
+	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elbv2"
@@ -51,7 +53,7 @@ type TargetGroup struct {
 	// ARN is the Amazon Resource Name for the Target Group
 	ARN *string
 
-	// Shared is set if this is an external LB (one we don't create or own)
+	// Shared is set if this is an external Target Group (one we don't create or own)
 	Shared *bool
 
 	Attributes map[string]string
@@ -67,15 +69,46 @@ func (e *TargetGroup) CompareWithID() *string {
 	return e.ARN
 }
 
-func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
-	cloud := c.T.Cloud.(awsup.AWSCloud)
+func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWSCloud) (*awsup.TargetGroupInfo, error) {
+	name := fi.ValueOf(e.Name)
 
-	request := &elbv2.DescribeTargetGroupsInput{}
-	if e.ARN != nil {
-		request.TargetGroupArns = []*string{e.ARN}
-	} else if e.Name != nil {
-		request.Names = []*string{e.Name}
+	targetGroups, err := awsup.ListELBV2TargetGroups(ctx, cloud)
+	if err != nil {
+		return nil, err
 	}
+
+	var latest *awsup.TargetGroupInfo
+	var latestRevision int
+	for _, targetGroup := range targetGroups {
+		if targetGroup.NameTag() != name {
+			continue
+		}
+		revisionTag, _ := targetGroup.GetTag(KopsResourceRevisionTag)
+
+		revision := -1
+		if revisionTag == "" {
+			revision = 0
+		} else {
+			n, err := strconv.Atoi(revisionTag)
+			if err != nil {
+				klog.Warningf("ignoring target group %q with revision %q", targetGroup.ARN(), revision)
+				continue
+			}
+			revision = n
+		}
+
+		if latest == nil || revision > latestRevision {
+			latestRevision = revision
+			latest = targetGroup
+		}
+	}
+
+	return latest, nil
+}
+
+func (e *TargetGroup) findTargetGroupByARN(ctx context.Context, cloud awsup.AWSCloud) (*awsup.TargetGroupInfo, error) {
+	request := &elbv2.DescribeTargetGroupsInput{}
+	request.TargetGroupArns = []*string{e.ARN}
 
 	response, err := cloud.ELBV2().DescribeTargetGroups(request)
 	if err != nil {
@@ -95,6 +128,50 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 
 	tg := response.TargetGroups[0]
 
+	tagResponse, err := cloud.ELBV2().DescribeTagsWithContext(ctx, &elbv2.DescribeTagsInput{
+		ResourceArns: []*string{tg.TargetGroupArn},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	info := &awsup.TargetGroupInfo{
+		TargetGroup: tg,
+	}
+
+	for _, t := range tagResponse.TagDescriptions {
+		info.Tags = append(info.Tags, t.Tags...)
+	}
+
+	return info, nil
+}
+
+func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
+	ctx := c.Context()
+	cloud := c.T.Cloud.(awsup.AWSCloud)
+
+	var targetGroupInfo *awsup.TargetGroupInfo
+
+	if e.ARN == nil {
+		var err error
+		targetGroupInfo, err = e.findLatestTargetGroup(ctx, cloud)
+		if err != nil {
+			return nil, err
+		}
+
+	} else {
+		var err error
+		targetGroupInfo, err = e.findTargetGroupByARN(ctx, cloud)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if targetGroupInfo == nil {
+		return nil, nil
+	}
+
+	tg := targetGroupInfo.TargetGroup
 	actual := &TargetGroup{
 		Name:               tg.TargetGroupName,
 		Port:               tg.Port,
@@ -110,17 +187,13 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 
 	e.ARN = tg.TargetGroupArn
 
-	tagsResp, err := cloud.ELBV2().DescribeTags(&elbv2.DescribeTagsInput{
-		ResourceArns: []*string{tg.TargetGroupArn},
-	})
-	if err != nil {
-		return nil, err
-	}
 	tags := make(map[string]string)
-	for _, tagDesc := range tagsResp.TagDescriptions {
-		for _, tag := range tagDesc.Tags {
-			tags[fi.ValueOf(tag.Key)] = fi.ValueOf(tag.Value)
+	for _, tag := range targetGroupInfo.Tags {
+		k := fi.ValueOf(tag.Key)
+		if k == KopsResourceRevisionTag {
+			continue
 		}
+		tags[k] = fi.ValueOf(tag.Value)
 	}
 	actual.Tags = tags
 
