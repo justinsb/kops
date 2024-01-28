@@ -388,6 +388,7 @@ func (b *BastionModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 			UnhealthyThreshold: fi.PtrTo(int64(2)),
 			Shared:             fi.PtrTo(false),
 		}
+		tg.AddRevisionsForNLB(nlb)
 
 		c.AddTask(tg)
 
