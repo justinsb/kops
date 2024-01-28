@@ -124,8 +124,6 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	var clb *awstasks.ClassicLoadBalancer
 	var nlb *awstasks.NetworkLoadBalancer
 	{
-		loadBalancerName := b.LBName32("api")
-
 		idleTimeout := LoadBalancerDefaultIdleTimeout
 		if lbSpec.IdleTimeoutSeconds != nil {
 			idleTimeout = time.Second * time.Duration(*lbSpec.IdleTimeoutSeconds)
@@ -196,8 +194,8 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 			Name:      fi.PtrTo(b.NLBName("api")),
 			Lifecycle: b.Lifecycle,
 
-			LoadBalancerName: fi.PtrTo(loadBalancerName),
-			CLBName:          fi.PtrTo("api." + b.ClusterName()),
+			LoadBalancerBaseName: fi.PtrTo(b.LBName32("api")),
+			CLBName:              fi.PtrTo("api." + b.ClusterName()),
 			SecurityGroups: []*awstasks.SecurityGroup{
 				b.LinkToELBSecurityGroup("api"),
 			},
@@ -219,7 +217,7 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 			Name:      fi.PtrTo("api." + b.ClusterName()),
 			Lifecycle: b.Lifecycle,
 
-			LoadBalancerName: fi.PtrTo(loadBalancerName),
+			LoadBalancerName: fi.PtrTo(b.LBName32("api")),
 			SecurityGroups: []*awstasks.SecurityGroup{
 				b.LinkToELBSecurityGroup("api"),
 			},

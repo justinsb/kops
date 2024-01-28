@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -29,12 +30,20 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"k8s.io/klog/v2"
+	"k8s.io/kops/pkg/truncate"
 	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraformWriter"
 )
+
+// KopsResourceRevisionTag is the tag used to store the revision timestamp,
+// when we are forced to create a new version of a resource because we cannot modify it in-place.
+// This happens when the resource field is immutable;
+// it also happens for ELBs, when we cannot have two ELBs pointing at the same target group
+// and thus must create a second.
+const KopsResourceRevisionTag = "kops.k8s.io/revision"
 
 // NetworkLoadBalancer manages an NLB.  We find the existing NLB using the Name tag.
 var _ DNSTarget = &NetworkLoadBalancer{}
@@ -46,11 +55,12 @@ type NetworkLoadBalancer struct {
 	Name      *string
 	Lifecycle fi.Lifecycle
 
-	// LoadBalancerName is the name in NLB, possibly different from our name
+	// LoadBalancerBaseName is the base name to use when naming load balancers in NLB.
+	// The full, stable name will be in the Name tag.
 	// (NLB is restricted as to names, so we have limited choices!)
-	// We use the Name tag to find the existing NLB.
-	LoadBalancerName *string
-	CLBName          *string
+	LoadBalancerBaseName *string
+
+	CLBName *string
 
 	DNSName      *string
 	HostedZoneId *string
@@ -194,23 +204,67 @@ func (e *NetworkLoadBalancer) getHostedZoneId() *string {
 	return e.HostedZoneId
 }
 
-func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, error) {
-	cloud := c.T.Cloud.(awsup.AWSCloud)
-
-	lb, err := cloud.FindELBV2ByNameTag(e.Tags["Name"])
+func (*NetworkLoadBalancer) findLatestLoadBalancer(ctx context.Context, cloud awsup.AWSCloud, name string) (*awsup.LoadBalancerInfo, error) {
+	loadBalancers, err := awsup.ListELBV2LoadBalancers(ctx, cloud)
 	if err != nil {
 		return nil, err
 	}
-	if lb == nil {
+
+	var latest *awsup.LoadBalancerInfo
+	var latestRevision int
+	for _, lb := range loadBalancers {
+		if lb.NameTag() != name {
+			continue
+		}
+		revisionTag, _ := lb.GetTag(KopsResourceRevisionTag)
+
+		revision := -1
+		if revisionTag == "" {
+			revision = 0
+		} else {
+			n, err := strconv.Atoi(revisionTag)
+			if err != nil {
+				klog.Warningf("ignoring load balancer %q with revision %q", aws.StringValue(lb.LoadBalancer.LoadBalancerArn), revision)
+				continue
+			}
+			revision = n
+		}
+
+		if latest == nil || revision > latestRevision {
+			latestRevision = revision
+			latest = lb
+		}
+	}
+
+	return latest, nil
+}
+
+func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, error) {
+	cloud := c.T.Cloud.(awsup.AWSCloud)
+
+	lbInfo, err := e.findLatestLoadBalancer(ctx, cloud, fi.ValueOf(e.Name))
+	if err != nil {
+		return nil, err
+	}
+	if lbInfo == nil {
 		return nil, nil
 	}
 
-	loadBalancerArn := lb.LoadBalancerArn
+	lb := lbInfo.LoadBalancer
+
+	// lb, err := cloud.FindELBV2ByNameTag(e.Tags["Name"])
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	if lb == nil {
+	// 		return nil, nil
+	// 	}
+
+	loadBalancerArn := lbInfo.ARN()
 
 	actual := &NetworkLoadBalancer{}
 	actual.Name = e.Name
 	actual.CLBName = e.CLBName
-	actual.LoadBalancerName = lb.LoadBalancerName
 	actual.DNSName = lb.DNSName
 	actual.HostedZoneId = lb.CanonicalHostedZoneId // CanonicalHostedZoneNameID
 	actual.Scheme = lb.Scheme
@@ -218,16 +272,20 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 	actual.Type = lb.Type
 	actual.IpAddressType = lb.IpAddressType
 
-	tagMap, err := cloud.DescribeELBV2Tags([]string{*loadBalancerArn})
-	if err != nil {
-		return nil, err
-	}
+	// tagMap, err := cloud.DescribeELBV2Tags([]string{loadBalancerArn})
+	// if err != nil {
+	// 	return nil, err
+	// }
 	actual.Tags = make(map[string]string)
-	for _, tag := range tagMap[*loadBalancerArn] {
-		if strings.HasPrefix(aws.StringValue(tag.Key), "aws:cloudformation:") {
+	for _, tag := range lbInfo.Tags {
+		k := aws.StringValue(tag.Key)
+		if strings.HasPrefix(k, "aws:cloudformation:") {
 			continue
 		}
-		actual.Tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+		if k == KopsResourceRevisionTag {
+			continue
+		}
+		actual.Tags[k] = aws.StringValue(tag.Value)
 	}
 
 	for _, az := range lb.AvailabilityZones {
@@ -312,28 +370,30 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 	if e.HostedZoneId == nil {
 		e.HostedZoneId = actual.HostedZoneId
 	}
-	if e.LoadBalancerName == nil {
-		e.LoadBalancerName = actual.LoadBalancerName
-	}
+	// if e.LoadBalancerName == nil {
+	// 	e.LoadBalancerName = actual.LoadBalancerName
+	// }
 
 	// An existing internal NLB can't be updated to dualstack.
 	if fi.ValueOf(actual.Scheme) == elbv2.LoadBalancerSchemeEnumInternal && fi.ValueOf(actual.IpAddressType) == elbv2.IpAddressTypeIpv4 {
 		e.IpAddressType = actual.IpAddressType
 	}
 
-	// We allow for the LoadBalancerName to be wrong:
-	// 1. We don't want to force a rename of the NLB, because that is a destructive operation
-	if fi.ValueOf(e.LoadBalancerName) != fi.ValueOf(actual.LoadBalancerName) {
-		klog.V(2).Infof("Reusing existing load balancer with name: %q", aws.StringValue(actual.LoadBalancerName))
-		e.LoadBalancerName = actual.LoadBalancerName
-	}
+	// // We allow for the LoadBalancerName to be wrong:
+	// // 1. We don't want to force a rename of the NLB, because that is a destructive operation
+	// if fi.ValueOf(e.LoadBalancerName) != fi.ValueOf(actual.LoadBalancerName) {
+	// 	klog.V(2).Infof("Reusing existing load balancer with name: %q", aws.StringValue(actual.LoadBalancerName))
+	// 	e.LoadBalancerName = actual.LoadBalancerName
+	// }
 
 	_ = actual.Normalize(c)
 	actual.WellKnownServices = e.WellKnownServices
 	actual.Lifecycle = e.Lifecycle
+	actual.LoadBalancerBaseName = e.LoadBalancerBaseName
 
 	// Store for other tasks
 	e.loadBalancerArn = aws.StringValue(lb.LoadBalancerArn)
+	actual.loadBalancerArn = e.loadBalancerArn
 
 	klog.V(4).Infof("Found NLB %+v", actual)
 
@@ -348,30 +408,35 @@ func (e *NetworkLoadBalancer) GetWellKnownServices() []wellknownservices.WellKno
 	return e.WellKnownServices
 }
 
-func (e *NetworkLoadBalancer) FindAddresses(context *fi.CloudupContext) ([]string, error) {
+func (e *NetworkLoadBalancer) FindAddresses(c *fi.CloudupContext) ([]string, error) {
+	ctx := c.Context()
+
 	var addresses []string
 
-	cloud := context.T.Cloud.(awsup.AWSCloud)
-	cluster := context.T.Cluster
+	cloud := c.T.Cloud.(awsup.AWSCloud)
+	cluster := c.T.Cluster
 
-	{
-		lb, err := cloud.FindELBV2ByNameTag(e.Tags["Name"])
-		if err != nil {
-			return nil, fmt.Errorf("failed to find load balancer matching %q: %w", e.Tags["Name"], err)
-		}
-		if lb != nil && fi.ValueOf(lb.DNSName) != "" {
-			addresses = append(addresses, fi.ValueOf(lb.DNSName))
-		}
+	name := fi.ValueOf(e.Name)
+
+	lb, err := e.findLatestLoadBalancer(ctx, cloud, name)
+	if err != nil {
+		return nil, err
 	}
 
-	if cluster.UsesNoneDNS() {
-		nis, err := cloud.FindELBV2NetworkInterfacesByName(fi.ValueOf(e.VPC.ID), fi.ValueOf(e.LoadBalancerName))
-		if err != nil {
-			return nil, fmt.Errorf("failed to find network interfaces matching %q: %w", fi.ValueOf(e.LoadBalancerName), err)
+	if lb != nil {
+		if fi.ValueOf(lb.LoadBalancer.DNSName) != "" {
+			addresses = append(addresses, fi.ValueOf(lb.LoadBalancer.DNSName))
 		}
-		for _, ni := range nis {
-			if fi.ValueOf(ni.PrivateIpAddress) != "" {
-				addresses = append(addresses, fi.ValueOf(ni.PrivateIpAddress))
+
+		if cluster.UsesNoneDNS() {
+			nis, err := cloud.FindELBV2NetworkInterfacesByName(fi.ValueOf(e.VPC.ID), aws.StringValue(lb.LoadBalancer.LoadBalancerName))
+			if err != nil {
+				return nil, fmt.Errorf("failed to find network interfaces matching %q: %w", aws.StringValue(lb.LoadBalancer.LoadBalancerName), err)
+			}
+			for _, ni := range nis {
+				if fi.ValueOf(ni.PrivateIpAddress) != "" {
+					addresses = append(addresses, fi.ValueOf(ni.PrivateIpAddress))
+				}
 			}
 		}
 	}
@@ -454,32 +519,62 @@ func (*NetworkLoadBalancer) CheckChanges(a, e, changes *NetworkLoadBalancer) err
 }
 
 func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *NetworkLoadBalancer) error {
-	ctx := context.TODO()
+	loadBalancerArn := ""
 
-	var loadBalancerName string
-	var loadBalancerArn string
+	revision := ""
+
+	// AWS does not allow us to add security groups to an ELB that was initially created without them.
+	// This forces a new revision (currently, the only operation that forces a new revision)
+	if a != nil && len(a.SecurityGroups) == 0 && len(e.SecurityGroups) > 0 {
+		t := time.Now()
+		revision = strconv.FormatInt(t.Unix(), 10)
+
+		a = nil
+	}
+
+	// TODO: Use maps.Clone when we are >= go1.21 on supported branches
+	tags := make(map[string]string)
+	for k, v := range e.Tags {
+		tags[k] = v
+	}
+
+	if revision != "" {
+		tags[KopsResourceRevisionTag] = revision
+	}
+
+	// var loadBalancerName string
+	// var loadBalancerArn string
 
 	if a == nil {
-		if e.LoadBalancerName == nil {
-			return fi.RequiredField("LoadBalancerName")
+		if revision != "" {
+			tags[KopsResourceRevisionTag] = revision
 		}
 
-		loadBalancerName = *e.LoadBalancerName
+		createLoadBalancerName := fi.ValueOf(e.LoadBalancerBaseName)
+		if revision != "" {
+			s := fi.ValueOf(e.LoadBalancerBaseName) + "-" + revision
+
+			// We always compute the hash and add it, lest we trick users into assuming that we never do this
+			opt := truncate.TruncateStringOptions{
+				MaxLength:     32,
+				AlwaysAddHash: true,
+				HashLength:    6,
+			}
+			createLoadBalancerName = truncate.TruncateString(s, opt)
+		}
 
 		{
 			request := &elbv2.CreateLoadBalancerInput{}
-			request.Name = e.LoadBalancerName
+			request.Name = &createLoadBalancerName
 			request.Scheme = e.Scheme
 			request.Type = e.Type
 			request.IpAddressType = e.IpAddressType
-			request.Tags = awsup.ELBv2Tags(e.Tags)
-
-			allocationID := "eni-0a77a58fd10070cb8"
+			request.Tags = awsup.ELBv2Tags(tags)
 
 			for _, subnetMapping := range e.SubnetMappings {
 				request.SubnetMappings = append(request.SubnetMappings, &elbv2.SubnetMapping{
 					SubnetId:           subnetMapping.Subnet.ID,
-					AllocationId:       &allocationID, // subnetMapping.AllocationID,
+					AllocationId:       subnetMapping.AllocationID,
 					PrivateIPv4Address: subnetMapping.PrivateIPv4Address,
 				})
 			}
@@ -488,14 +583,14 @@ func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Ne
 				request.SecurityGroups = append(request.SecurityGroups, sg.ID)
 			}
 
-			klog.V(2).Infof("Creating NLB %q", loadBalancerName)
+			klog.V(2).Infof("Creating NLB %q", createLoadBalancerName)
 
 			response, err := t.Cloud.ELBV2().CreateLoadBalancer(request)
 			if err != nil {
-				return fmt.Errorf("error creating NLB %q: %w", loadBalancerName, err)
+				return fmt.Errorf("error creating NLB %q: %w", createLoadBalancerName, err)
 			}
 			if len(response.LoadBalancers) != 1 {
-				return fmt.Errorf("error creating NLB %q: found %d", loadBalancerName, len(response.LoadBalancers))
+				return fmt.Errorf("error creating NLB %q: found %d", createLoadBalancerName, len(response.LoadBalancers))
 			}
 
 			lb := response.LoadBalancers[0]
@@ -519,19 +614,26 @@ func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Ne
 		}
 
 	} else {
-		loadBalancerName = fi.ValueOf(a.LoadBalancerName)
-
-		lb, err := findNetworkLoadBalancerByLoadBalancerName(t.Cloud, loadBalancerName)
-		if err != nil {
-			return fmt.Errorf("error getting load balancer by name: %v", err)
+		// We removed some tags for the diff, but we want to preserve it
+		for k, v := range a.Tags {
+			if k == KopsResourceRevisionTag {
+				tags[KopsResourceRevisionTag] = v
+			}
 		}
 
-		loadBalancerArn = fi.ValueOf(lb.LoadBalancerArn)
+		// loadBalancerName = fi.ValueOf(a.LoadBalancerName)
+
+		// lb, err := findNetworkLoadBalancerByLoadBalancerName(t.Cloud, loadBalancerName)
+		// if err != nil {
+		// 	return fmt.Errorf("error getting load balancer by name: %v", err)
+		// }
+
+		loadBalancerArn = a.loadBalancerArn
 
 		if changes.IpAddressType != nil {
 			request := &elbv2.SetIpAddressTypeInput{
 				IpAddressType:   e.IpAddressType,
-				LoadBalancerArn: lb.LoadBalancerArn,
+				LoadBalancerArn: &loadBalancerArn,
 			}
 			if _, err := t.Cloud.ELBV2().SetIpAddressType(request); err != nil {
 				return fmt.Errorf("error setting the IP addresses type: %v", err)
@@ -578,7 +680,7 @@ func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Ne
 
 		if changes.SecurityGroups != nil {
 			request := &elbv2.SetSecurityGroupsInput{
-				LoadBalancerArn: lb.LoadBalancerArn,
+				LoadBalancerArn: &loadBalancerArn,
 			}
 			for _, sg := range e.SecurityGroups {
 				request.SecurityGroups = append(request.SecurityGroups, sg.ID)
@@ -590,11 +692,11 @@ func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Ne
 			}
 		}
 
-		if err := t.AddELBV2Tags(loadBalancerArn, e.Tags); err != nil {
+		if err := t.AddELBV2Tags(loadBalancerArn, tags); err != nil {
 			return err
 		}
 
-		if err := t.RemoveELBV2Tags(loadBalancerArn, e.Tags); err != nil {
+		if err := t.RemoveELBV2Tags(loadBalancerArn, tags); err != nil {
 			return err
 		}
 	}
@@ -627,7 +729,7 @@ type terraformNetworkLoadBalancerSubnetMapping struct {
 
 func (_ *NetworkLoadBalancer) RenderTerraform(t *terraform.TerraformTarget, a, e, changes *NetworkLoadBalancer) error {
 	nlbTF := &terraformNetworkLoadBalancer{
-		Name:                   *e.LoadBalancerName,
+		Name:                   *e.LoadBalancerBaseName,
 		Internal:               fi.ValueOf(e.Scheme) == elbv2.LoadBalancerSchemeEnumInternal,
 		Type:                   elbv2.LoadBalancerTypeEnumNetwork,
 		Tags:                   e.Tags,

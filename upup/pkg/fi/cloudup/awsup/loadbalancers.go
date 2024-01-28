@@ -36,7 +36,7 @@ func (i *LoadBalancerInfo) GetTag(key string) (string, bool) {
 	return "", false
 }
 
-func ListELBV2s(ctx context.Context, cloud AWSCloud) ([]*LoadBalancerInfo, error) {
+func ListELBV2LoadBalancers(ctx context.Context, cloud AWSCloud) ([]*LoadBalancerInfo, error) {
 	klog.V(2).Infof("Listing all NLBs and ALBs")
 
 	request := &elbv2.DescribeLoadBalancersInput{}
