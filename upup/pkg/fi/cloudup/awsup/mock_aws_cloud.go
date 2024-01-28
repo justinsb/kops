@@ -211,8 +211,8 @@ func (c *MockAWSCloud) DescribeELBTags(loadBalancerNames []string) (map[string][
 	return describeELBTags(c, loadBalancerNames)
 }
 
-func (c *MockAWSCloud) FindELBV2ByNameTag(findNameTag string) (*elbv2.LoadBalancer, error) {
-	return findELBV2ByNameTag(c, findNameTag)
+func (c *MockAWSCloud) FindLatestELBV2ByNameTag(ctx context.Context, findNameTag string) (*LoadBalancerInfo, error) {
+	return findLatestELBV2ByNameTag(ctx, c, findNameTag)
 }
 
 func (c *MockAWSCloud) DescribeELBV2Tags(loadBalancerArns []string) (map[string][]*elbv2.Tag, error) {
@@ -317,7 +317,8 @@ func (c *MockAWSCloud) FindVPCInfo(id string) (*fi.VPCInfo, error) {
 }
 
 func (c *MockAWSCloud) GetApiIngressStatus(cluster *kops.Cluster) ([]fi.ApiIngressStatus, error) {
-	return getApiIngressStatus(c, cluster)
+	ctx := context.TODO()
+	return getApiIngressStatus(ctx, c, cluster)
 }
 
 // DefaultInstanceType determines an instance type for the specified cluster & instance group

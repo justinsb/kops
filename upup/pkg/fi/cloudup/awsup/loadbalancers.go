@@ -10,6 +10,13 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// KopsResourceRevisionTag is the tag used to store the revision timestamp,
+// when we are forced to create a new version of a resource because we cannot modify it in-place.
+// This happens when the resource field is immutable;
+// it also happens for ELBs, when we cannot have two ELBs pointing at the same target group
+// and thus must create a second.
+const KopsResourceRevisionTag = "kops.k8s.io/revision"
+
 type LoadBalancerInfo struct {
 	LoadBalancer *elbv2.LoadBalancer
 	Tags         []*elbv2.Tag
@@ -37,7 +44,9 @@ func (i *LoadBalancerInfo) GetTag(key string) (string, bool) {
 }
 
 func ListELBV2LoadBalancers(ctx context.Context, cloud AWSCloud) ([]*LoadBalancerInfo, error) {
-	klog.V(2).Infof("Listing all NLBs and ALBs")
+
+	// TODO: Any way around this?
+	klog.V(2).Infof("Listing all NLBs for ListELBV2LoadBalancers")
 
 	request := &elbv2.DescribeLoadBalancersInput{}
 	// ELBV2 DescribeTags has a limit of 20 names, so we set the page size here to 20 also
@@ -56,6 +65,8 @@ func ListELBV2LoadBalancers(ctx context.Context, cloud AWSCloud) ([]*LoadBalance
 		for _, elb := range p.LoadBalancers {
 			arn := aws.StringValue(elb.LoadBalancerArn)
 			byARN[arn] = &LoadBalancerInfo{LoadBalancer: elb}
+
+			// TODO: Any way to filter by cluster here?
 
 			tagRequest.ResourceArns = append(tagRequest.ResourceArns, elb.LoadBalancerArn)
 		}

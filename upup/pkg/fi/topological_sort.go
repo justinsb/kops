@@ -66,6 +66,9 @@ func FindTaskDependencies[T SubContext](tasks map[string]Task[T]) map[string][]s
 
 		var dependencyKeys []string
 		for _, dep := range dependencies {
+			if dep == nil {
+				continue
+			}
 			dependencyKey, found := taskToId[dep]
 			if !found {
 				klog.Fatalf("dependency not found: %v", dep)

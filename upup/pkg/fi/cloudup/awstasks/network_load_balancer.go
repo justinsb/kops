@@ -17,7 +17,6 @@ limitations under the License.
 package awstasks
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -39,11 +38,7 @@ import (
 )
 
 // KopsResourceRevisionTag is the tag used to store the revision timestamp,
-// when we are forced to create a new version of a resource because we cannot modify it in-place.
-// This happens when the resource field is immutable;
-// it also happens for ELBs, when we cannot have two ELBs pointing at the same target group
-// and thus must create a second.
-const KopsResourceRevisionTag = "kops.k8s.io/revision"
+const KopsResourceRevisionTag = awsup.KopsResourceRevisionTag
 
 // NetworkLoadBalancer manages an NLB.  We find the existing NLB using the Name tag.
 var _ DNSTarget = &NetworkLoadBalancer{}
@@ -207,45 +202,10 @@ func (e *NetworkLoadBalancer) getHostedZoneId() *string {
 	return e.HostedZoneId
 }
 
-func (*NetworkLoadBalancer) findLatestLoadBalancer(ctx context.Context, cloud awsup.AWSCloud, name string) (*awsup.LoadBalancerInfo, error) {
-	loadBalancers, err := awsup.ListELBV2LoadBalancers(ctx, cloud)
-	if err != nil {
-		return nil, err
-	}
-
-	var latest *awsup.LoadBalancerInfo
-	var latestRevision int
-	for _, lb := range loadBalancers {
-		if lb.NameTag() != name {
-			continue
-		}
-		revisionTag, _ := lb.GetTag(KopsResourceRevisionTag)
-
-		revision := -1
-		if revisionTag == "" {
-			revision = 0
-		} else {
-			n, err := strconv.Atoi(revisionTag)
-			if err != nil {
-				klog.Warningf("ignoring load balancer %q with revision %q", aws.StringValue(lb.LoadBalancer.LoadBalancerArn), revision)
-				continue
-			}
-			revision = n
-		}
-
-		if latest == nil || revision > latestRevision {
-			latestRevision = revision
-			latest = lb
-		}
-	}
-
-	return latest, nil
-}
-
 func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, error) {
 	cloud := c.T.Cloud.(awsup.AWSCloud)
 
-	lbInfo, err := e.findLatestLoadBalancer(ctx, cloud, fi.ValueOf(e.Name))
+	lbInfo, err := cloud.FindLatestELBV2ByNameTag(ctx, fi.ValueOf(e.Name))
 	if err != nil {
 		return nil, err
 	}
@@ -254,14 +214,6 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 	}
 
 	lb := lbInfo.LoadBalancer
-
-	// lb, err := cloud.FindELBV2ByNameTag(e.Tags["Name"])
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if lb == nil {
-	// 		return nil, nil
-	// 	}
 
 	loadBalancerArn := lbInfo.ARN()
 
@@ -433,7 +385,7 @@ func (e *NetworkLoadBalancer) FindAddresses(c *fi.CloudupContext) ([]string, err
 
 	name := fi.ValueOf(e.Name)
 
-	lb, err := e.findLatestLoadBalancer(ctx, cloud, name)
+	lb, err := cloud.FindLatestELBV2ByNameTag(ctx, name)
 	if err != nil {
 		return nil, err
 	}
@@ -536,16 +488,16 @@ func (*NetworkLoadBalancer) CheckChanges(a, e, changes *NetworkLoadBalancer) err
 func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *NetworkLoadBalancer) error {
 	loadBalancerArn := ""
 
-	revision := ""
+	revision := e.revision
 
-	// AWS does not allow us to add security groups to an ELB that was initially created without them.
-	// This forces a new revision (currently, the only operation that forces a new revision)
-	if a != nil && len(a.SecurityGroups) == 0 && len(e.SecurityGroups) > 0 {
-		t := time.Now()
-		revision = strconv.FormatInt(t.Unix(), 10)
+	// // AWS does not allow us to add security groups to an ELB that was initially created without them.
+	// // This forces a new revision (currently, the only operation that forces a new revision)
+	// if a != nil && len(a.SecurityGroups) == 0 && len(e.SecurityGroups) > 0 {
+	// 	t := time.Now()
+	// 	revision = strconv.FormatInt(t.Unix(), 10)
 
-		a = nil
-	}
+	// 	a = nil
+	// }
 
 	// TODO: Use maps.Clone when we are >= go1.21 on supported branches
 	tags := make(map[string]string)

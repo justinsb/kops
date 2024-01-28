@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"k8s.io/klog/v2"
+	"k8s.io/kops/pkg/truncate"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
@@ -51,8 +52,8 @@ type TargetGroup struct {
 	Port      *int64
 	Protocol  *string
 
-	// NetworkLoadBalancer, if set, will create a new Target Group for each revision of the Network Load Balancer
-	NetworkLoadBalancer *NetworkLoadBalancer
+	// networkLoadBalancer, if set, will create a new Target Group for each revision of the Network Load Balancer
+	networkLoadBalancer *NetworkLoadBalancer
 
 	// ARN is the Amazon Resource Name for the Target Group
 	ARN *string
@@ -69,10 +70,27 @@ type TargetGroup struct {
 	revision string
 }
 
+func (e *TargetGroup) AddRevisionsForNLB(nlb *NetworkLoadBalancer) {
+	e.networkLoadBalancer = nlb
+}
+
+var _ fi.CloudupHasDependencies = &TargetGroup{}
+
+// GetDependencies returns the dependencies of the TargetGroup task
+func (e *TargetGroup) GetDependencies(tasks map[string]fi.CloudupTask) []fi.CloudupTask {
+	var deps []fi.CloudupTask
+	deps = append(deps, e.VPC)
+	deps = append(deps, e.networkLoadBalancer)
+	return deps
+}
+
 var _ fi.CompareWithID = &TargetGroup{}
 
 func (e *TargetGroup) CompareWithID() *string {
-	return e.ARN
+	if e.ARN != nil {
+		return e.ARN
+	}
+	return e.Name
 }
 
 func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWSCloud) (*awsup.TargetGroupInfo, error) {
@@ -109,12 +127,17 @@ func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWS
 		}
 	}
 
-	if latest != nil && e.NetworkLoadBalancer != nil {
-		findRevision := e.NetworkLoadBalancer.revision
+	if latest != nil && e.networkLoadBalancer != nil {
+		matchRevision := e.networkLoadBalancer.revision
+		arn := e.networkLoadBalancer.loadBalancerArn
+		if arn == "" {
+			klog.Fatalf("no arn")
+		}
 		revisionTag, _ := latest.GetTag(KopsResourceRevisionTag)
 
-		if revisionTag != findRevision {
-			klog.Warningf("found target group but revision %q does not match load balancer revision %q", revisionTag, findRevision)
+		klog.Infof("nlb is %+v", e.networkLoadBalancer)
+		if revisionTag != matchRevision {
+			klog.Warningf("found target group but revision %q does not match load balancer revision %q; will create a new target group", revisionTag, matchRevision)
 			latest = nil
 		}
 	}
@@ -203,7 +226,6 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 	e.Interval = actual.Interval
 
 	e.ARN = tg.TargetGroupArn
-
 	tags := make(map[string]string)
 	for _, tag := range targetGroupInfo.Tags {
 		k := fi.ValueOf(tag.Key)
@@ -235,6 +257,10 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 	// Prevent spurious changes
 	actual.Lifecycle = e.Lifecycle
 	actual.Shared = e.Shared
+
+	if e.Name != nil {
+		actual.Name = e.Name
+	}
 
 	return actual, nil
 }
@@ -270,21 +296,13 @@ func (_ *TargetGroup) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *TargetGrou
 		}
 	}
 
-	if e.NetworkLoadBalancer != nil {
-		if e.NetworkLoadBalancer.loadBalancerArn == "" {
+	if e.networkLoadBalancer != nil {
+		if e.networkLoadBalancer.loadBalancerArn == "" {
 			return fmt.Errorf("load balancer not yet ready (arn is empty)")
 		}
-		nlbRevision := e.NetworkLoadBalancer.revision
-		if a == nil {
-			klog.Infof("nlbRevision is %v; actual is nil", nlbRevision)
-			if nlbRevision != "" {
-				tags[KopsResourceRevisionTag] = nlbRevision
-			}
-		} else {
-			klog.Infof("nlbRevision is %v; actual revision is %v", nlbRevision, a.revision)
-			if a.revision != nlbRevision {
-				a = nil
-			}
+		nlbRevision := e.networkLoadBalancer.revision
+		if nlbRevision != "" {
+			tags[KopsResourceRevisionTag] = nlbRevision
 		}
 	}
 
@@ -293,8 +311,20 @@ func (_ *TargetGroup) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *TargetGrou
 	// when you register each target with the target group.
 
 	if a == nil {
+		createTargetGroupName := *e.Name
+		if tags[KopsResourceRevisionTag] != "" {
+			s := *e.Name + tags[KopsResourceRevisionTag]
+			// We always compute the hash and add it, lest we trick users into assuming that we never do this
+			opt := truncate.TruncateStringOptions{
+				MaxLength:     32,
+				AlwaysAddHash: true,
+				HashLength:    6,
+			}
+			createTargetGroupName = truncate.TruncateString(s, opt)
+		}
+
 		request := &elbv2.CreateTargetGroupInput{
-			Name:                       e.Name,
+			Name:                       &createTargetGroupName,
 			Port:                       e.Port,
 			Protocol:                   e.Protocol,
 			VpcId:                      e.VPC.ID,
@@ -307,7 +337,7 @@ func (_ *TargetGroup) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *TargetGrou
 		klog.V(2).Infof("Creating Target Group for NLB")
 		response, err := t.Cloud.ELBV2().CreateTargetGroup(request)
 		if err != nil {
-			return fmt.Errorf("Error creating target group for NLB : %v", err)
+			return fmt.Errorf("creating NLB target group: %w", err)
 		}
 
 		if err := ModifyTargetGroupAttributes(t.Cloud, response.TargetGroups[0].TargetGroupArn, e.Attributes); err != nil {
