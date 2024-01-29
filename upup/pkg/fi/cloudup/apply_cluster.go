@@ -155,6 +155,9 @@ type ApplyClusterCmd struct {
 
 	// AdditionalObjects holds cluster-asssociated configuration objects, other than the Cluster and InstanceGroups.
 	AdditionalObjects kubemanifest.ObjectList
+
+	// DeletionProcessing controls whether we process deletions.
+	DeletionProcessing fi.DeletionProcessingMode
 }
 
 func (c *ApplyClusterCmd) Run(ctx context.Context) error {
@@ -713,8 +716,8 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) error {
 
 	var target fi.CloudupTarget
 	shouldPrecreateDNS := true
+	deletionProcessing := c.DeletionProcessing
 
-	deletionProcessingMode := fi.DeletionProcessingModeDeleteIfNotDeferrred
 	switch c.TargetName {
 	case TargetDirect:
 		switch cluster.Spec.GetCloudProvider() {
@@ -766,7 +769,7 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) error {
 		shouldPrecreateDNS = false
 
 		// Terraform tracks & performs deletions itself
-		deletionProcessingMode = fi.DeletionProcessingModeIgnore
+		deletionProcessing = fi.DeletionProcessingModeIgnore
 
 	case TargetDryRun:
 		var out io.Writer = os.Stdout
@@ -790,7 +793,7 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) error {
 		}
 	}
 
-	context, err := fi.NewCloudupContext(ctx, deletionProcessingMode, target, cluster, cloud, keyStore, secretStore, configBase, c.TaskMap)
+	context, err := fi.NewCloudupContext(ctx, deletionProcessing, target, cluster, cloud, keyStore, secretStore, configBase, c.TaskMap)
 	if err != nil {
 		return fmt.Errorf("error building context: %v", err)
 	}
