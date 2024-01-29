@@ -402,7 +402,7 @@ func (t *LaunchTemplate) findLatestLaunchTemplateVersion(c *fi.CloudupContext) (
 }
 
 // deleteLaunchTemplate tracks a LaunchConfiguration that we're going to delete
-// It implements fi.Deletion
+// It implements fi.CloudupDeletion
 type deleteLaunchTemplate struct {
 	lc *ec2.LaunchTemplate
 }

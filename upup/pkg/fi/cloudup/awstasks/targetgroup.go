@@ -68,6 +68,9 @@ type TargetGroup struct {
 	UnhealthyThreshold *int64
 
 	revision string
+
+	// deletions is a list of previous versions of this object, that we should delete when asked to clean up.
+	deletions []*deleteTargetGroup
 }
 
 func (e *TargetGroup) AddRevisionsForNLB(nlb *NetworkLoadBalancer) {
@@ -140,6 +143,20 @@ func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWS
 			klog.Warningf("found target group but revision %q does not match load balancer revision %q; will create a new target group", revisionTag, matchRevision)
 			latest = nil
 		}
+	}
+
+	// Stash deletions for later
+	for _, targetGroup := range targetGroups {
+		if aws.StringValue(targetGroup.TargetGroup.TargetGroupName) != name && targetGroup.NameTag() != name {
+			continue
+		}
+		if latest != nil && latest.ARN() == targetGroup.ARN() {
+			continue
+		}
+
+		e.deletions = append(e.deletions, &deleteTargetGroup{
+			obj: targetGroup.TargetGroup,
+		})
 	}
 
 	return latest, nil
@@ -451,4 +468,58 @@ func (e *TargetGroup) TerraformLink() *terraformWriter.Literal {
 		}
 	}
 	return terraformWriter.LiteralProperty("aws_lb_target_group", *e.Name, "id")
+}
+
+var _ fi.CloudupProducesDeletions = &TargetGroup{}
+
+// FindDeletions is responsible for finding launch templates which can be deleted
+func (e *TargetGroup) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletion, error) {
+	var removals []fi.CloudupDeletion
+	for _, d := range e.deletions {
+		removals = append(removals, d)
+	}
+	// removals = append(removals, e.deletions...)
+
+	return removals, nil
+}
+
+// deleteTargetGroup tracks a TargetGroup that we're going to delete
+// It implements fi.CloudupDeletion
+type deleteTargetGroup struct {
+	obj *elbv2.TargetGroup
+}
+
+var _ fi.CloudupDeletion = &deleteTargetGroup{}
+
+// TaskName returns the task name
+func (d *deleteTargetGroup) TaskName() string {
+	return "TargetGroup"
+}
+
+// Item returns the name for the item we're deleting.
+func (d *deleteTargetGroup) Item() string {
+	return aws.StringValue(d.obj.TargetGroupArn)
+}
+
+func (d *deleteTargetGroup) Delete(t fi.CloudupTarget) error {
+	ctx := context.TODO()
+
+	awsTarget, ok := t.(*awsup.AWSAPITarget)
+	if !ok {
+		return fmt.Errorf("unexpected target type for deletion: %T", t)
+	}
+
+	arn := aws.StringValue(d.obj.TargetGroupArn)
+	if _, err := awsTarget.Cloud.ELBV2().DeleteTargetGroupWithContext(ctx, &elbv2.DeleteTargetGroupInput{
+		TargetGroupArn: &arn,
+	}); err != nil {
+		return fmt.Errorf("error deleting ELB TargetGroup %q: %w", arn, err)
+	}
+
+	return nil
+}
+
+// String returns a string representation of the task
+func (d *deleteTargetGroup) String() string {
+	return d.TaskName() + "-" + d.Item()
 }

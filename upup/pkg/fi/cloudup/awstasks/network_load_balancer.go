@@ -17,6 +17,7 @@ limitations under the License.
 package awstasks
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -88,6 +89,9 @@ type NetworkLoadBalancer struct {
 
 	// After this is found/created, we store the revision
 	revision string
+
+	// deletions is a list of previous versions of this object, that we should delete when asked to clean up.
+	deletions []fi.CloudupDeletion
 }
 
 func (e *NetworkLoadBalancer) SetWaitForLoadBalancerReady(v bool) {
@@ -205,17 +209,37 @@ func (e *NetworkLoadBalancer) getHostedZoneId() *string {
 func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, error) {
 	cloud := c.T.Cloud.(awsup.AWSCloud)
 
-	lbInfo, err := cloud.FindLatestELBV2ByNameTag(ctx, fi.ValueOf(e.Name))
+	allLoadBalancers, err := awsup.ListELBV2LoadBalancers(ctx, cloud)
 	if err != nil {
 		return nil, err
 	}
-	if lbInfo == nil {
+
+	latest := awsup.FindLatestELBV2ByNameTag(allLoadBalancers, fi.ValueOf(e.Name))
+	if err != nil {
+		return nil, err
+	}
+
+	// Stash deletions for later
+	for _, lb := range allLoadBalancers {
+		if lb.NameTag() != fi.ValueOf(e.Name) {
+			continue
+		}
+		if latest != nil && latest.ARN() == lb.ARN() {
+			continue
+		}
+
+		e.deletions = append(e.deletions, &deleteNLB{
+			obj: lb.LoadBalancer,
+		})
+	}
+
+	if latest == nil {
 		return nil, nil
 	}
 
-	lb := lbInfo.LoadBalancer
+	lb := latest.LoadBalancer
 
-	loadBalancerArn := lbInfo.ARN()
+	loadBalancerArn := latest.ARN()
 
 	actual := &NetworkLoadBalancer{}
 	actual.Name = e.Name
@@ -232,7 +256,7 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 	// 	return nil, err
 	// }
 	actual.Tags = make(map[string]string)
-	for _, tag := range lbInfo.Tags {
+	for _, tag := range latest.Tags {
 		k := aws.StringValue(tag.Key)
 		if strings.HasPrefix(k, "aws:cloudformation:") {
 			continue
@@ -349,7 +373,7 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 	// Store for other tasks
 	e.loadBalancerArn = aws.StringValue(lb.LoadBalancerArn)
 	actual.loadBalancerArn = e.loadBalancerArn
-	e.revision, _ = lbInfo.GetTag(KopsResourceRevisionTag)
+	e.revision, _ = latest.GetTag(KopsResourceRevisionTag)
 	actual.revision = e.revision
 
 	klog.V(4).Infof("Found NLB %+v", actual)
@@ -383,12 +407,12 @@ func (e *NetworkLoadBalancer) FindAddresses(c *fi.CloudupContext) ([]string, err
 	cloud := c.T.Cloud.(awsup.AWSCloud)
 	cluster := c.T.Cluster
 
-	name := fi.ValueOf(e.Name)
-
-	lb, err := cloud.FindLatestELBV2ByNameTag(ctx, name)
+	allLoadBalancers, err := awsup.ListELBV2LoadBalancers(ctx, cloud)
 	if err != nil {
 		return nil, err
 	}
+
+	lb := awsup.FindLatestELBV2ByNameTag(allLoadBalancers, fi.ValueOf(e.Name))
 
 	if lb != nil {
 		if fi.ValueOf(lb.LoadBalancer.DNSName) != "" {
@@ -751,33 +775,35 @@ func (e *NetworkLoadBalancer) TerraformLink(params ...string) *terraformWriter.L
 
 // FindDeletions schedules deletion of the corresponding legacy classic load balancer when it no longer has targets.
 func (e *NetworkLoadBalancer) FindDeletions(context *fi.CloudupContext) ([]fi.CloudupDeletion, error) {
-	if e.CLBName == nil {
-		return nil, nil
+	var deletions []fi.CloudupDeletion
+
+	deletions = append(deletions, e.deletions...)
+
+	if e.CLBName != nil {
+		cloud := context.T.Cloud.(awsup.AWSCloud)
+
+		lb, err := cloud.FindELBByNameTag(fi.ValueOf(e.CLBName))
+		if err != nil {
+			return nil, err
+		}
+
+		if lb != nil {
+			// Testing shows that the instances are deregistered immediately after the apply_cluster.
+			// TODO: Figure out how to delay deregistration until instances are terminated.
+			//if len(lb.Instances) > 0 {
+			//	klog.V(2).Infof("CLB %s has targets; not scheduling deletion", *lb.LoadBalancerName)
+			//	return nil, nil
+			//}
+
+			actual := &deleteClassicLoadBalancer{}
+			actual.LoadBalancerName = lb.LoadBalancerName
+
+			klog.V(4).Infof("Found CLB %+v", actual)
+			deletions = append(deletions, actual)
+		}
 	}
 
-	cloud := context.T.Cloud.(awsup.AWSCloud)
-
-	lb, err := cloud.FindELBByNameTag(fi.ValueOf(e.CLBName))
-	if err != nil {
-		return nil, err
-	}
-	if lb == nil {
-		return nil, nil
-	}
-
-	// Testing shows that the instances are deregistered immediately after the apply_cluster.
-	// TODO: Figure out how to delay deregistration until instances are terminated.
-	//if len(lb.Instances) > 0 {
-	//	klog.V(2).Infof("CLB %s has targets; not scheduling deletion", *lb.LoadBalancerName)
-	//	return nil, nil
-	//}
-
-	actual := &deleteClassicLoadBalancer{}
-	actual.LoadBalancerName = lb.LoadBalancerName
-
-	klog.V(4).Infof("Found CLB %+v", actual)
-
-	return []fi.CloudupDeletion{actual}, nil
+	return deletions, nil
 }
 
 type deleteClassicLoadBalancer struct {
@@ -808,4 +834,45 @@ func (d deleteClassicLoadBalancer) TaskName() string {
 
 func (d deleteClassicLoadBalancer) Item() string {
 	return *d.LoadBalancerName
+}
+
+// deleteNLB tracks a NLB that we're going to delete
+// It implements fi.CloudupDeletion
+type deleteNLB struct {
+	obj *elbv2.LoadBalancer
+}
+
+var _ fi.CloudupDeletion = &deleteNLB{}
+
+// TaskName returns the task name
+func (d *deleteNLB) TaskName() string {
+	return "NetworkLoadBalancer"
+}
+
+// Item returns the name for the item we're deleting.
+func (d *deleteNLB) Item() string {
+	return aws.StringValue(d.obj.LoadBalancerArn)
+}
+
+func (d *deleteNLB) Delete(t fi.CloudupTarget) error {
+	ctx := context.TODO()
+
+	awsTarget, ok := t.(*awsup.AWSAPITarget)
+	if !ok {
+		return fmt.Errorf("unexpected target type for deletion: %T", t)
+	}
+
+	arn := aws.StringValue(d.obj.LoadBalancerArn)
+	if _, err := awsTarget.Cloud.ELBV2().DeleteLoadBalancerWithContext(ctx, &elbv2.DeleteLoadBalancerInput{
+		LoadBalancerArn: &arn,
+	}); err != nil {
+		return fmt.Errorf("error deleting ELB LoadBalancer %q: %w", arn, err)
+	}
+
+	return nil
+}
+
+// String returns a string representation of the task
+func (d *deleteNLB) String() string {
+	return d.TaskName() + "-" + d.Item()
 }

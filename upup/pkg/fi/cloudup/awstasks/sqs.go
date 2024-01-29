@@ -112,6 +112,8 @@ func (q *SQS) Find(c *fi.CloudupContext) (*SQS, error) {
 			return nil, fmt.Errorf("error parsing actual Policy for SQS %q: %v", aws.StringValue(q.Name), err)
 		}
 
+		// TODO: Need to sort slices before comparing
+
 		if reflect.DeepEqual(actualJson, expectedJson) {
 			klog.V(2).Infof("actual Policy was json-equal to expected; returning expected value")
 			actualPolicy = expectedPolicy
