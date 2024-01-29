@@ -92,6 +92,13 @@ type NetworkLoadBalancer struct {
 
 	// deletions is a list of previous versions of this object, that we should delete when asked to clean up.
 	deletions []fi.CloudupDeletion
+
+	// waitForLoadBalancerReady controls whether we wait for the load balancer to be ready before completing the "Render" operation.
+	waitForLoadBalancerReady bool
+}
+
+func (e *NetworkLoadBalancer) SetWaitForLoadBalancerReady(v bool) {
+	e.waitForLoadBalancerReady = v
 }
 
 func (e *NetworkLoadBalancer) SetWaitForLoadBalancerReady(v bool) {
@@ -592,7 +599,7 @@ func (_ *NetworkLoadBalancer) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Ne
 		}
 
 		if e.waitForLoadBalancerReady {
-			klog.Infof("Waiting for load balancer %q to be created...", loadBalancerName)
+			klog.Infof("Waiting for load balancer %q to be created...", createLoadBalancerName)
 			request := &elbv2.DescribeLoadBalancersInput{
 				Names: []*string{&loadBalancerName},
 			}
