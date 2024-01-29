@@ -237,7 +237,9 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 		VPC:                &VPC{ID: tg.VpcId},
 	}
 	actual.info = targetGroupInfo
+	e.info = targetGroupInfo
 	actual.revision, _ = targetGroupInfo.GetTag(KopsResourceRevisionTag)
+	e.revision = actual.revision
 
 	// Interval cannot be changed after TargetGroup creation
 	e.Interval = actual.Interval

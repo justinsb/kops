@@ -215,7 +215,7 @@ func (e *AutoscalingGroup) Find(c *fi.CloudupContext) (*AutoscalingGroup, error)
 	sort.Stable(OrderLoadBalancersByName(actual.LoadBalancers))
 
 	actual.TargetGroups = []*TargetGroup{}
-	if len(g.TargetGroupARNs) > 0 {
+	{
 		byARN := make(map[string]*TargetGroup)
 		for _, tg := range e.TargetGroups {
 			if tg.info != nil {
