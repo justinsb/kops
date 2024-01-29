@@ -113,8 +113,6 @@ func defaultDeltaRunMethod[T SubContext](e Task[T], c *Context[T]) error {
 		for _, deletion := range deletions {
 			if _, ok := c.Target.(*DryRunTarget[T]); ok {
 				err = c.Target.(*DryRunTarget[T]).Delete(deletion)
-			} else if _, ok := c.Target.(*DryRunTarget[T]); ok {
-				err = c.Target.(*DryRunTarget[T]).Delete(deletion)
 			} else {
 				err = deletion.Delete(c.Target)
 			}
