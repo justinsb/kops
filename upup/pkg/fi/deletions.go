@@ -18,6 +18,17 @@ package fi
 
 import "context"
 
+type DeletionProcessingMode string
+
+const (
+	// DeletionProcessingModeIgnore will ignore all deletion tasks.
+	DeletionProcessingModeIgnore DeletionProcessingMode = "Ignore"
+	// DeletionProcessingModeDeleteIfNotDeferrred will delete resources only if they are not marked for deferred-deletion.
+	DeletionProcessingModeDeleteIfNotDeferrred DeletionProcessingMode = "IfNotDeferred"
+	// DeletionProcessingModeDeleteIncludingDeferrred will delete resources including those marked for deferred-deletion.
+	DeletionProcessingModeDeleteIncludingDeferred DeletionProcessingMode = "DeleteIncludingDeferred"
+)
+
 type ProducesDeletions[T SubContext] interface {
 	FindDeletions(*Context[T]) ([]Deletion[T], error)
 }

@@ -105,25 +105,31 @@ func defaultDeltaRunMethod[T SubContext](e Task[T], c *Context[T]) error {
 		}
 	}
 
-	if producesDeletions, ok := e.(ProducesDeletions[T]); ok && c.Target.ProcessDeletions() {
-		var deletions []Deletion[T]
-		deletions, err = producesDeletions.FindDeletions(c)
+	if producesDeletions, ok := e.(ProducesDeletions[T]); ok && c.deletionProcessingMode != DeletionProcessingModeIgnore {
+		deletions, err := producesDeletions.FindDeletions(c)
 		if err != nil {
 			return err
 		}
 		for _, deletion := range deletions {
 			if _, ok := c.Target.(*DryRunTarget[T]); ok {
-				err = c.Target.(*DryRunTarget[T]).Delete(deletion)
+				if err := c.Target.(*DryRunTarget[T]).RecordDeletion(deletion); err != nil {
+					return err
+				}
 			} else {
 				if deletion.DeferDeletion() {
-					klog.Infof("not deleting %s/%s because it is marked for deferred-deletion", deletion.TaskName(), deletion.Item())
-					err = nil
-				} else {
-					err = deletion.Delete(c.Context(), c.Target)
+					switch c.deletionProcessingMode {
+					case DeletionProcessingModeDeleteIfNotDeferrred:
+						klog.Infof("not deleting %s/%s because it is marked for deferred-deletion", deletion.TaskName(), deletion.Item())
+						continue
+					case DeletionProcessingModeDeleteIncludingDeferred:
+						klog.V(2).Infof("processing deferred deletion of %s/%s", deletion.TaskName(), deletion.Item())
+					default:
+						klog.Fatalf("unhandled deletionProcessingMode %v", c.deletionProcessingMode)
+					}
 				}
-			}
-			if err != nil {
-				return err
+				if err := deletion.Delete(c.Context(), c.Target); err != nil {
+					return err
+				}
 			}
 		}
 	}
