@@ -17,6 +17,7 @@ limitations under the License.
 package awstasks
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -222,72 +223,85 @@ func (e *SecurityGroup) TerraformLink() *terraformWriter.Literal {
 	return terraformWriter.LiteralProperty("aws_security_group", *e.Name, "id")
 }
 
+// deleteSecurityGroupRule tracks a securitygrouprule that we're going to delete
+// It implements fi.CloudupDeletion
 type deleteSecurityGroupRule struct {
-	rule *ec2.SecurityGroupRule
+	fi.CloudupDeletionBase
+	obj *ec2.SecurityGroupRule
+}
+
+func buildDeleteSecurityGroupRule(obj *ec2.SecurityGroupRule) *deleteSecurityGroupRule {
+	d := &deleteSecurityGroupRule{}
+	d.obj = obj
+	d.Info.Type = ec2.ResourceTypeSecurityGroupRule
+	d.Info.ID = aws.StringValue(obj.GroupId) + ":" + aws.StringValue(obj.SecurityGroupRuleId)
+
+	{
+		s := fi.ValueOf(obj.GroupId) + ":"
+		p := obj
+		if aws.Int64Value(p.FromPort) != 0 {
+			s += fmt.Sprintf(" port=%d", aws.Int64Value(p.FromPort))
+			if aws.Int64Value(p.ToPort) != aws.Int64Value(p.FromPort) {
+				s += fmt.Sprintf("-%d", aws.Int64Value(p.ToPort))
+			}
+		}
+		if aws.StringValue(p.IpProtocol) != "-1" {
+			s += fmt.Sprintf(" protocol=%s", aws.StringValue(p.IpProtocol))
+		}
+		if p.ReferencedGroupInfo != nil {
+			s += fmt.Sprintf(" group=%s", aws.StringValue(p.ReferencedGroupInfo.GroupId))
+		}
+		if p.CidrIpv4 != nil {
+			s += fmt.Sprintf(" ip=%s", aws.StringValue(p.CidrIpv4))
+		}
+		if p.CidrIpv6 != nil {
+			s += fmt.Sprintf(" ipv6=%s", aws.StringValue(p.CidrIpv6))
+		}
+		// permissionString := fi.DebugAsJsonString(d.permission)
+		// s += permissionString
+
+		d.Info.Name = s
+	}
+
+	d.Info.DeferDeletion = true
+	return d
 }
 
 var _ fi.CloudupDeletion = &deleteSecurityGroupRule{}
 
-func (d *deleteSecurityGroupRule) Delete(t fi.CloudupTarget) error {
-	klog.V(2).Infof("deleting security group permission: %v", fi.DebugAsJsonString(d.rule))
+func (d *deleteSecurityGroupRule) Delete(ctx context.Context, t fi.CloudupTarget) error {
+	klog.V(2).Infof("deleting security group permission: %v", fi.DebugAsJsonString(d.obj))
 
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
 
-	if fi.ValueOf(d.rule.IsEgress) {
+	if aws.BoolValue(d.obj.IsEgress) {
 		request := &ec2.RevokeSecurityGroupEgressInput{
-			GroupId:              d.rule.GroupId,
-			SecurityGroupRuleIds: []*string{d.rule.SecurityGroupRuleId},
+			GroupId:              d.obj.GroupId,
+			SecurityGroupRuleIds: []*string{d.obj.SecurityGroupRuleId},
 		}
 
 		klog.V(2).Infof("Calling EC2 RevokeSecurityGroupEgress")
-		_, err := awsTarget.Cloud.EC2().RevokeSecurityGroupEgress(request)
+		_, err := awsTarget.Cloud.EC2().RevokeSecurityGroupEgressWithContext(ctx, request)
 		if err != nil {
 			return fmt.Errorf("error revoking SecurityGroupEgress: %v", err)
 		}
 	} else {
 		request := &ec2.RevokeSecurityGroupIngressInput{
-			GroupId:              d.rule.GroupId,
-			SecurityGroupRuleIds: []*string{d.rule.SecurityGroupRuleId},
+			GroupId:              d.obj.GroupId,
+			SecurityGroupRuleIds: []*string{d.obj.SecurityGroupRuleId},
 		}
 
 		klog.V(2).Infof("Calling EC2 RevokeSecurityGroupIngress")
-		_, err := awsTarget.Cloud.EC2().RevokeSecurityGroupIngress(request)
+		_, err := awsTarget.Cloud.EC2().RevokeSecurityGroupIngressWithContext(ctx, request)
 		if err != nil {
 			return fmt.Errorf("error revoking SecurityGroupIngress: %v", err)
 		}
 	}
 
 	return nil
-}
-
-func (d *deleteSecurityGroupRule) TaskName() string {
-	return "SecurityGroupRule"
-}
-
-func (d *deleteSecurityGroupRule) Item() string {
-	s := fi.ValueOf(d.rule.GroupId) + ":"
-	p := d.rule
-	if aws.Int64Value(p.FromPort) != 0 {
-		s += fmt.Sprintf(" port=%d", aws.Int64Value(p.FromPort))
-		if aws.Int64Value(p.ToPort) != aws.Int64Value(p.FromPort) {
-			s += fmt.Sprintf("-%d", aws.Int64Value(p.ToPort))
-		}
-	}
-	if aws.StringValue(p.IpProtocol) != "-1" {
-		s += fmt.Sprintf(" protocol=%s", aws.StringValue(p.IpProtocol))
-	}
-	if p.ReferencedGroupInfo != nil {
-		s += fmt.Sprintf(" group=%s", aws.StringValue(p.ReferencedGroupInfo.GroupId))
-	}
-	s += fmt.Sprintf(" ip=%s", aws.StringValue(p.CidrIpv4))
-	s += fmt.Sprintf(" ipv6=%s", aws.StringValue(p.CidrIpv6))
-	// permissionString := fi.DebugAsJsonString(d.permission)
-	// s += permissionString
-
-	return s
 }
 
 func (e *SecurityGroup) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletion, error) {
@@ -360,9 +374,7 @@ func (e *SecurityGroup) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletio
 			}
 		}
 		if !found {
-			removals = append(removals, &deleteSecurityGroupRule{
-				rule: permission,
-			})
+			removals = append(removals, buildDeleteSecurityGroupRule(permission))
 		}
 	}
 

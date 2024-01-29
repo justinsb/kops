@@ -67,10 +67,11 @@ type TargetGroup struct {
 	HealthyThreshold   *int64
 	UnhealthyThreshold *int64
 
+	info     *awsup.TargetGroupInfo
 	revision string
 
 	// deletions is a list of previous versions of this object, that we should delete when asked to clean up.
-	deletions []*deleteTargetGroup
+	deletions []fi.CloudupDeletion
 }
 
 func (e *TargetGroup) AddRevisionsForNLB(nlb *NetworkLoadBalancer) {
@@ -134,11 +135,11 @@ func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWS
 		matchRevision := e.networkLoadBalancer.revision
 		arn := e.networkLoadBalancer.loadBalancerArn
 		if arn == "" {
-			klog.Fatalf("no arn")
+			return nil, fmt.Errorf("load balancer not ready (no ARN)")
 		}
 		revisionTag, _ := latest.GetTag(KopsResourceRevisionTag)
 
-		klog.Infof("nlb is %+v", e.networkLoadBalancer)
+		// klog.Infof("nlb is %+v", e.networkLoadBalancer)
 		if revisionTag != matchRevision {
 			klog.Warningf("found target group but revision %q does not match load balancer revision %q; will create a new target group", revisionTag, matchRevision)
 			latest = nil
@@ -154,9 +155,7 @@ func (e *TargetGroup) findLatestTargetGroup(ctx context.Context, cloud awsup.AWS
 			continue
 		}
 
-		e.deletions = append(e.deletions, &deleteTargetGroup{
-			obj: targetGroup.TargetGroup,
-		})
+		e.deletions = append(e.deletions, buildDeleteTargetGroup(targetGroup))
 	}
 
 	return latest, nil
@@ -237,6 +236,7 @@ func (e *TargetGroup) Find(c *fi.CloudupContext) (*TargetGroup, error) {
 		UnhealthyThreshold: tg.UnhealthyThresholdCount,
 		VPC:                &VPC{ID: tg.VpcId},
 	}
+	actual.info = targetGroupInfo
 	actual.revision, _ = targetGroupInfo.GetTag(KopsResourceRevisionTag)
 
 	// Interval cannot be changed after TargetGroup creation
@@ -364,6 +364,7 @@ func (_ *TargetGroup) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *TargetGrou
 		// Avoid spurious changes
 		e.ARN = response.TargetGroups[0].TargetGroupArn
 
+		// TODO: Set revision or info?
 	} else {
 		if a.ARN != nil {
 			if err := t.AddELBV2Tags(fi.ValueOf(a.ARN), e.Tags); err != nil {
@@ -486,30 +487,30 @@ func (e *TargetGroup) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletion,
 // deleteTargetGroup tracks a TargetGroup that we're going to delete
 // It implements fi.CloudupDeletion
 type deleteTargetGroup struct {
-	obj *elbv2.TargetGroup
+	fi.CloudupDeletionBase
+	obj *awsup.TargetGroupInfo
+}
+
+func buildDeleteTargetGroup(obj *awsup.TargetGroupInfo) *deleteTargetGroup {
+	d := &deleteTargetGroup{}
+	d.obj = obj
+	d.Info.Type = "target-group"
+	d.Info.ID = obj.ARN()
+	d.Info.Name = obj.NameTag()
+	d.Info.DeferDeletion = true
+	return d
 }
 
 var _ fi.CloudupDeletion = &deleteTargetGroup{}
 
-// TaskName returns the task name
-func (d *deleteTargetGroup) TaskName() string {
-	return "TargetGroup"
-}
-
-// Item returns the name for the item we're deleting.
-func (d *deleteTargetGroup) Item() string {
-	return aws.StringValue(d.obj.TargetGroupArn)
-}
-
-func (d *deleteTargetGroup) Delete(t fi.CloudupTarget) error {
-	ctx := context.TODO()
-
+func (d *deleteTargetGroup) Delete(ctx context.Context, t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
 
-	arn := aws.StringValue(d.obj.TargetGroupArn)
+	arn := d.obj.ARN()
+	klog.V(2).Infof("deleting target group %q", arn)
 	if _, err := awsTarget.Cloud.ELBV2().DeleteTargetGroupWithContext(ctx, &elbv2.DeleteTargetGroupInput{
 		TargetGroupArn: &arn,
 	}); err != nil {
@@ -517,9 +518,4 @@ func (d *deleteTargetGroup) Delete(t fi.CloudupTarget) error {
 	}
 
 	return nil
-}
-
-// String returns a string representation of the task
-func (d *deleteTargetGroup) String() string {
-	return d.TaskName() + "-" + d.Item()
 }

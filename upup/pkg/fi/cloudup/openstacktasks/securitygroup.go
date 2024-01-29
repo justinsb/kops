@@ -17,6 +17,7 @@ limitations under the License.
 package openstacktasks
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -145,9 +146,7 @@ func (s *SecurityGroup) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletio
 			return nil, err
 		}
 		if sg != nil {
-			removals = append(removals, &deleteSecurityGroup{
-				securityGroup: sg,
-			})
+			removals = append(removals, buildDeleteSecurityGroup(sg))
 		}
 	}
 
@@ -201,10 +200,7 @@ func (s *SecurityGroup) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletio
 			}
 		}
 		if !found {
-			removals = append(removals, &deleteSecurityGroupRule{
-				rule:          permission,
-				securityGroup: s,
-			})
+			removals = append(removals, buildDeleteSecurityGroupRule(s, permission))
 		}
 	}
 	return removals, nil
@@ -231,42 +227,71 @@ func matches(t *SecurityGroupRule, perm sgr.SecGroupRule) bool {
 }
 
 type deleteSecurityGroup struct {
-	securityGroup *SecurityGroup
+	fi.CloudupDeletionBase
+	obj *SecurityGroup
+}
+
+func buildDeleteSecurityGroup(obj *SecurityGroup) *deleteSecurityGroup {
+	d := &deleteSecurityGroup{}
+	d.obj = obj
+	d.Info.Type = "SecurityGroup"
+	d.Info.ID = fi.ValueOf(obj.ID)
+	d.Info.Name = fi.ValueOf(obj.Name)
+	d.Info.DeferDeletion = false // TODO: Should we defer deletion?
+	return d
+
 }
 
 var _ fi.CloudupDeletion = &deleteSecurityGroup{}
 
-func (d *deleteSecurityGroup) Delete(t fi.CloudupTarget) error {
-	klog.V(2).Infof("deleting security group: %v", fi.DebugAsJsonString(d.securityGroup.Name))
+func (d *deleteSecurityGroup) Delete(ctx context.Context, t fi.CloudupTarget) error {
+	klog.V(2).Infof("deleting security group: %v", fi.DebugAsJsonString(d.obj.Name))
 
 	os, ok := t.(*openstack.OpenstackAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
-	err := os.Cloud.DeleteSecurityGroup(fi.ValueOf(d.securityGroup.ID))
+	err := os.Cloud.DeleteSecurityGroup(fi.ValueOf(d.obj.ID))
 	if err != nil {
 		return fmt.Errorf("error revoking SecurityGroup: %v", err)
 	}
 	return nil
 }
 
-func (d *deleteSecurityGroup) TaskName() string {
-	return "SecurityGroup"
-}
-
-func (d *deleteSecurityGroup) Item() string {
-	s := fmt.Sprintf("securitygroup=%s", fi.ValueOf(d.securityGroup.Name))
-	return s
-}
-
 type deleteSecurityGroupRule struct {
+	fi.CloudupDeletionBase
 	rule          sgr.SecGroupRule
 	securityGroup *SecurityGroup
 }
 
+func buildDeleteSecurityGroupRule(securityGroup *SecurityGroup, obj sgr.SecGroupRule) *deleteSecurityGroupRule {
+	d := &deleteSecurityGroupRule{}
+	d.rule = obj
+	d.securityGroup = securityGroup
+	d.Info.Type = "SecurityGroupRule"
+	d.Info.ID = obj.ID
+
+	{
+		s := ""
+		if d.rule.PortRangeMin != 0 {
+			s += fmt.Sprintf(" port=%d", d.rule.PortRangeMin)
+			if d.rule.PortRangeMin != d.rule.PortRangeMax {
+				s += fmt.Sprintf("-%d", d.rule.PortRangeMax)
+			}
+		}
+		s += " protocol=tcp"
+		s += fmt.Sprintf(" ip=%s", d.rule.RemoteIPPrefix)
+		s += fmt.Sprintf(" securitygroup=%s", fi.ValueOf(d.securityGroup.Name))
+		d.Info.Name = s
+	}
+	d.Info.DeferDeletion = false // TODO: Should we defer deletion?
+	return d
+
+}
+
 var _ fi.CloudupDeletion = &deleteSecurityGroupRule{}
 
-func (d *deleteSecurityGroupRule) Delete(t fi.CloudupTarget) error {
+func (d *deleteSecurityGroupRule) Delete(ctx context.Context, t fi.CloudupTarget) error {
 	klog.V(2).Infof("deleting security group permission: %v", fi.DebugAsJsonString(d.rule))
 
 	os, ok := t.(*openstack.OpenstackAPITarget)
@@ -278,24 +303,6 @@ func (d *deleteSecurityGroupRule) Delete(t fi.CloudupTarget) error {
 		return fmt.Errorf("error revoking SecurityGroupRule: %v", err)
 	}
 	return nil
-}
-
-func (d *deleteSecurityGroupRule) TaskName() string {
-	return "SecurityGroupRule"
-}
-
-func (d *deleteSecurityGroupRule) Item() string {
-	s := ""
-	if d.rule.PortRangeMin != 0 {
-		s += fmt.Sprintf(" port=%d", d.rule.PortRangeMin)
-		if d.rule.PortRangeMin != d.rule.PortRangeMax {
-			s += fmt.Sprintf("-%d", d.rule.PortRangeMax)
-		}
-	}
-	s += " protocol=tcp"
-	s += fmt.Sprintf(" ip=%s", d.rule.RemoteIPPrefix)
-	s += fmt.Sprintf(" securitygroup=%s", fi.ValueOf(d.securityGroup.Name))
-	return s
 }
 
 // RemovalRule is a rule that filters the permissions we should remove

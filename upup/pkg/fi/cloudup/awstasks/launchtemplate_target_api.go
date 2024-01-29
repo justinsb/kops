@@ -17,6 +17,7 @@ limitations under the License.
 package awstasks
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"sort"
@@ -404,37 +405,33 @@ func (t *LaunchTemplate) findLatestLaunchTemplateVersion(c *fi.CloudupContext) (
 // deleteLaunchTemplate tracks a LaunchConfiguration that we're going to delete
 // It implements fi.CloudupDeletion
 type deleteLaunchTemplate struct {
-	lc *ec2.LaunchTemplate
+	fi.CloudupDeletionBase
+	obj *ec2.LaunchTemplate
 }
 
 var _ fi.CloudupDeletion = &deleteLaunchTemplate{}
 
-// TaskName returns the task name
-func (d *deleteLaunchTemplate) TaskName() string {
-	return "LaunchTemplate"
+func buildDeleteLaunchTemplate(lc *ec2.LaunchTemplate) *deleteLaunchTemplate {
+	d := &deleteLaunchTemplate{}
+	d.Info.Type = ec2.ResourceTypeLaunchTemplate
+	d.Info.ID = aws.StringValue(lc.LaunchTemplateName)
+	d.Info.Name = aws.StringValue(lc.LaunchTemplateName)
+	d.Info.DeferDeletion = false // TODO: Should we defer deletion?
+	d.obj = lc
+	return d
 }
 
-// Item returns the launch template name
-func (d *deleteLaunchTemplate) Item() string {
-	return fi.ValueOf(d.lc.LaunchTemplateName)
-}
-
-func (d *deleteLaunchTemplate) Delete(t fi.CloudupTarget) error {
+func (d *deleteLaunchTemplate) Delete(ctx context.Context, t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
 
-	if _, err := awsTarget.Cloud.EC2().DeleteLaunchTemplate(&ec2.DeleteLaunchTemplateInput{
-		LaunchTemplateName: d.lc.LaunchTemplateName,
+	if _, err := awsTarget.Cloud.EC2().DeleteLaunchTemplateWithContext(ctx, &ec2.DeleteLaunchTemplateInput{
+		LaunchTemplateName: d.obj.LaunchTemplateName,
 	}); err != nil {
 		return fmt.Errorf("error deleting LaunchTemplate %s: error: %s", d.Item(), err)
 	}
 
 	return nil
-}
-
-// String returns a string representation of the task
-func (d *deleteLaunchTemplate) String() string {
-	return d.TaskName() + "-" + d.Item()
 }

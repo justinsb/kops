@@ -55,6 +55,7 @@ type SecurityGroupRule struct {
 }
 
 func (e *SecurityGroupRule) Find(c *fi.CloudupContext) (*SecurityGroupRule, error) {
+	ctx := c.Context()
 	cloud := c.T.Cloud.(awsup.AWSCloud)
 
 	if e.SecurityGroup == nil || e.SecurityGroup.ID == nil {
@@ -72,7 +73,7 @@ func (e *SecurityGroupRule) Find(c *fi.CloudupContext) (*SecurityGroupRule, erro
 		},
 	}
 
-	response, err := cloud.EC2().DescribeSecurityGroupRules(request)
+	response, err := cloud.EC2().DescribeSecurityGroupRulesWithContext(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("error listing SecurityGroup: %v", err)
 	}

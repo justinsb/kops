@@ -380,12 +380,11 @@ func (b *APILoadBalancerBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	var lbSG *awstasks.SecurityGroup
 	{
 		lbSG = &awstasks.SecurityGroup{
-			Name:        fi.PtrTo(b.ELBSecurityGroupName("api")),
-			Lifecycle:   b.SecurityLifecycle,
-			Description: fi.PtrTo("Security group for api ELB"),
-			// Hack ... don't remove rules
-			// RemoveExtraRules: []string{"port=443"},
-			VPC: b.LinkToVPC(),
+			Name:             fi.PtrTo(b.ELBSecurityGroupName("api")),
+			Lifecycle:        b.SecurityLifecycle,
+			Description:      fi.PtrTo("Security group for api ELB"),
+			RemoveExtraRules: []string{"port=443"},
+			VPC:              b.LinkToVPC(),
 		}
 		lbSG.Tags = b.CloudTags(*lbSG.Name, false)
 

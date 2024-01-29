@@ -17,6 +17,7 @@ limitations under the License.
 package awstasks
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -269,11 +270,7 @@ func (e *VPC) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletion, error) 
 			}
 		}
 		if !match {
-			removals = append(removals, &deleteVPCCIDRBlock{
-				vpcID:         vpc.VpcId,
-				cidrBlock:     association.CidrBlock,
-				associationID: association.AssociationId,
-			})
+			removals = append(removals, buildDeleteVPCCIDRBlock(vpc, association))
 		}
 	}
 	return removals, nil
@@ -365,29 +362,32 @@ func (e *VPC) TerraformLink() *terraformWriter.Literal {
 }
 
 type deleteVPCCIDRBlock struct {
-	vpcID         *string
-	cidrBlock     *string
-	associationID *string
+	fi.CloudupDeletionBase
+	obj *ec2.VpcCidrBlockAssociation
+}
+
+var _ fi.CloudupDeletion = &deleteLaunchTemplate{}
+
+func buildDeleteVPCCIDRBlock(vpc *ec2.Vpc, obj *ec2.VpcCidrBlockAssociation) *deleteVPCCIDRBlock {
+	d := &deleteVPCCIDRBlock{}
+	d.Info.Type = "vpc-cidr-block"
+	d.Info.ID = aws.StringValue(obj.AssociationId)
+	d.Info.Name = aws.StringValue(vpc.VpcId) + ": " + aws.StringValue(obj.CidrBlock)
+	d.Info.DeferDeletion = false // TODO: Should we defer deletion?
+	d.obj = obj
+	return d
 }
 
 var _ fi.CloudupDeletion = &deleteVPCCIDRBlock{}
 
-func (d *deleteVPCCIDRBlock) Delete(t fi.CloudupTarget) error {
+func (d *deleteVPCCIDRBlock) Delete(ctx context.Context, t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
 	request := &ec2.DisassociateVpcCidrBlockInput{
-		AssociationId: d.associationID,
+		AssociationId: d.obj.AssociationId,
 	}
-	_, err := awsTarget.Cloud.EC2().DisassociateVpcCidrBlock(request)
+	_, err := awsTarget.Cloud.EC2().DisassociateVpcCidrBlockWithContext(ctx, request)
 	return err
-}
-
-func (d *deleteVPCCIDRBlock) TaskName() string {
-	return "VPCCIDRBlock"
-}
-
-func (d *deleteVPCCIDRBlock) Item() string {
-	return fmt.Sprintf("%v: cidr=%v", *d.vpcID, *d.cidrBlock)
 }

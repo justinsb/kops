@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"k8s.io/klog/v2"
 	"k8s.io/kops/util/pkg/reflectutils"
 )
 
@@ -114,7 +115,12 @@ func defaultDeltaRunMethod[T SubContext](e Task[T], c *Context[T]) error {
 			if _, ok := c.Target.(*DryRunTarget[T]); ok {
 				err = c.Target.(*DryRunTarget[T]).Delete(deletion)
 			} else {
-				err = deletion.Delete(c.Target)
+				if deletion.DeferDeletion() {
+					klog.Infof("not deleting %s/%s because it is marked for deferred-deletion", deletion.TaskName(), deletion.Item())
+					err = nil
+				} else {
+					err = deletion.Delete(c.Context(), c.Target)
+				}
 			}
 			if err != nil {
 				return err

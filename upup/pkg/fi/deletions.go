@@ -16,6 +16,8 @@ limitations under the License.
 
 package fi
 
+import "context"
+
 type ProducesDeletions[T SubContext] interface {
 	FindDeletions(*Context[T]) ([]Deletion[T], error)
 }
@@ -23,9 +25,36 @@ type ProducesDeletions[T SubContext] interface {
 type CloudupProducesDeletions = ProducesDeletions[CloudupSubContext]
 
 type Deletion[T SubContext] interface {
-	Delete(target Target[T]) error
+	Delete(ctx context.Context, target Target[T]) error
 	TaskName() string
 	Item() string
+	DeferDeletion() bool
 }
 
 type CloudupDeletion = Deletion[CloudupSubContext]
+
+type ResourceInfo struct {
+	Type string
+	Name string
+	ID   string
+
+	DeferDeletion bool
+}
+
+type DeletionBase[T SubContext] struct {
+	Info ResourceInfo
+}
+
+type CloudupDeletionBase = DeletionBase[CloudupSubContext]
+
+func (b *DeletionBase[T]) TaskName() string {
+	return b.Info.Type
+}
+
+func (b *DeletionBase[T]) Item() string {
+	return b.Info.Name
+}
+
+func (b *DeletionBase[T]) DeferDeletion() bool {
+	return b.Info.DeferDeletion
+}

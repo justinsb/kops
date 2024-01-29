@@ -17,6 +17,7 @@ limitations under the License.
 package awstasks
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -502,43 +503,47 @@ func (e *Subnet) FindDeletions(c *fi.CloudupContext) ([]fi.CloudupDeletion, erro
 			continue
 		}
 
-		removals = append(removals, &deleteSubnetIPv6CIDRBlock{
-			vpcID:         subnet.VpcId,
-			ipv6CidrBlock: association.Ipv6CidrBlock,
-			associationID: association.AssociationId,
-		})
+		removals = append(removals, buildDeleteSubnetIPv6CIDRBlock(association))
+		// {
+		// 	vpcID:         subnet.VpcId,
+		// 	ipv6CidrBlock: association.Ipv6CidrBlock,
+		// 	associationID: association.AssociationId,
+		// })
 	}
 
 	return removals, nil
 }
 
 type deleteSubnetIPv6CIDRBlock struct {
-	vpcID         *string
-	ipv6CidrBlock *string
-	associationID *string
+	fi.CloudupDeletionBase
+	obj *ec2.SubnetIpv6CidrBlockAssociation
+}
+
+func buildDeleteSubnetIPv6CIDRBlock(obj *ec2.SubnetIpv6CidrBlockAssociation) *deleteSubnetIPv6CIDRBlock {
+	d := &deleteSubnetIPv6CIDRBlock{}
+	d.obj = obj
+	d.Info.Type = "subnet-ipv6-cidr-block"
+	d.Info.ID = aws.StringValue(obj.AssociationId)
+	d.Info.Name = aws.StringValue(obj.Ipv6CidrBlock)
+
+	d.Info.DeferDeletion = false // TODO: should we defer this?
+
+	return d
 }
 
 var _ fi.CloudupDeletion = &deleteSubnetIPv6CIDRBlock{}
 
-func (d *deleteSubnetIPv6CIDRBlock) Delete(t fi.CloudupTarget) error {
+func (d *deleteSubnetIPv6CIDRBlock) Delete(ctx context.Context, t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
 
 	request := &ec2.DisassociateSubnetCidrBlockInput{
-		AssociationId: d.associationID,
+		AssociationId: d.obj.AssociationId,
 	}
-	_, err := awsTarget.Cloud.EC2().DisassociateSubnetCidrBlock(request)
+	_, err := awsTarget.Cloud.EC2().DisassociateSubnetCidrBlockWithContext(ctx, request)
 	return err
-}
-
-func (d *deleteSubnetIPv6CIDRBlock) TaskName() string {
-	return "SubnetIPv6CIDRBlock"
-}
-
-func (d *deleteSubnetIPv6CIDRBlock) Item() string {
-	return fmt.Sprintf("%v: ipv6cidr=%v", *d.vpcID, *d.ipv6CidrBlock)
 }
 
 func calculateSubnetCIDR(vpcCIDR, subnetCIDR *string) (*string, error) {

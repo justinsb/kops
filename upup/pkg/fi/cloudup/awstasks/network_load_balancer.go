@@ -228,9 +228,7 @@ func (e *NetworkLoadBalancer) Find(c *fi.CloudupContext) (*NetworkLoadBalancer, 
 			continue
 		}
 
-		e.deletions = append(e.deletions, &deleteNLB{
-			obj: lb.LoadBalancer,
-		})
+		e.deletions = append(e.deletions, buildDeleteNLB(lb))
 	}
 
 	if latest == nil {
@@ -795,11 +793,8 @@ func (e *NetworkLoadBalancer) FindDeletions(context *fi.CloudupContext) ([]fi.Cl
 			//	return nil, nil
 			//}
 
-			actual := &deleteClassicLoadBalancer{}
-			actual.LoadBalancerName = lb.LoadBalancerName
-
-			klog.V(4).Infof("Found CLB %+v", actual)
-			deletions = append(deletions, actual)
+			klog.V(4).Infof("Found CLB %v", aws.StringValue(lb.LoadBalancerName))
+			deletions = append(deletions, buildDeleteClassicLoadBalancer(fi.ValueOf(e.CLBName), lb))
 		}
 	}
 
@@ -807,19 +802,28 @@ func (e *NetworkLoadBalancer) FindDeletions(context *fi.CloudupContext) ([]fi.Cl
 }
 
 type deleteClassicLoadBalancer struct {
-	// LoadBalancerName is the name in ELB, possibly different from our name
-	// (ELB is restricted as to names, so we have limited choices!)
-	LoadBalancerName *string
+	fi.CloudupDeletionBase
+	obj *elb.LoadBalancerDescription
 }
 
-func (d deleteClassicLoadBalancer) Delete(t fi.CloudupTarget) error {
+func buildDeleteClassicLoadBalancer(name string, obj *elb.LoadBalancerDescription) *deleteClassicLoadBalancer {
+	d := &deleteClassicLoadBalancer{}
+	d.obj = obj
+	d.Info.Type = "classic-load-balancer"
+	d.Info.ID = aws.StringValue(obj.LoadBalancerName)
+	d.Info.Name = name
+	d.Info.DeferDeletion = false // TODO: Should we defer?
+	return d
+}
+
+func (d deleteClassicLoadBalancer) Delete(ctx context.Context, t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
 
-	_, err := awsTarget.Cloud.ELB().DeleteLoadBalancer(&elb.DeleteLoadBalancerInput{
-		LoadBalancerName: d.LoadBalancerName,
+	_, err := awsTarget.Cloud.ELB().DeleteLoadBalancerWithContext(ctx, &elb.DeleteLoadBalancerInput{
+		LoadBalancerName: d.obj.LoadBalancerName,
 	})
 	if err != nil {
 		return fmt.Errorf("deleting classic LoadBalancer: %w", err)
@@ -828,41 +832,33 @@ func (d deleteClassicLoadBalancer) Delete(t fi.CloudupTarget) error {
 	return nil
 }
 
-func (d deleteClassicLoadBalancer) TaskName() string {
-	return "ClassicLoadBalancer"
-}
-
-func (d deleteClassicLoadBalancer) Item() string {
-	return *d.LoadBalancerName
-}
-
 // deleteNLB tracks a NLB that we're going to delete
 // It implements fi.CloudupDeletion
 type deleteNLB struct {
-	obj *elbv2.LoadBalancer
+	fi.CloudupDeletionBase
+	obj *awsup.LoadBalancerInfo
+}
+
+func buildDeleteNLB(obj *awsup.LoadBalancerInfo) *deleteNLB {
+	d := &deleteNLB{}
+	d.obj = obj
+	d.Info.Type = "network-load-balancer"
+	d.Info.ID = obj.ARN()
+	d.Info.Name = obj.NameTag()
+	d.Info.DeferDeletion = true
+	return d
 }
 
 var _ fi.CloudupDeletion = &deleteNLB{}
 
-// TaskName returns the task name
-func (d *deleteNLB) TaskName() string {
-	return "NetworkLoadBalancer"
-}
-
-// Item returns the name for the item we're deleting.
-func (d *deleteNLB) Item() string {
-	return aws.StringValue(d.obj.LoadBalancerArn)
-}
-
-func (d *deleteNLB) Delete(t fi.CloudupTarget) error {
-	ctx := context.TODO()
-
+func (d *deleteNLB) Delete(ctx context.Context, t fi.CloudupTarget) error {
 	awsTarget, ok := t.(*awsup.AWSAPITarget)
 	if !ok {
 		return fmt.Errorf("unexpected target type for deletion: %T", t)
 	}
 
-	arn := aws.StringValue(d.obj.LoadBalancerArn)
+	arn := d.obj.ARN()
+	klog.V(2).Infof("deleting load balancer %q", arn)
 	if _, err := awsTarget.Cloud.ELBV2().DeleteLoadBalancerWithContext(ctx, &elbv2.DeleteLoadBalancerInput{
 		LoadBalancerArn: &arn,
 	}); err != nil {
@@ -870,9 +866,4 @@ func (d *deleteNLB) Delete(t fi.CloudupTarget) error {
 	}
 
 	return nil
-}
-
-// String returns a string representation of the task
-func (d *deleteNLB) String() string {
-	return d.TaskName() + "-" + d.Item()
 }

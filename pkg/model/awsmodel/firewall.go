@@ -311,9 +311,8 @@ func (b *AWSModelContext) GetSecurityGroups(role kops.InstanceGroupRole) ([]Secu
 			VPC:         b.LinkToVPC(),
 			Description: fi.PtrTo("Security group for masters"),
 			RemoveExtraRules: []string{
-				"port=22", // SSH
-				// Hack ... don't remove rules
-				//	"port=443",  // k8s api
+				"port=22",   // SSH
+				"port=443",  // k8s api
 				"port=2380", // etcd main peer
 				"port=2381", // etcd events peer
 				"port=3988", // kops-controller
