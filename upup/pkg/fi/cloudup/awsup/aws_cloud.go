@@ -195,6 +195,13 @@ func GetCloud(c *fi.CloudupContext) AWSCloud {
 	if ok {
 		return awsCloud
 	}
+
+	for _, cloud := range c.T.OtherClouds {
+		awsCloud, ok := cloud.(AWSCloud)
+		if ok {
+			return awsCloud
+		}
+	}
 	klog.Fatalf("cannot find instance of AWSCloud in context")
 	return nil
 }

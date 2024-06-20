@@ -222,10 +222,10 @@ func runKubeletBuilder(t *testing.T, context *fi.NodeupModelBuilderContext, node
 
 	{
 		task := builder.buildSystemdService()
-		if err != nil {
-			t.Fatalf("error from KubeletBuilder buildSystemdService: %v", err)
-			return
-		}
+		// if err != nil {
+		// 	t.Fatalf("error from KubeletBuilder buildSystemdService: %v", err)
+		// 	return
+		// }
 		context.AddTask(task)
 	}
 }

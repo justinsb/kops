@@ -33,6 +33,7 @@ import (
 	"sort"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
@@ -60,6 +61,11 @@ type Policy struct {
 
 func (p *Policy) AddUnconditionalActions(actions ...string) {
 	p.unconditionalAction.Insert(actions...)
+}
+
+// AWSPartition returns the AWS partition, used as the second token of ARNs.
+func (p *Policy) AWSPartition() string {
+	return p.partition
 }
 
 func (p *Policy) AddEC2CreateAction(actions, resources []string) {
@@ -693,6 +699,15 @@ func ReadableStatePaths(cluster *kops.Cluster, role Subject) ([]string, error) {
 			)
 		}
 	}
+
+	serviceAccount, isServiceAccount := role.ServiceAccount()
+	if isServiceAccount {
+		switch serviceAccount {
+		case types.NamespacedName{Namespace: "kube-system", Name: "kops-controller"}:
+			paths = append(paths, "/*")
+		}
+	}
+
 	return paths, nil
 }
 

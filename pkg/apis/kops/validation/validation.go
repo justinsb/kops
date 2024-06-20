@@ -377,6 +377,14 @@ func validateCloudProvider(c *kops.Cluster, provider *kops.CloudProviderSpec, fi
 		constraints.requiresNetworkCIDR = false
 		constraints.requiresSubnetCIDR = false
 	}
+	if c.Spec.CloudProvider.Metal != nil {
+		if optionTaken {
+			allErrs = append(allErrs, field.Forbidden(fieldSpec.Child("metal"), "only one cloudProvider option permitted"))
+		}
+		optionTaken = true
+		constraints.requiresNetworkCIDR = false
+		constraints.requiresSubnetCIDR = false
+	}
 	if !optionTaken {
 		allErrs = append(allErrs, field.Required(fieldSpec, ""))
 		constraints.requiresSubnets = false

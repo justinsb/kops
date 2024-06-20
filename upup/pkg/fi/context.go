@@ -52,7 +52,11 @@ type SubContext interface {
 }
 
 type CloudupSubContext struct {
-	Cloud   Cloud
+	Cloud Cloud
+
+	// OtherClouds can store additional clouds, which is useful if e.g. we want to store the state somewhere else.
+	OtherClouds []Cloud
+
 	Cluster *kops.Cluster
 	// TODO: Few places use this. They could instead get it from the cluster spec.
 	ClusterConfigBase vfs.Path

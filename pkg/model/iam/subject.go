@@ -110,7 +110,7 @@ func AddServiceAccountRole(context *IAMModelContext, podSpec *corev1.PodSpec, se
 	cloudProvider := context.Cluster.Spec.GetCloudProvider()
 
 	switch cloudProvider {
-	case kops.CloudProviderAWS:
+	case kops.CloudProviderAWS, kops.CloudProviderMetal:
 		return addServiceAccountRoleForAWS(context, podSpec, serviceAccountRole)
 	default:
 		return fmt.Errorf("ServiceAccount-level IAM is not yet supported on cloud %T", cloudProvider)

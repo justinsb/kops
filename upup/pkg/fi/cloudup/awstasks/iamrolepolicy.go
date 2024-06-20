@@ -31,6 +31,7 @@ import (
 	"k8s.io/kops/pkg/diff"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/metal"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraformWriter"
 )
@@ -168,8 +169,18 @@ func (_ *IAMRolePolicy) ShouldCreate(a, e, changes *IAMRolePolicy) (bool, error)
 	return true, nil
 }
 
-func (_ *IAMRolePolicy) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRolePolicy) error {
+func (s *IAMRolePolicy) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRolePolicy) error {
 	ctx := context.TODO()
+	return s.render(ctx, t.Cloud, a, e, changes)
+}
+
+func (s *IAMRolePolicy) RenderMetal(t *metal.APITarget, a, e, changes *IAMRolePolicy) error {
+	ctx := context.TODO()
+	awsCloud := t.GetAWSCloud()
+	return s.render(ctx, awsCloud, a, e, changes)
+}
+
+func (_ *IAMRolePolicy) render(ctx context.Context, cloud awsup.AWSCloud, a, e, changes *IAMRolePolicy) error {
 	policy, err := e.policyDocumentString()
 	if err != nil {
 		return fmt.Errorf("error rendering PolicyDocument: %v", err)
@@ -191,7 +202,7 @@ func (_ *IAMRolePolicy) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRoleP
 				PolicyArn: s(policy),
 			}
 
-			_, err = t.Cloud.IAM().AttachRolePolicy(ctx, request)
+			_, err = cloud.IAM().AttachRolePolicy(ctx, request)
 			if err != nil {
 				return fmt.Errorf("error attaching IAMRolePolicy: %v", err)
 			}
@@ -214,7 +225,7 @@ func (_ *IAMRolePolicy) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRoleP
 				PolicyArn: s(cloudPolicy),
 			}
 
-			_, err := t.Cloud.IAM().DetachRolePolicy(ctx, request)
+			_, err := cloud.IAM().DetachRolePolicy(ctx, request)
 			if err != nil {
 				klog.V(2).Infof("Unable to detach IAMRolePolicy %s/%s", aws.ToString(e.Role.Name), cloudPolicy)
 				return err
@@ -232,7 +243,7 @@ func (_ *IAMRolePolicy) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRoleP
 		request.PolicyName = e.Name
 
 		klog.V(2).Infof("Deleting role policy %s/%s", aws.ToString(e.Role.Name), aws.ToString(e.Name))
-		_, err = t.Cloud.IAM().DeleteRolePolicy(ctx, request)
+		_, err = cloud.IAM().DeleteRolePolicy(ctx, request)
 		if err != nil {
 			if awsup.IsIAMNoSuchEntityException(err) {
 				klog.V(2).Infof("Got NoSuchEntity deleting role policy %s/%s; assuming does not exist", aws.ToString(e.Role.Name), aws.ToString(e.Name))
@@ -276,7 +287,7 @@ func (_ *IAMRolePolicy) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRoleP
 
 		klog.V(8).Infof("PutRolePolicy RoleName=%s PolicyName=%s: %s", aws.ToString(e.Role.Name), aws.ToString(e.Name), policy)
 
-		_, err = t.Cloud.IAM().PutRolePolicy(ctx, request)
+		_, err = cloud.IAM().PutRolePolicy(ctx, request)
 		if err != nil {
 			klog.V(2).Infof("PutRolePolicy RoleName=%s PolicyName=%s: %s", aws.ToString(e.Role.Name), aws.ToString(e.Name), policy)
 			return fmt.Errorf("error creating/updating IAMRolePolicy: %v", err)

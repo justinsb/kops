@@ -199,6 +199,8 @@ type CloudProviderSpec struct {
 	Openstack *OpenstackSpec `json:"openstack,omitempty"`
 	// Scaleway configures the Scaleway cloud provider.
 	Scaleway *ScalewaySpec `json:"scaleway,omitempty"`
+	// Metal configures the Metal cloud provider.
+	Metal *MetalSpec `json:"metal,omitempty"`
 }
 
 // AWSSpec configures the AWS cloud provider.
@@ -256,6 +258,10 @@ type HetznerSpec struct{}
 
 // ScalewaySpec configures the Scaleway cloud provider
 type ScalewaySpec struct {
+}
+
+// MetalSpec configures the Metal cloud provider
+type MetalSpec struct {
 }
 
 type KarpenterConfig struct {
@@ -959,6 +965,8 @@ func (c *ClusterSpec) GetCloudProvider() CloudProviderID {
 		return CloudProviderOpenstack
 	} else if c.CloudProvider.Scaleway != nil {
 		return CloudProviderScaleway
+	} else if c.CloudProvider.Metal != nil {
+		return CloudProviderMetal
 	}
 	return ""
 }

@@ -21,7 +21,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/model/iam"
@@ -42,7 +41,7 @@ type event struct {
 
 var (
 	_ fi.CloudupModelBuilder = &NodeTerminationHandlerBuilder{}
-	_ fi.HasDeletions        = &NodeTerminationHandlerBuilder{}
+	// _ fi.HasDeletions        = &NodeTerminationHandlerBuilder{}
 
 	fixedEvents = []event{
 		{
@@ -187,54 +186,54 @@ func (b *NodeTerminationHandlerBuilder) build(c *fi.CloudupModelBuilderContext) 
 	return nil
 }
 
-func (b *NodeTerminationHandlerBuilder) FindDeletions(c *fi.CloudupModelBuilderContext, cloud fi.Cloud) error {
-	if b.Cluster.Spec.CloudProvider.AWS.NodeTerminationHandler != nil && fi.ValueOf(b.Cluster.Spec.CloudProvider.AWS.NodeTerminationHandler.EnableRebalanceDraining) {
-		return nil
-	}
+// func (b *NodeTerminationHandlerBuilder) FindDeletions(c *fi.CloudupModelBuilderContext, cloud fi.Cloud) error {
+// 	if b.Cluster.Spec.CloudProvider.AWS.NodeTerminationHandler != nil && fi.ValueOf(b.Cluster.Spec.CloudProvider.AWS.NodeTerminationHandler.EnableRebalanceDraining) {
+// 		return nil
+// 	}
 
-	clusterName := b.ClusterName()
-	clusterNamePrefix := awsup.GetClusterName40(clusterName)
-	ruleName := aws.String(clusterNamePrefix + "-" + rebalanceEvent.name)
+// 	clusterName := b.ClusterName()
+// 	clusterNamePrefix := awsup.GetClusterName40(clusterName)
+// 	ruleName := aws.String(clusterNamePrefix + "-" + rebalanceEvent.name)
 
-	eventBridge := cloud.(awsup.AWSCloud).EventBridge()
-	request := &eventbridge.ListRulesInput{
-		NamePrefix: ruleName,
-	}
-	response, err := eventBridge.ListRules(c.Context(), request)
-	if err != nil {
-		return fmt.Errorf("listing EventBridge rules: %w", err)
-	}
-	if response == nil || len(response.Rules) == 0 {
-		return nil
-	}
-	if len(response.Rules) > 1 {
-		return fmt.Errorf("found multiple EventBridge rules with the same name %s", *ruleName)
-	}
+// 	eventBridge := cloud.(awsup.AWSCloud).EventBridge()
+// 	request := &eventbridge.ListRulesInput{
+// 		NamePrefix: ruleName,
+// 	}
+// 	response, err := eventBridge.ListRules(c.Context(), request)
+// 	if err != nil {
+// 		return fmt.Errorf("listing EventBridge rules: %w", err)
+// 	}
+// 	if response == nil || len(response.Rules) == 0 {
+// 		return nil
+// 	}
+// 	if len(response.Rules) > 1 {
+// 		return fmt.Errorf("found multiple EventBridge rules with the same name %s", *ruleName)
+// 	}
 
-	rule := response.Rules[0]
+// 	rule := response.Rules[0]
 
-	tagResponse, err := eventBridge.ListTagsForResource(c.Context(), &eventbridge.ListTagsForResourceInput{ResourceARN: rule.Arn})
-	if err != nil {
-		return fmt.Errorf("listing tags for EventBridge rule: %w", err)
-	}
+// 	tagResponse, err := eventBridge.ListTagsForResource(c.Context(), &eventbridge.ListTagsForResourceInput{ResourceARN: rule.Arn})
+// 	if err != nil {
+// 		return fmt.Errorf("listing tags for EventBridge rule: %w", err)
+// 	}
 
-	owned := false
-	ownershipTag := "kubernetes.io/cluster/" + b.Cluster.ObjectMeta.Name
-	for _, tag := range tagResponse.Tags {
-		if fi.ValueOf(tag.Key) == ownershipTag && fi.ValueOf(tag.Value) == "owned" {
-			owned = true
-			break
-		}
-	}
-	if !owned {
-		return nil
-	}
+// 	owned := false
+// 	ownershipTag := "kubernetes.io/cluster/" + b.Cluster.ObjectMeta.Name
+// 	for _, tag := range tagResponse.Tags {
+// 		if fi.ValueOf(tag.Key) == ownershipTag && fi.ValueOf(tag.Value) == "owned" {
+// 			owned = true
+// 			break
+// 		}
+// 	}
+// 	if !owned {
+// 		return nil
+// 	}
 
-	ruleTask := &awstasks.EventBridgeRule{
-		Name:      ruleName,
-		Lifecycle: b.Lifecycle,
-	}
-	c.AddTask(ruleTask)
+// 	ruleTask := &awstasks.EventBridgeRule{
+// 		Name:      ruleName,
+// 		Lifecycle: b.Lifecycle,
+// 	}
+// 	c.AddTask(ruleTask)
 
-	return nil
-}
+// 	return nil
+// }

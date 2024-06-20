@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,6 +41,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/v1alpha2"
@@ -50,13 +52,46 @@ import (
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/model/resources"
 	"k8s.io/kops/pkg/nodemodel"
-	"k8s.io/kops/pkg/nodemodel/wellknownassets"
 	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
-	"k8s.io/kops/util/pkg/architectures"
 	"k8s.io/kops/util/pkg/vfs"
 )
+
+// TODO: How do control plane machines get their host registered (and do we care?)
+// TODO: need to add kops-controller.internal.<cluster>.k8s.local DNS to nodes
+// TODO: Why is /etc/hosts blank?
+
+// TODO: Merge justinsb/metal_enroll
+
+// kubectl apply --server-side -f - <<EOF
+// apiVersion: rbac.authorization.k8s.io/v1
+// kind: ClusterRoleBinding
+// metadata:
+//   name: kops-controller:pki-verifier
+// roleRef:
+//   apiGroup: rbac.authorization.k8s.io
+//   kind: ClusterRole
+//   name: kops-controller:pki-verifier
+// subjects:
+// - apiGroup: rbac.authorization.k8s.io
+//   kind: User
+//   name: system:serviceaccount:kube-system:kops-controller
+// ---
+// apiVersion: rbac.authorization.k8s.io/v1
+// kind: ClusterRole
+// metadata:
+//   name: kops-controller:pki-verifier
+// rules:
+// - apiGroups:
+//   - "kops.k8s.io"
+//   resources:
+//   - hosts
+//   verbs:
+//   - get
+//   - list
+//   - watch
+// EOF
 
 type ToolboxEnrollOptions struct {
 	ClusterName   string
@@ -97,20 +132,73 @@ func RunToolboxEnroll(ctx context.Context, f commandutils.Factory, out io.Writer
 		return fmt.Errorf("cluster not found %q", options.ClusterName)
 	}
 
-	ig, err := clientset.InstanceGroupsFor(cluster).Get(ctx, options.InstanceGroup, metav1.GetOptions{})
+	channel, err := cloudup.ChannelForCluster(clientset.VFSContext(), cluster)
 	if err != nil {
-		return err
+		return fmt.Errorf("getting channel for cluster %q: %w", options.ClusterName, err)
 	}
 
 	cloud, err := cloudup.BuildCloud(cluster)
 	if err != nil {
+		return fmt.Errorf("building cloud: %w", err)
+	}
+
+	instanceGroupList, err := clientset.InstanceGroupsFor(cluster).List(ctx, metav1.ListOptions{})
+	if err != nil {
 		return err
 	}
 
+	apply := &cloudup.ApplyClusterCmd{
+		Cloud:      cloud,
+		Cluster:    cluster,
+		Clientset:  clientset,
+		DryRun:     true,
+		TargetName: cloudup.TargetDryRun,
+	}
+	applyResults, err := apply.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("error during apply: %w", err)
+	}
+
+	// assetBuilder := assets.NewAssetBuilder(clientset.VFSContext(), cluster.Spec.Assets, cluster.Spec.KubernetesVersion, false)
+	assetBuilder := applyResults.AssetBuilder
+	var fullInstanceGroup *kops.InstanceGroup
+	var fullCluster *kops.Cluster
+	{
+		var instanceGroups []*kops.InstanceGroup
+		for i := range instanceGroupList.Items {
+			instanceGroup := &instanceGroupList.Items[i]
+			instanceGroups = append(instanceGroups, instanceGroup)
+		}
+
+		populatedCluster, err := cloudup.PopulateClusterSpec(ctx, clientset, cluster, instanceGroups, cloud, assetBuilder)
+		if err != nil {
+			return fmt.Errorf("building full cluster spec: %w", err)
+		}
+		fullCluster = populatedCluster
+
+		// Build full IG spec to ensure we end up with a valid IG
+		for _, ig := range instanceGroups {
+			if ig.Name != options.InstanceGroup {
+				continue
+			}
+			populated, err := cloudup.PopulateInstanceGroupSpec(fullCluster, ig, cloud, channel)
+			if err != nil {
+				return err
+			}
+			fullInstanceGroup = populated
+		}
+
+		if fullInstanceGroup == nil {
+			return fmt.Errorf("instance group %q not found", options.InstanceGroup)
+		}
+	}
+
+	klog.Infof("StaticAssets = %v", assetBuilder.StaticManifests)
+	klog.Infof("StaticFiles = %v", assetBuilder.StaticFiles)
 	wellKnownAddresses := make(model.WellKnownAddresses)
 
 	{
-		ingresses, err := cloud.GetApiIngressStatus(cluster)
+		ingresses, err := cloud.GetApiIngressStatus(fullCluster)
 		if err != nil {
 			return fmt.Errorf("error getting ingress status: %v", err)
 		}
@@ -135,14 +223,14 @@ func RunToolboxEnroll(ctx context.Context, f commandutils.Factory, out io.Writer
 		sort.Strings(wellKnownAddresses[k])
 	}
 
-	scriptBytes, err := buildBootstrapData(ctx, clientset, cluster, ig, wellKnownAddresses)
+	bootstrapData, err := buildBootstrapData(ctx, clientset, fullCluster, fullInstanceGroup, assetBuilder, wellKnownAddresses)
 	if err != nil {
-		return err
+		return fmt.Errorf("building bootstrap data: %w", err)
 	}
 
 	if options.Host != "" {
 		// TODO: This is the pattern we use a lot, but should we try to access it directly?
-		contextName := cluster.ObjectMeta.Name
+		contextName := fullCluster.ObjectMeta.Name
 		clientGetter := genericclioptions.NewConfigFlags(true)
 		clientGetter.Context = &contextName
 
@@ -151,14 +239,14 @@ func RunToolboxEnroll(ctx context.Context, f commandutils.Factory, out io.Writer
 			return fmt.Errorf("cannot load kubecfg settings for %q: %w", contextName, err)
 		}
 
-		if err := enrollHost(ctx, options, string(scriptBytes), restConfig); err != nil {
+		if err := enrollHost(ctx, fullInstanceGroup, options, bootstrapData, restConfig); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func enrollHost(ctx context.Context, options *ToolboxEnrollOptions, nodeupScript string, restConfig *rest.Config) error {
+func enrollHost(ctx context.Context, ig *kops.InstanceGroup, options *ToolboxEnrollOptions, bootstrapData *bootstrapData, restConfig *rest.Config) error {
 	scheme := runtime.NewScheme()
 	if err := v1alpha2.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("building kubernetes scheme: %w", err)
@@ -204,19 +292,27 @@ func enrollHost(ctx context.Context, options *ToolboxEnrollOptions, nodeupScript
 		}
 		publicKeyBytes = b
 	}
-	klog.Infof("public key is %s", string(publicKeyBytes))
+	klog.V(2).Infof("public key is %s", string(publicKeyBytes))
 
 	hostname, err := host.getHostname(ctx)
 	if err != nil {
 		return err
 	}
 
-	if err := createHost(ctx, options, hostname, publicKeyBytes, kubeClient); err != nil {
-		return err
+	isControlPlane := ig.HasAPIServer()
+	if !isControlPlane {
+		if err := createHost(ctx, options, hostname, publicKeyBytes, kubeClient); err != nil {
+			return err
+		}
 	}
 
-	if len(nodeupScript) != 0 {
-		if _, err := host.runScript(ctx, nodeupScript, ExecOptions{Sudo: sudo, Echo: true}); err != nil {
+	for k, v := range bootstrapData.configFiles {
+		if err := host.writeFile(ctx, k, bytes.NewReader(v)); err != nil {
+			return fmt.Errorf("writing file %q over SSH: %w", k, err)
+		}
+	}
+	if len(bootstrapData.nodeupScript) != 0 {
+		if _, err := host.runScript(ctx, string(bootstrapData.nodeupScript), ExecOptions{Sudo: sudo, Echo: true}); err != nil {
 			return err
 		}
 	}
@@ -317,6 +413,12 @@ func (s *SSHHost) readFile(ctx context.Context, path string) ([]byte, error) {
 	return p.ReadFile(ctx)
 }
 
+func (s *SSHHost) writeFile(ctx context.Context, path string, data io.ReadSeeker) error {
+	p := vfs.NewSSHPath(s.sshClient, s.hostname, path, s.sudo)
+
+	return p.WriteFile(ctx, data, nil)
+}
+
 func (s *SSHHost) runScript(ctx context.Context, script string, options ExecOptions) (*CommandOutput, error) {
 	var tempDir string
 	{
@@ -398,13 +500,22 @@ func (s *SSHHost) getHostname(ctx context.Context) (string, error) {
 	return hostname, nil
 }
 
-func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster *kops.Cluster, ig *kops.InstanceGroup, wellknownAddresses model.WellKnownAddresses) ([]byte, error) {
-	if cluster.Spec.KubeAPIServer == nil {
-		cluster.Spec.KubeAPIServer = &kops.KubeAPIServerConfig{}
-	}
+type bootstrapData struct {
+	nodeupScript []byte
+	configFiles  map[string][]byte
+}
 
-	getAssets := false
-	assetBuilder := assets.NewAssetBuilder(clientset.VFSContext(), cluster.Spec.Assets, cluster.Spec.KubernetesVersion, getAssets)
+func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster *kops.Cluster, ig *kops.InstanceGroup, assetBuilder *assets.AssetBuilder, wellknownAddresses model.WellKnownAddresses) (*bootstrapData, error) {
+	bootstrapData := &bootstrapData{}
+
+	// if cluster.Spec.KubeAPIServer == nil {
+	// 	cluster.Spec.KubeAPIServer = &kops.KubeAPIServerConfig{}
+	// }
+
+	vfsContext := clientset.VFSContext()
+
+	// getAssets := false
+	// assetBuilder := assets.NewAssetBuilder(vfsContext, cluster.Spec.Assets, cluster.Spec.KubernetesVersion, getAssets)
 
 	encryptionConfigSecretHash := ""
 	// TODO: Support encryption config?
@@ -423,17 +534,22 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 	// 	encryptionConfigSecretHash = base64.URLEncoding.EncodeToString(hashBytes[:])
 	// }
 
-	nodeUpAssets := make(map[architectures.Architecture]*assets.MirroredAsset)
-	for _, arch := range architectures.GetSupported() {
-		asset, err := wellknownassets.NodeUpAsset(assetBuilder, arch)
-		if err != nil {
-			return nil, err
-		}
-		nodeUpAssets[arch] = asset
+	// nodeUpAssets := make(map[architectures.Architecture]*assets.MirroredAsset)
+	// for _, arch := range architectures.GetSupported() {
+	// 	asset, err := wellknownassets.NodeUpAsset(assetBuilder, arch)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	nodeUpAssets[arch] = asset
+	// }
+
+	fileAssets := &nodemodel.FileAssets{Cluster: cluster}
+	if err := fileAssets.AddFileAssets(assetBuilder); err != nil {
+		return nil, err
 	}
 
-	assets := make(map[architectures.Architecture][]*assets.MirroredAsset)
-	configBuilder, err := nodemodel.NewNodeUpConfigBuilder(cluster, assetBuilder, assets, encryptionConfigSecretHash)
+	// assets := make(map[architectures.Architecture][]*assets.MirroredAsset)
+	configBuilder, err := nodemodel.NewNodeUpConfigBuilder(cluster, assetBuilder, fileAssets.Assets, encryptionConfigSecretHash)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +561,28 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 		return nil, err
 	}
 
-	for _, keyName := range []string{"kubernetes-ca"} {
+	keyNames := []string{"kubernetes-ca", "etcd-clients-ca"}
+	if ig.HasAPIServer() {
+		keyNames = append(keyNames, "etcd-clients-ca")
+	}
+
+	for _, etcdCluster := range cluster.Spec.EtcdClusters {
+		k := etcdCluster.Name
+		keyNames = append(keyNames, "etcd-manager-ca-"+k, "etcd-peers-ca-"+k)
+		if k != "events" && k != "main" {
+			keyNames = append(keyNames, "etcd-clients-ca-"+k)
+		}
+	}
+
+	if ig.HasAPIServer() {
+		keyNames = append(keyNames, "apiserver-aggregator-ca", "service-account", "etcd-clients-ca")
+	}
+
+	if ig.IsBastion() {
+		keyNames = nil
+	}
+
+	for _, keyName := range keyNames {
 		keyset, err := keystore.FindKeyset(ctx, keyName)
 		if err != nil {
 			return nil, fmt.Errorf("getting keyset %q: %w", keyName, err)
@@ -458,12 +595,138 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 		keysets[keyName] = keyset
 	}
 
-	_, bootConfig, err := configBuilder.BuildConfig(ig, wellknownAddresses, keysets)
+	nodeupConfig, bootConfig, err := configBuilder.BuildConfig(ig, wellknownAddresses, keysets)
 	if err != nil {
 		return nil, err
 	}
 
+	bootstrapData.configFiles = make(map[string][]byte)
+
+	rewriteFile := func(vfsPath string) (string, error) {
+		srcPath, err := vfsContext.BuildVfsPath(vfsPath)
+		if err != nil {
+			return "", fmt.Errorf("error building vfs path %q: %w", vfsPath, err)
+		}
+
+		b, err := srcPath.ReadFile(ctx)
+		if err != nil {
+			return "", fmt.Errorf("reading vfs file %q: %w", vfsPath, err)
+		}
+
+		p := filepath.Join("/opt/kops/conf", strings.ReplaceAll(vfsPath, "://", "/"))
+		bootstrapData.configFiles[p] = b
+		return "file://" + p, nil
+	}
+
+	rewriteRelativePath := func(relativePath string) error {
+		vfsPath := fi.ValueOf(bootConfig.ConfigBase) + "/" + relativePath
+		srcPath, err := vfsContext.BuildVfsPath(vfsPath)
+		if err != nil {
+			return fmt.Errorf("error building vfs path %q: %w", vfsPath, err)
+		}
+
+		b, err := srcPath.ReadFile(ctx)
+		if err != nil {
+			return fmt.Errorf("reading vfs file %q: %w", vfsPath, err)
+		}
+
+		p := filepath.Join("/opt/kops/conf", relativePath)
+		bootstrapData.configFiles[p] = b
+		return nil
+	}
+
+	rewriteFileTree := func(vfsPath string) (string, error) {
+		srcPath, err := vfsContext.BuildVfsPath(vfsPath)
+		if err != nil {
+			return "", fmt.Errorf("error building vfs path %q: %w", vfsPath, err)
+		}
+
+		srcFiles, err := srcPath.ReadTree(ctx)
+		if err != nil {
+			return "", fmt.Errorf("reading vfs tree %q: %w", vfsPath, err)
+		}
+
+		klog.Infof("ReadTree %v => %v", vfsPath, srcFiles)
+
+		for _, srcFile := range srcFiles {
+			b, err := srcFile.ReadFile(ctx)
+			if err != nil {
+				return "", fmt.Errorf("reading vfs file %q: %w", srcFile.Path(), err)
+			}
+			p := filepath.Join("/opt/kops/conf", strings.ReplaceAll(srcFile.Path(), "://", "/"))
+			klog.Infof("ReadTree %v :: %v", srcFile, p)
+			bootstrapData.configFiles[p] = b
+		}
+
+		rootPath := filepath.Join("/opt/kops/conf", strings.ReplaceAll(srcPath.Path(), "://", "/"))
+		return "file://" + rootPath, nil
+	}
+
+	for i, srcPath := range nodeupConfig.EtcdManifests {
+		p, err := rewriteFile(srcPath)
+		if err != nil {
+			return nil, err
+		}
+		nodeupConfig.EtcdManifests[i] = p
+	}
+
+	parentPath := func(s string) string {
+		index := strings.LastIndex(s, "/")
+		return s[:index+1]
+	}
+
+	for i, srcPath := range nodeupConfig.Channels {
+		p, err := rewriteFile(srcPath)
+		if err != nil {
+			return nil, err
+		}
+
+		parent := parentPath(srcPath)
+		if _, err := rewriteFileTree(parent); err != nil {
+			return nil, err
+		}
+
+		nodeupConfig.Channels[i] = p
+	}
+
+	for _, staticManifest := range nodeupConfig.StaticManifests {
+		if err := rewriteRelativePath(staticManifest.Path); err != nil {
+			return nil, err
+		}
+	}
+
+	if nodeupConfig.ConfigStore != nil {
+		p, err := rewriteFileTree(nodeupConfig.ConfigStore.Keypairs)
+		if err != nil {
+			return nil, err
+		}
+		nodeupConfig.ConfigStore.Keypairs = p
+	}
+
+	if nodeupConfig.ConfigStore != nil {
+		p, err := rewriteFileTree(nodeupConfig.ConfigStore.Secrets)
+		if err != nil {
+			return nil, err
+		}
+		nodeupConfig.ConfigStore.Secrets = p
+	}
+
 	bootConfig.CloudProvider = "metal"
+
+	bootConfig.ConfigBase = fi.PtrTo("file:///opt/kops/conf")
+
+	{
+		nodeupConfigBytes, err := yaml.Marshal(nodeupConfig)
+		if err != nil {
+			return nil, fmt.Errorf("error converting nodeup config to yaml: %w", err)
+		}
+		// sum256 := sha256.Sum256(configData)
+		// bootConfig.NodeupConfigHash = base64.StdEncoding.EncodeToString(sum256[:])
+		// b.nodeupConfig.Resource = fi.NewBytesResource(configData)
+
+		p := filepath.Join("/opt/kops/conf", "igconfig", bootConfig.InstanceGroupRole.ToLowerString(), ig.Name, "nodeupconfig.yaml")
+		bootstrapData.configFiles[p] = nodeupConfigBytes
+	}
 
 	// TODO: Should we / can we specify the node config hash?
 	// configData, err := utils.YamlMarshal(config)
@@ -474,7 +737,7 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 	// bootConfig.NodeupConfigHash = base64.StdEncoding.EncodeToString(sum256[:])
 
 	var nodeupScript resources.NodeUpScript
-	nodeupScript.NodeUpAssets = nodeUpAssets
+	nodeupScript.NodeUpAssets = fileAssets.NodeUpAssets
 	nodeupScript.BootConfig = bootConfig
 
 	{
@@ -520,10 +783,11 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 		return nil, err
 	}
 
-	b, err := fi.ResourceAsBytes(nodeupScriptResource)
+	nodeupScriptBytes, err := fi.ResourceAsBytes(nodeupScriptResource)
 	if err != nil {
 		return nil, err
 	}
+	bootstrapData.nodeupScript = nodeupScriptBytes
 
-	return b, nil
+	return bootstrapData, nil
 }

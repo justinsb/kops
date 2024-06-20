@@ -667,7 +667,7 @@ func getNodeConfigFromServers(ctx context.Context, bootConfig *nodeup.BootConfig
 		}
 		authenticator = a
 
-	case "metal":
+	case api.CloudProviderMetal:
 		a, err := pkibootstrap.NewAuthenticatorFromFile("/etc/kubernetes/kops/pki/machine/private.pem")
 		if err != nil {
 			return nil, err

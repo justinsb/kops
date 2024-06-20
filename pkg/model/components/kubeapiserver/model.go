@@ -46,6 +46,7 @@ func (b *KubeApiserverBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 		return err
 	}
 
+	// klog.Infof("BUILDMANIFEST %v", manifest)
 	manifestYAML, err := k8scodecs.ToVersionedYaml(manifest)
 	if err != nil {
 		return fmt.Errorf("error marshaling manifest to yaml: %v", err)

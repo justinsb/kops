@@ -39,6 +39,7 @@ import (
 	"k8s.io/kops/pkg/model/components/addonmanifests/dnscontroller"
 	"k8s.io/kops/pkg/model/components/addonmanifests/externaldns"
 	"k8s.io/kops/pkg/model/components/addonmanifests/karpenter"
+	"k8s.io/kops/pkg/model/components/addonmanifests/kopscontroller"
 	"k8s.io/kops/pkg/model/components/addonmanifests/kuberouter"
 	"k8s.io/kops/pkg/model/components/addonmanifests/nodeterminationhandler"
 	"k8s.io/kops/pkg/model/iam"
@@ -346,6 +347,16 @@ func (b *BootstrapChannelBuilder) buildAddons(c *fi.CloudupModelBuilderContext) 
 				Id:                 id,
 			})
 		}
+
+		klog.Infof("adding UseServiceAccountExternalPermissions %v", b.UseServiceAccountExternalPermissions())
+		if b.UseServiceAccountExternalPermissions() {
+			switch b.Cluster.Spec.GetCloudProvider() {
+			case kops.CloudProviderMetal:
+				serviceAccountRoles = append(serviceAccountRoles, &kopscontroller.ServiceAccount{})
+				klog.Infof("adding serviceACcountRoles %v", serviceAccountRoles)
+			}
+		}
+
 	}
 
 	// @check if podsecuritypolicies are enabled and if so, push the default kube-system policy
@@ -1216,7 +1227,19 @@ func (b *BootstrapChannelBuilder) buildAddons(c *fi.CloudupModelBuilderContext) 
 
 	serviceAccounts := make(map[types.NamespacedName]iam.Subject)
 
-	if b.Cluster.Spec.GetCloudProvider() == kops.CloudProviderAWS && b.Cluster.Spec.KubeAPIServer.ServiceAccountIssuer != nil {
+	useIRSA := false
+	if b.Cluster.Spec.KubeAPIServer.ServiceAccountIssuer != nil {
+		switch b.Cluster.Spec.GetCloudProvider() {
+		case kops.CloudProviderAWS:
+			useIRSA = true
+
+		case kops.CloudProviderMetal:
+			useIRSA = true
+
+		}
+	}
+
+	if useIRSA {
 		awsModelContext := &awsmodel.AWSModelContext{
 			KopsModelContext: b.KopsModelContext,
 		}

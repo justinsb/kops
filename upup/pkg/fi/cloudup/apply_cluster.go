@@ -59,6 +59,7 @@ import (
 	"k8s.io/kops/upup/pkg/fi/cloudup/do"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
 	"k8s.io/kops/upup/pkg/fi/cloudup/hetzner"
+	"k8s.io/kops/upup/pkg/fi/cloudup/metal"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
 	"k8s.io/kops/upup/pkg/fi/cloudup/scaleway"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
@@ -138,6 +139,15 @@ type ApplyClusterCmd struct {
 type ApplyResults struct {
 	// AssetBuilder holds the initialized AssetBuilder, listing all the image and file assets.
 	AssetBuilder *assets.AssetBuilder
+
+	// BootstrapScriptBuilder contains the builder for building bootstrap scripts
+	BootstrapScriptBuilder *model.BootstrapScriptBuilder
+
+	// NodeUpConfigBuilder is the nodeup config builder
+	NodeUpConfigBuilder model.NodeUpConfigBuilder
+
+	// InstanceGroups is all the instance groups for the cluster
+	InstanceGroups []*kops.InstanceGroup
 }
 
 func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
@@ -406,6 +416,8 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 		AdditionalObjects: c.AdditionalObjects,
 	}
 
+	var otherClouds []fi.Cloud
+
 	switch cluster.Spec.GetCloudProvider() {
 	case kops.CloudProviderGCE:
 		{
@@ -482,12 +494,42 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 			scwZone = scwCloud.Zone()
 		}
 
+	case kops.CloudProviderMetal:
+
+		// If we need to access storage on S3 or GCS, add that to otherClouds so that we can build those tasks.
+		if s3Path, ok := configBase.(*vfs.S3Path); ok {
+			region, err := s3Path.Region(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("getting region for S3 path %q: %w", s3Path, err)
+			}
+			cloudTags := map[string]string{}
+			awsCloud, err := awsup.NewAWSCloud(region, cloudTags)
+			if err != nil {
+				return nil, fmt.Errorf("building AWS cloud for bucket access: %w", err)
+			}
+
+			otherClouds = append(otherClouds, awsCloud)
+		}
+
 	default:
 		return nil, fmt.Errorf("unknown CloudProvider %q", cluster.Spec.GetCloudProvider())
 	}
 
 	modelContext.SSHPublicKeys = sshPublicKeys
 	modelContext.Region = cloud.Region()
+
+	allClouds := []fi.Cloud{cloud}
+	allClouds = append(allClouds, otherClouds...)
+	for _, cloud := range allClouds {
+		if awsCloud, ok := cloud.(awsup.AWSCloud); ok {
+			accountID, partition, err := awsCloud.AccountInfo(ctx)
+			if err != nil {
+				return nil, err
+			}
+			modelContext.AWSAccountID = accountID
+			modelContext.AWSPartition = partition
+		}
+	}
 
 	if cluster.PublishesDNSRecords() {
 		err = validateDNS(cluster, cloud)
@@ -538,11 +580,19 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 				KopsModelContext: modelContext,
 				Lifecycle:        clusterLifecycle,
 			},
-			&model.IssuerDiscoveryModelBuilder{
-				KopsModelContext: modelContext,
-				Lifecycle:        clusterLifecycle,
-				Cluster:          cluster,
-			},
+		)
+
+		if !c.GetAssets {
+			l.Builders = append(l.Builders,
+				&model.IssuerDiscoveryModelBuilder{
+					KopsModelContext: modelContext,
+					Lifecycle:        clusterLifecycle,
+					Cluster:          cluster,
+				},
+			)
+		}
+
+		l.Builders = append(l.Builders,
 			&kubeapiserver.KubeApiserverBuilder{
 				AssetBuilder:     assetBuilder,
 				KopsModelContext: modelContext,
@@ -576,8 +626,6 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 				&awsmodel.FirewallModelBuilder{AWSModelContext: awsModelContext, Lifecycle: securityLifecycle},
 				&awsmodel.SSHKeyModelBuilder{AWSModelContext: awsModelContext, Lifecycle: securityLifecycle},
 				&awsmodel.NetworkModelBuilder{AWSModelContext: awsModelContext, Lifecycle: networkLifecycle},
-				&awsmodel.IAMModelBuilder{AWSModelContext: awsModelContext, Lifecycle: securityLifecycle, Cluster: cluster},
-				&awsmodel.OIDCProviderBuilder{AWSModelContext: awsModelContext, Lifecycle: securityLifecycle, KeyStore: keyStore},
 			)
 
 			awsModelBuilder := &awsmodel.AutoscalingGroupModelBuilder{
@@ -686,8 +734,31 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 				&scalewaymodel.SSHKeyModelBuilder{ScwModelContext: scwModelContext, Lifecycle: securityLifecycle},
 			)
 
+		case kops.CloudProviderMetal:
+
 		default:
 			return nil, fmt.Errorf("unknown cloudprovider %q", cluster.Spec.GetCloudProvider())
+		}
+	}
+
+	{
+		includeAWSIAM := false
+		switch cluster.Spec.GetCloudProvider() {
+		case kops.CloudProviderAWS:
+			includeAWSIAM = true
+
+		case kops.CloudProviderMetal:
+			includeAWSIAM = true
+		}
+
+		if includeAWSIAM {
+			awsModelContext := &awsmodel.AWSModelContext{
+				KopsModelContext: modelContext,
+			}
+			l.Builders = append(l.Builders,
+				&awsmodel.IAMModelBuilder{AWSModelContext: awsModelContext, Lifecycle: securityLifecycle, Cluster: cluster},
+				&awsmodel.OIDCProviderBuilder{AWSModelContext: awsModelContext, Lifecycle: securityLifecycle, KeyStore: keyStore},
+			)
 		}
 	}
 	c.TaskMap, err = l.BuildTasks(ctx, c.LifecycleOverrides)
@@ -716,6 +787,8 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 			target = azure.NewAzureAPITarget(cloud.(azure.AzureCloud))
 		case kops.CloudProviderScaleway:
 			target = scaleway.NewScwAPITarget(cloud.(scaleway.ScwCloud))
+		case kops.CloudProviderMetal:
+			target = metal.NewAPITarget(cloud.(*metal.Cloud), otherClouds)
 		default:
 			return nil, fmt.Errorf("direct configuration not supported with CloudProvider:%q", cluster.Spec.GetCloudProvider())
 		}
@@ -778,6 +851,7 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error building context: %v", err)
 	}
+	context.T.OtherClouds = otherClouds
 
 	var options fi.RunTasksOptions
 	if c.RunTasksOptions != nil {
@@ -806,11 +880,14 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 		return nil, fmt.Errorf("error closing target: %v", err)
 	}
 
-	applyResults := &ApplyResults{
-		AssetBuilder: assetBuilder,
+	ret := &ApplyResults{
+		AssetBuilder:           assetBuilder,
+		BootstrapScriptBuilder: bootstrapScriptBuilder,
+		NodeUpConfigBuilder:    configBuilder,
+		InstanceGroups:         c.InstanceGroups,
 	}
 
-	return applyResults, nil
+	return ret, nil
 }
 
 // upgradeSpecs ensures that fields are fully populated / defaulted

@@ -27,6 +27,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/metal"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraformWriter"
 )
@@ -120,6 +121,16 @@ func (s *IAMOIDCProvider) CheckChanges(a, e, changes *IAMOIDCProvider) error {
 
 func (p *IAMOIDCProvider) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMOIDCProvider) error {
 	ctx := context.TODO()
+	return p.render(ctx, t.Cloud, a, e, changes)
+}
+
+func (p *IAMOIDCProvider) RenderMetal(t *metal.APITarget, a, e, changes *IAMOIDCProvider) error {
+	ctx := context.TODO()
+	awsCloud := t.GetAWSCloud()
+	return p.render(ctx, awsCloud, a, e, changes)
+}
+
+func (_ *IAMOIDCProvider) render(ctx context.Context, cloud awsup.AWSCloud, a, e, changes *IAMOIDCProvider) error {
 	thumbprints := e.Thumbprints
 
 	if a == nil {
@@ -132,7 +143,7 @@ func (p *IAMOIDCProvider) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMOID
 			Tags:           mapToIAMTags(e.Tags),
 		}
 
-		response, err := t.Cloud.IAM().CreateOpenIDConnectProvider(ctx, request)
+		response, err := cloud.IAM().CreateOpenIDConnectProvider(ctx, request)
 		if err != nil {
 			return fmt.Errorf("error creating IAMOIDCProvider: %v", err)
 		}
@@ -146,7 +157,7 @@ func (p *IAMOIDCProvider) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMOID
 			request.OpenIDConnectProviderArn = a.arn
 			request.ThumbprintList = thumbprints
 
-			_, err := t.Cloud.IAM().UpdateOpenIDConnectProviderThumbprint(ctx, request)
+			_, err := cloud.IAM().UpdateOpenIDConnectProviderThumbprint(ctx, request)
 			if err != nil {
 				return fmt.Errorf("error updating IAMOIDCProvider Thumbprints: %v", err)
 			}
@@ -161,7 +172,7 @@ func (p *IAMOIDCProvider) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMOID
 					OpenIDConnectProviderArn: a.arn,
 					TagKeys:                  existingTagKeys,
 				}
-				_, err := t.Cloud.IAM().UntagOpenIDConnectProvider(ctx, untagRequest)
+				_, err := cloud.IAM().UntagOpenIDConnectProvider(ctx, untagRequest)
 				if err != nil {
 					return fmt.Errorf("error untagging IAMOIDCProvider: %v", err)
 				}
@@ -171,7 +182,7 @@ func (p *IAMOIDCProvider) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMOID
 					OpenIDConnectProviderArn: a.arn,
 					Tags:                     mapToIAMTags(e.Tags),
 				}
-				_, err := t.Cloud.IAM().TagOpenIDConnectProvider(ctx, tagRequest)
+				_, err := cloud.IAM().TagOpenIDConnectProvider(ctx, tagRequest)
 				if err != nil {
 					return fmt.Errorf("error tagging IAMOIDCProvider: %v", err)
 				}
@@ -192,7 +203,7 @@ func (p *IAMOIDCProvider) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMOID
 					OpenIDConnectProviderArn: a.arn,
 					ClientID:                 &elem,
 				}
-				_, err := t.Cloud.IAM().RemoveClientIDFromOpenIDConnectProvider(ctx, request)
+				_, err := cloud.IAM().RemoveClientIDFromOpenIDConnectProvider(ctx, request)
 				if err != nil {
 					return fmt.Errorf("error removing audience %s to IAMOIDCProvider: %v", elem, err)
 				}
@@ -203,7 +214,7 @@ func (p *IAMOIDCProvider) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMOID
 					OpenIDConnectProviderArn: a.arn,
 					ClientID:                 &elem,
 				}
-				_, err := t.Cloud.IAM().AddClientIDToOpenIDConnectProvider(ctx, request)
+				_, err := cloud.IAM().AddClientIDToOpenIDConnectProvider(ctx, request)
 				if err != nil {
 					return fmt.Errorf("error adding audience %s to IAMOIDCProvider: %v", elem, err)
 				}

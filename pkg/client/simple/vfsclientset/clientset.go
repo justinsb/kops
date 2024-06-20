@@ -111,7 +111,7 @@ func (c *VFSClientset) KeyStore(cluster *kops.Cluster) (fi.CAStore, error) {
 		return nil, err
 	}
 
-	klog.V(8).Infof("Using keystore path: %q", basedir)
+	klog.Infof("Using keystore path: %q", basedir)
 
 	return fi.NewVFSCAStore(cluster, basedir), err
 }

@@ -109,7 +109,6 @@ func addServiceAccountRole(context *model.KopsModelContext, objects kubemanifest
 		if err := object.Set(podSpec, "spec", "template", "spec"); err != nil {
 			return fmt.Errorf("failed to set object: %w", err)
 		}
-
 	}
 	return nil
 }
@@ -119,7 +118,7 @@ func addLabels(addon *addonsapi.AddonSpec, objects kubemanifest.ObjectList) erro
 		meta := &metav1.ObjectMeta{}
 		err := object.Reparse(meta, "metadata")
 		if err != nil {
-			return fmt.Errorf("Failed to annotate %T", object)
+			return fmt.Errorf("failed to annotate %T", object)
 		}
 
 		if meta.Labels == nil {

@@ -81,7 +81,7 @@ spec:
       hostNetwork: true
       nodeSelector: null
       priorityClassName: system-cluster-critical
-      serviceAccount: kops-controller
+      serviceAccountName: kops-controller
       tolerations:
       - key: node.cloudprovider.kubernetes.io/uninitialized
         operator: Exists

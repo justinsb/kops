@@ -30,6 +30,7 @@ import (
 	"k8s.io/kops/pkg/diff"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/metal"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraform"
 	"k8s.io/kops/upup/pkg/fi/cloudup/terraformWriter"
 )
@@ -152,8 +153,19 @@ func (s *IAMRole) CheckChanges(a, e, changes *IAMRole) error {
 	return nil
 }
 
-func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error {
+func (s *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error {
 	ctx := context.TODO()
+	return s.render(ctx, t.Cloud, a, e, changes)
+}
+
+func (s *IAMRole) RenderMetal(t *metal.APITarget, a, e, changes *IAMRole) error {
+	ctx := context.TODO()
+	awsCloud := t.GetAWSCloud()
+	return s.render(ctx, awsCloud, a, e, changes)
+}
+
+func (s *IAMRole) render(ctx context.Context, cloud awsup.AWSCloud, a, e, changes *IAMRole) error {
+
 	if e.RolePolicyDocument == nil {
 		klog.V(2).Infof("Deleting IAM role %q", fi.ValueOf(a.Name))
 
@@ -165,7 +177,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 			request := &iam.ListRolePoliciesInput{
 				RoleName: a.Name,
 			}
-			paginator := iam.NewListRolePoliciesPaginator(t.Cloud.IAM(), request)
+			paginator := iam.NewListRolePoliciesPaginator(cloud.IAM(), request)
 			for paginator.HasMorePages() {
 				page, err := paginator.NextPage(ctx)
 				if err != nil {
@@ -184,7 +196,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 			request := &iam.ListAttachedRolePoliciesInput{
 				RoleName: a.Name,
 			}
-			paginator := iam.NewListAttachedRolePoliciesPaginator(t.Cloud.IAM(), request)
+			paginator := iam.NewListAttachedRolePoliciesPaginator(cloud.IAM(), request)
 			for paginator.HasMorePages() {
 				page, err := paginator.NextPage(ctx)
 				if err != nil {
@@ -205,7 +217,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 				RoleName:   a.Name,
 				PolicyName: aws.String(policyName),
 			}
-			_, err := t.Cloud.IAM().DeleteRolePolicy(ctx, request)
+			_, err := cloud.IAM().DeleteRolePolicy(ctx, request)
 			if err != nil {
 				return fmt.Errorf("error deleting IAM role policy %q: %v", policyName, err)
 			}
@@ -218,7 +230,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 				RoleName:  a.Name,
 				PolicyArn: policy.PolicyArn,
 			}
-			_, err := t.Cloud.IAM().DetachRolePolicy(ctx, request)
+			_, err := cloud.IAM().DetachRolePolicy(ctx, request)
 			if err != nil {
 				return fmt.Errorf("error detaching IAM role policy %q: %v", *policy.PolicyArn, err)
 			}
@@ -227,7 +239,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 		request := &iam.DeleteRoleInput{
 			RoleName: a.Name,
 		}
-		if _, err := t.Cloud.IAM().DeleteRole(ctx, request); err != nil {
+		if _, err := cloud.IAM().DeleteRole(ctx, request); err != nil {
 			return fmt.Errorf("error deleting IAM role: %v", err)
 		}
 		return nil
@@ -250,9 +262,9 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 			request.PermissionsBoundary = e.PermissionsBoundary
 		}
 
-		response, err := t.Cloud.IAM().CreateRole(ctx, request)
+		response, err := cloud.IAM().CreateRole(ctx, request)
 		if err != nil {
-			klog.V(2).Infof("IAMRole policy: %s", policy)
+			klog.Infof("IAMRole policy: %s", policy)
 			return fmt.Errorf("error creating IAMRole: %v", err)
 		}
 
@@ -282,7 +294,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 			request.PolicyDocument = aws.String(policy)
 			request.RoleName = e.Name
 
-			_, err = t.Cloud.IAM().UpdateAssumeRolePolicy(ctx, request)
+			_, err = cloud.IAM().UpdateAssumeRolePolicy(ctx, request)
 			if err != nil {
 				return fmt.Errorf("error updating IAMRole: %v", err)
 			}
@@ -294,14 +306,14 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 			request.RoleName = e.Name
 			request.PermissionsBoundary = e.PermissionsBoundary
 
-			if _, err := t.Cloud.IAM().PutRolePermissionsBoundary(ctx, request); err != nil {
+			if _, err := cloud.IAM().PutRolePermissionsBoundary(ctx, request); err != nil {
 				return fmt.Errorf("error updating IAMRole: %v", err)
 			}
 		} else if a.PermissionsBoundary != nil && e.PermissionsBoundary == nil {
 			request := &iam.DeleteRolePermissionsBoundaryInput{}
 			request.RoleName = e.Name
 
-			if _, err := t.Cloud.IAM().DeleteRolePermissionsBoundary(ctx, request); err != nil {
+			if _, err := cloud.IAM().DeleteRolePermissionsBoundary(ctx, request); err != nil {
 				return fmt.Errorf("error updating IAMRole: %v", err)
 			}
 		}
@@ -315,7 +327,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 					RoleName: e.Name,
 					TagKeys:  existingTagKeys,
 				}
-				_, err = t.Cloud.IAM().UntagRole(ctx, untagRequest)
+				_, err = cloud.IAM().UntagRole(ctx, untagRequest)
 				if err != nil {
 					return fmt.Errorf("error untagging IAMRole: %v", err)
 				}
@@ -325,7 +337,7 @@ func (_ *IAMRole) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *IAMRole) error
 					RoleName: e.Name,
 					Tags:     mapToIAMTags(e.Tags),
 				}
-				_, err = t.Cloud.IAM().TagRole(ctx, tagRequest)
+				_, err = cloud.IAM().TagRole(ctx, tagRequest)
 				if err != nil {
 					return fmt.Errorf("error tagging IAMRole: %v", err)
 				}

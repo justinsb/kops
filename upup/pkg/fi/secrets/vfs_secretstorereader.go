@@ -79,11 +79,11 @@ func (c *VFSSecretStoreReader) loadSecret(ctx context.Context, p vfs.Path) (*fi.
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
+		return nil, fmt.Errorf("reading secret from %q: %w", p, err)
 	}
 	s := &fi.Secret{}
-	err = json.Unmarshal(data, s)
-	if err != nil {
-		return nil, fmt.Errorf("parsing secret from %q: %v", p, err)
+	if err := json.Unmarshal(data, s); err != nil {
+		return nil, fmt.Errorf("parsing secret from %q: %w", p, err)
 	}
 	return s, nil
 }

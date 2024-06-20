@@ -28,6 +28,7 @@ import (
 	"io"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -40,6 +41,8 @@ import (
 	"k8s.io/kops/pkg/apis/kops/model"
 	"k8s.io/kops/pkg/apis/nodeup"
 	"k8s.io/kops/pkg/bootstrap"
+	"k8s.io/kops/pkg/client/simple"
+	"k8s.io/kops/pkg/client/simple/vfsclientset"
 	"k8s.io/kops/pkg/pki"
 	"k8s.io/kops/pkg/rbac"
 	"k8s.io/kops/upup/pkg/fi"
@@ -57,6 +60,7 @@ type Server struct {
 	verifier    bootstrap.Verifier
 	keystore    pki.Keystore
 	secretStore fi.SecretStore
+	clientset   simple.Clientset
 
 	// configBase is the base of the configuration storage.
 	configBase vfs.Path
@@ -91,6 +95,21 @@ func NewServer(vfsContext *vfs.VFSContext, opt *config.Options, verifier bootstr
 		return nil, fmt.Errorf("cannot parse ConfigBase %q: %w", opt.ConfigBase, err)
 	}
 	s.configBase = configBase
+
+	{
+		stateStore := opt.ConfigBase
+		stateStore = strings.TrimPrefix(stateStore, "/")
+		lastSlash := strings.LastIndex(stateStore, "/")
+		stateStore = stateStore[:lastSlash]
+
+		stateStorePath, err := vfsContext.BuildVfsPath(stateStore)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse stateStore %q: %w", stateStore, err)
+		}
+
+		clientset := vfsclientset.NewVFSClientset(vfsContext, stateStorePath)
+		s.clientset = clientset
+	}
 
 	p, err := vfsContext.BuildVfsPath(opt.SecretStore)
 	if err != nil {

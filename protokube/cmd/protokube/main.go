@@ -149,16 +149,18 @@ func run() error {
 		}
 		cloudProvider = scwCloudProvider
 
+	} else if cloud == "metal" {
+
 	} else {
 		klog.Errorf("Unknown cloud %q", cloud)
 		os.Exit(1)
 	}
 
-	internalIP := cloudProvider.InstanceInternalIP()
-	if internalIP == nil {
-		klog.Errorf("Cannot determine internal IP")
-		os.Exit(1)
-	}
+	// internalIP := cloudProvider.InstanceInternalIP()
+	// if internalIP == nil {
+	// 	klog.Errorf("Cannot determine internal IP")
+	// 	os.Exit(1)
+	// }
 
 	if dnsInternalSuffix == "" {
 		if clusterID == "" {
@@ -181,7 +183,7 @@ func run() error {
 
 	protokube.RootFS = rootfs
 
-	if gossip {
+	if gossip && cloudProvider != nil {
 		dnsTarget := &gossipdns.HostsFile{
 			Path: path.Join(rootfs, "etc/hosts"),
 		}
@@ -232,6 +234,8 @@ func run() error {
 			gossipdns.RunDNSUpdates(dnsTarget, dnsView)
 			klog.Fatalf("RunDNSUpdates exited unexpectedly")
 		}()
+	} else if gossip && cloudProvider == nil {
+		klog.Fatalf("gossip not implemented without cloudProvider")
 	}
 
 	var channels []string
@@ -244,9 +248,9 @@ func run() error {
 		NodeName:                  nodeName,
 		Channels:                  channels,
 		InternalDNSSuffix:         dnsInternalSuffix,
-		InternalIP:                internalIP,
-		Kubernetes:                protokube.NewKubernetesContext(),
-		Master:                    master,
+		// InternalIP:                internalIP,
+		Kubernetes: protokube.NewKubernetesContext(),
+		Master:     master,
 	}
 
 	k.RunSyncLoop()

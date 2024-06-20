@@ -31,6 +31,8 @@ type Clientset interface {
 	// VFSContext returns a VFSContext.
 	VFSContext() *vfs.VFSContext
 
+	// GetClusterClient(clusterName string) ClusterClientset
+
 	// GetCluster reads a cluster by name
 	GetCluster(ctx context.Context, name string) (*kops.Cluster, error)
 
@@ -64,6 +66,32 @@ type Clientset interface {
 	// DeleteCluster deletes all the state for the specified cluster
 	DeleteCluster(ctx context.Context, cluster *kops.Cluster) error
 }
+
+// type ClusterClientset interface {
+// 	// VFSContext returns a VFSContext.
+// 	VFSContext() *vfs.VFSContext
+
+// 	// GetCluster reads a cluster by name
+// 	GetCluster(ctx context.Context) (*kops.Cluster, error)
+
+// 	// ConfigBase returns the vfs path where we will read configuration information from
+// 	ConfigBase() (vfs.Path, error)
+
+// 	// InstanceGroups returns the InstanceGroupInterface bound to the namespace for a particular Cluster
+// 	InstanceGroups() kopsinternalversion.InstanceGroupInterface
+
+// 	// Addons returns the client for addon objects for a particular Cluster
+// 	Addons() AddonsClient
+
+// 	// SecretStore builds the secret store for the specified cluster
+// 	SecretStore() (fi.SecretStore, error)
+
+// 	// KeyStore builds the key store for the specified cluster
+// 	KeyStore() (fi.CAStore, error)
+
+// 	// SSHCredentialStore builds the SSHCredential store for the specified cluster
+// 	SSHCredentialStore() (fi.SSHCredentialStore, error)
+// }
 
 // AddonsClient is a client for manipulating cluster addons
 // Because we want to support storing these directly in a cluster, we don't group them

@@ -24,7 +24,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	awsiam "github.com/aws/aws-sdk-go-v2/service/iam"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
@@ -33,7 +32,6 @@ import (
 	"k8s.io/kops/pkg/util/stringorset"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awstasks"
-	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
 )
 
 // IAMModelBuilder configures IAM objects
@@ -45,7 +43,7 @@ type IAMModelBuilder struct {
 
 var (
 	_ fi.CloudupModelBuilder = &IAMModelBuilder{}
-	_ fi.HasDeletions        = &IAMModelBuilder{}
+	// _ fi.HasDeletions        = &IAMModelBuilder{}
 )
 
 const NodeRolePolicyTemplate = `{
@@ -109,25 +107,27 @@ func (b *IAMModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 	}
 
 	// Generate IAM tasks for each managed role
-	defaultWarmPool := b.Cluster.Spec.CloudProvider.AWS.WarmPool
-	for igRole := range managedRoles {
-		haveWarmPool := false
-		for _, ig := range b.InstanceGroups {
-			warmPool := defaultWarmPool.ResolveDefaults(ig)
-			if ig.Spec.Role == igRole && warmPool.IsEnabled() && warmPool.EnableLifecycleHook {
-				haveWarmPool = true
-				break
+	if b.Cluster.Spec.CloudProvider.AWS != nil {
+		defaultWarmPool := b.Cluster.Spec.CloudProvider.AWS.WarmPool
+		for igRole := range managedRoles {
+			haveWarmPool := false
+			for _, ig := range b.InstanceGroups {
+				warmPool := defaultWarmPool.ResolveDefaults(ig)
+				if ig.Spec.Role == igRole && warmPool.IsEnabled() && warmPool.EnableLifecycleHook {
+					haveWarmPool = true
+					break
 
+				}
 			}
-		}
-		role, err := iam.BuildNodeRoleSubject(igRole, haveWarmPool)
-		if err != nil {
-			return err
-		}
+			role, err := iam.BuildNodeRoleSubject(igRole, haveWarmPool)
+			if err != nil {
+				return err
+			}
 
-		iamName := b.IAMName(igRole)
-		if err := b.buildIAMTasks(role, iamName, c, false); err != nil {
-			return err
+			iamName := b.IAMName(igRole)
+			if err := b.buildIAMTasks(role, iamName, c, false); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -435,6 +435,13 @@ func formatAWSIAMStatement(accountId, partition, oidcProvider, namespace, name s
 		condition = "StringLike"
 	}
 
+	if partition == "" {
+		return nil, fmt.Errorf("cannot build IAM statement with empty partition")
+	}
+	if accountId == "" {
+		return nil, fmt.Errorf("cannot build IAM statement with empty accountId")
+	}
+
 	return &iam.Statement{
 			Effect: "Allow",
 			Principal: iam.Principal{
@@ -484,38 +491,38 @@ func (b *IAMModelBuilder) buildAWSIAMRolePolicy(role iam.Subject) (fi.Resource, 
 	return fi.NewStringResource(policy), nil
 }
 
-func (b *IAMModelBuilder) FindDeletions(context *fi.CloudupModelBuilderContext, cloud fi.Cloud) error {
-	ctx := context.Context()
-	iamapi := cloud.(awsup.AWSCloud).IAM()
-	ownershipTag := "kubernetes.io/cluster/" + b.Cluster.ObjectMeta.Name
-	request := &awsiam.ListRolesInput{}
-	paginator := awsiam.NewListRolesPaginator(iamapi, request)
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return fmt.Errorf("listing IAM roles: %w", err)
-		}
-		for _, role := range page.Roles {
-			if !strings.HasSuffix(fi.ValueOf(role.RoleName), "."+b.Cluster.ObjectMeta.Name) {
-				continue
-			}
-			getRequest := &awsiam.GetRoleInput{RoleName: role.RoleName}
-			roleOutput, err := iamapi.GetRole(ctx, getRequest)
-			if err != nil {
-				return fmt.Errorf("calling IAM GetRole on %s: %w", fi.ValueOf(role.RoleName), err)
-			}
-			for _, tag := range roleOutput.Role.Tags {
-				if fi.ValueOf(tag.Key) == ownershipTag && fi.ValueOf(tag.Value) == "owned" {
-					if _, ok := context.Tasks["IAMRole/"+fi.ValueOf(role.RoleName)]; !ok {
-						context.AddTask(&awstasks.IAMRole{
-							ID:        role.RoleId,
-							Name:      role.RoleName,
-							Lifecycle: b.Lifecycle,
-						})
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
+// func (b *IAMModelBuilder) FindDeletions(context *fi.CloudupModelBuilderContext, cloud fi.Cloud) error {
+// 	ctx := context.Context()
+// 	iamapi := awsup.GetCloud(context.).IAM()
+// 	ownershipTag := "kubernetes.io/cluster/" + b.Cluster.ObjectMeta.Name
+// 	request := &awsiam.ListRolesInput{}
+// 	paginator := awsiam.NewListRolesPaginator(iamapi, request)
+// 	for paginator.HasMorePages() {
+// 		page, err := paginator.NextPage(ctx)
+// 		if err != nil {
+// 			return fmt.Errorf("listing IAM roles: %w", err)
+// 		}
+// 		for _, role := range page.Roles {
+// 			if !strings.HasSuffix(fi.ValueOf(role.RoleName), "."+b.Cluster.ObjectMeta.Name) {
+// 				continue
+// 			}
+// 			getRequest := &awsiam.GetRoleInput{RoleName: role.RoleName}
+// 			roleOutput, err := iamapi.GetRole(ctx, getRequest)
+// 			if err != nil {
+// 				return fmt.Errorf("calling IAM GetRole on %s: %w", fi.ValueOf(role.RoleName), err)
+// 			}
+// 			for _, tag := range roleOutput.Role.Tags {
+// 				if fi.ValueOf(tag.Key) == ownershipTag && fi.ValueOf(tag.Value) == "owned" {
+// 					if _, ok := context.Tasks["IAMRole/"+fi.ValueOf(role.RoleName)]; !ok {
+// 						context.AddTask(&awstasks.IAMRole{
+// 							ID:        role.RoleId,
+// 							Name:      role.RoleName,
+// 							Lifecycle: b.Lifecycle,
+// 						})
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }

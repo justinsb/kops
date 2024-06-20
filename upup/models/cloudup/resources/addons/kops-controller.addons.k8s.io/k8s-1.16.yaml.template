@@ -62,7 +62,7 @@ spec:
         operator: Exists
       dnsPolicy: Default  # Don't use cluster DNS (we are likely running before kube-dns)
       hostNetwork: true
-      serviceAccount: kops-controller
+      serviceAccountName: kops-controller
       containers:
       - name: kops-controller
         image: registry.k8s.io/kops/kops-controller:{{ KopsVersion }}

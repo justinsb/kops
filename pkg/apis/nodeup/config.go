@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/model"
 	"k8s.io/kops/util/pkg/architectures"
@@ -214,6 +215,8 @@ type ControlPlaneConfig struct {
 
 func NewConfig(cluster *kops.Cluster, instanceGroup *kops.InstanceGroup) (*Config, *BootConfig) {
 	role := instanceGroup.Spec.Role
+
+	klog.Infof("NewConfig: cluster %+v", cluster)
 
 	clusterHooks := filterHooks(cluster.Spec.Hooks, instanceGroup.Spec.Role)
 	igHooks := filterHooks(instanceGroup.Spec.Hooks, instanceGroup.Spec.Role)

@@ -333,6 +333,13 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster kops.EtcdClusterSpec, instance
 			container.Image = etcdCluster.Manager.Image
 		}
 
+		container.Image = "justinsb/etcd-manager-minimal:latest"
+
+		// touch  /etc/kubernetes/etcd-manager/seeds/10.78.79.73
+		// mkdir -p /mnt/disks/metal.k8s.local--main--0/mnt/
+
+		// W0617 14:23:21.557010   52433 peers.go:340] unable to grpc-ping discovered peer 10.78.79.73:3996: rpc error: code = Unavailable desc = connection error: desc = "transport: authentication handshake failed: tls: failed to verify certificate: x509: certificate is valid for etcd-manager-server-metal.k8s.local--main--0, not etcd-manager-server-ip-10-78-79-73"
+
 		// Remap image via AssetBuilder
 		remapped, err := b.AssetBuilder.RemapImage(container.Image)
 		if err != nil {
@@ -525,6 +532,26 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster kops.EtcdClusterSpec, instance
 				fmt.Sprintf("%s=%s", scaleway.TagNameRolePrefix, scaleway.TagRoleControlPlane),
 			}
 			config.VolumeNameTag = fmt.Sprintf("%s=%s", scaleway.TagInstanceGroup, instanceGroupName)
+		case kops.CloudProviderMetal:
+			config.VolumeProvider = "external"
+			config.BackupStore = "file:///mnt/disks/backups"
+			config.VolumeTag = []string{
+				fmt.Sprintf("%s--%s--", b.Cluster.Name, etcdCluster.Name),
+			}
+
+			staticConfig := &StaticConfig{
+				EtcdVersion: etcdCluster.Version,
+			}
+			staticConfig.Nodes = append(staticConfig.Nodes, StaticConfigNode{
+				ID: fmt.Sprintf("%s--%s--%d", b.Cluster.Name, etcdCluster.Name, 0),
+				IP: []string{"10.78.79.73"},
+			})
+			b, err := json.Marshal(staticConfig)
+			if err != nil {
+				return nil, fmt.Errorf("building static config: %w", err)
+			}
+			config.StaticConfig = string(b)
+
 		default:
 			return nil, fmt.Errorf("CloudProvider %q not supported with etcd-manager", b.Cluster.Spec.GetCloudProvider())
 		}
@@ -648,6 +675,19 @@ type config struct {
 	VolumeNameTag         string   `flag:"volume-name-tag"`
 	DNSSuffix             string   `flag:"dns-suffix"`
 	NetworkCIDR           *string  `flag:"network-cidr"`
+
+	// StaticConfig enables running with a fixed etcd cluster configuration.
+	StaticConfig string `flag:"static-config"`
+}
+
+type StaticConfig struct {
+	EtcdVersion string             `json:"etcdVersion"`
+	Nodes       []StaticConfigNode `json:"nodes"`
+}
+
+type StaticConfigNode struct {
+	ID string   `json:"id"`
+	IP []string `json:"ip"`
 }
 
 // SelectorForCluster returns the selector that should be used to select our pods (from services)

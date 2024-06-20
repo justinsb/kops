@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 
+	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/client/simple/vfsclientset"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/util/pkg/vfs"
@@ -37,9 +38,15 @@ func apply(vfsContext *vfs.VFSContext, ctx context.Context) error {
 		Clientset:  clientset,
 		TargetName: cloudup.TargetDirect,
 	}
+<<<<<<< HEAD
 	if _, err = applyCmd.Run(ctx); err != nil {
+=======
+	applyResults, err := applyCmd.Run(ctx)
+	if err != nil {
+>>>>>>> 08dadf46d1 (WIP)
 		return err
 	}
+	klog.Infof("applyResults: %+v", applyResults)
 
 	return nil
 }

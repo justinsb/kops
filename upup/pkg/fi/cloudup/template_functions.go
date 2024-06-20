@@ -697,10 +697,6 @@ func (tf *TemplateFunctions) KopsControllerConfig() (string, error) {
 			CertNames:             certNames,
 		}
 
-		if featureflag.Metal.Enabled() {
-			config.Server.PKI = &pkibootstrap.Options{}
-		}
-
 		switch cluster.Spec.GetCloudProvider() {
 		case kops.CloudProviderAWS:
 			nodesRoles := sets.String{}
@@ -759,6 +755,13 @@ func (tf *TemplateFunctions) KopsControllerConfig() (string, error) {
 			config.Server.Provider.Azure = &azure.AzureVerifierOptions{
 				ClusterName: tf.ClusterName(),
 			}
+
+		case kops.CloudProviderMetal:
+			// config.Server.Provider.Metal = &metal.MetalVerifierOptions{}
+
+			// if featureflag.Metal.Enabled() {
+			config.Server.PKI = &pkibootstrap.Options{}
+			// }
 
 		default:
 			return "", fmt.Errorf("unsupported cloud provider %s", cluster.Spec.GetCloudProvider())

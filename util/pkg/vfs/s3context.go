@@ -158,13 +158,13 @@ func (s *S3Context) getDetailsForBucket(ctx context.Context, bucket string) (*S3
 
 	bucketDetails = &S3BucketDetails{
 		context: s,
-		region:  "",
 		name:    bucket,
 	}
 
 	// Probe to find correct region for bucket
 	endpoint := os.Getenv("S3_ENDPOINT")
 	if endpoint != "" {
+
 		// If customized S3 storage is set, return user-defined region
 		bucketDetails.region = os.Getenv("S3_REGION")
 		if bucketDetails.region == "" {
@@ -192,37 +192,69 @@ func (s *S3Context) getDetailsForBucket(ctx context.Context, bucket string) (*S3
 		klog.V(2).Infof("defaulting region to %q", awsRegion)
 	}
 
-	request := &s3.GetBucketLocationInput{
-		Bucket: &bucket,
-	}
-	var response *s3.GetBucketLocationOutput
+	bucketLocation := ""
 
-	s3Client, err := s.getClient(ctx, awsRegion)
-	if err != nil {
-		return bucketDetails, fmt.Errorf("error connecting to S3: %s", err)
-	}
-	// Attempt one GetBucketLocation call the "normal" way (i.e. as the bucket owner)
-	response, err = s3Client.GetBucketLocation(ctx, request)
-
-	// and fallback to brute-forcing if it fails
-	if err != nil {
-		klog.V(2).Infof("unable to get bucket location from region %q; scanning all regions: %v", awsRegion, err)
-		response, err = bruteforceBucketLocation(ctx, awsRegion, request)
-	}
-
-	if err != nil {
-		return bucketDetails, err
-	}
-
-	if len(response.LocationConstraint) == 0 {
-		// US Classic does not return a region
-		bucketDetails.region = "us-east-1"
-	} else {
-		bucketDetails.region = string(response.LocationConstraint)
-		// Another special case: "EU" can mean eu-west-1
-		if bucketDetails.region == "EU" {
-			bucketDetails.region = "eu-west-1"
+	// First, try a HEAD
+	if bucketLocation == "" {
+		region, err := getBucketRegionFromHeadRequest(ctx, bucket)
+		if err != nil {
+			klog.V(2).Infof("unable to get location for bucket %q from HEAD request: %v", bucket, err)
 		}
+		bucketLocation = region
+	}
+
+	if bucketLocation == "" {
+		request := &s3.GetBucketLocationInput{
+			Bucket: &bucket,
+		}
+		var response *s3.GetBucketLocationOutput
+
+		s3Client, err := s.getClient(ctx, awsRegion)
+		if err != nil {
+			return bucketDetails, fmt.Errorf("error connecting to S3: %s", err)
+		}
+		// Attempt one GetBucketLocation call the "normal" way (i.e. as the bucket owner)
+		response, err = s3Client.GetBucketLocation(ctx, request)
+
+		// and fallback to brute-forcing if it fails
+		if err != nil {
+			klog.V(2).Infof("unable to get location for bucket %q from region %q; scanning all regions: %v", bucket, awsRegion, err)
+		}
+
+		if len(response.LocationConstraint) == 0 {
+			// US Classic does not return a region
+			bucketLocation = "us-east-1"
+		} else {
+			bucketLocation = string(response.LocationConstraint)
+		}
+	}
+
+	if bucketLocation == "" {
+		request := &s3.GetBucketLocationInput{
+			Bucket: &bucket,
+		}
+
+		response, err := bruteforceBucketLocation(ctx, awsRegion, request)
+		if err != nil {
+			return bucketDetails, err
+		}
+		if len(response.LocationConstraint) == 0 {
+			// US Classic does not return a region
+			bucketLocation = "us-east-1"
+		} else {
+			bucketLocation = string(response.LocationConstraint)
+		}
+	}
+
+	if bucketLocation == "" {
+		return nil, fmt.Errorf("unable to determine location for bucket %q", bucket)
+	}
+
+	// Another special case: "EU" can mean eu-west-1
+	if bucketLocation == "EU" {
+		bucketDetails.region = "eu-west-1"
+	} else {
+		bucketDetails.region = bucketLocation
 	}
 
 	klog.V(2).Infof("found bucket in region %q", bucketDetails.region)
@@ -232,6 +264,19 @@ func (s *S3Context) getDetailsForBucket(ctx context.Context, bucket string) (*S3
 	s.mutex.Unlock()
 
 	return bucketDetails, nil
+}
+
+func getBucketRegionFromHeadRequest(ctx context.Context, bucket string) (string, error) {
+	url := fmt.Sprintf("https://%s.s3.amazonaws.com", bucket)
+	response, err := http.Head(url)
+	if err != nil {
+		return "", fmt.Errorf("doing HEAD request against %q: %w", url, err)
+	}
+	region := response.Header.Get("X-Amz-Bucket-Region")
+	if region == "" {
+		return "", fmt.Errorf("header X-Amz-Bucket-Region not returned in url %q", url)
+	}
+	return region, nil
 }
 
 func (b *S3BucketDetails) hasServerSideEncryptionByDefault(ctx context.Context) bool {
@@ -335,7 +380,7 @@ func bruteforceBucketLocation(ctx context.Context, region string, request *s3.Ge
 	case bucketLocation := <-out:
 		return bucketLocation, nil
 	case <-time.After(5 * time.Second):
-		return nil, fmt.Errorf("Could not retrieve location for AWS bucket %s", *request.Bucket)
+		return nil, fmt.Errorf("could not retrieve location for AWS bucket %q", *request.Bucket)
 	}
 }
 
@@ -406,7 +451,7 @@ func VFSPath(url string) (string, error) {
 	path := captured["path"]
 	if bucket == "" {
 		if path == "" {
-			return "", fmt.Errorf("%s is not a valid S3 URL. No bucket defined.", url)
+			return "", fmt.Errorf("invalid S3 url %q (no bucket defined)", url)
 		}
 		return fmt.Sprintf("s3:/%s", path), nil
 	}
