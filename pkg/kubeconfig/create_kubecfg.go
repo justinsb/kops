@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
+	"net"
 	"os/user"
 	"sort"
 	"time"
@@ -65,7 +66,16 @@ func BuildKubecfg(ctx context.Context, cluster *kops.Cluster, keyStore fi.Keysto
 						targets = append(targets, ingress.Hostname)
 					}
 					if ingress.IP != "" {
-						targets = append(targets, ingress.IP)
+						ip := net.ParseIP(ingress.IP)
+						if ip == nil {
+							return nil, fmt.Errorf("unable to parse ingress ip address %q", ingress.IP)
+						}
+						// IPv6 addresses are wrapped in square brackets in URLs
+						if ip.To4() == nil {
+							targets = append(targets, "["+ingress.IP+"]")
+						} else {
+							targets = append(targets, ingress.IP)
+						}
 					}
 				}
 				if len(targets) > 0 {
