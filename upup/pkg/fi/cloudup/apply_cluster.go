@@ -735,7 +735,12 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 			)
 
 		case kops.CloudProviderMetal:
-
+			// metalModelContext := &metalmodel.MetalModelContext{
+			// 	KopsModelContext: modelContext,
+			// }
+			// l.Builders = append(l.Builders,
+			// 	&metalmodel.IAMModelBuilder{MetalModelContext: metalModelContext, Lifecycle: clusterLifecycle},
+			// )
 		default:
 			return nil, fmt.Errorf("unknown cloudprovider %q", cluster.Spec.GetCloudProvider())
 		}

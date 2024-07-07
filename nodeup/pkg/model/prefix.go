@@ -41,6 +41,8 @@ func (b *PrefixBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 		})
 	case kops.CloudProviderGCE:
 		// Prefix is assigned by GCE
+	case kops.CloudProviderMetal:
+		// Prefix should be preassigned
 	default:
 		return fmt.Errorf("kOps IPAM controller not supported on cloud %q", b.CloudProvider())
 	}
