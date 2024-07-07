@@ -45,6 +45,7 @@ import (
 
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/v1alpha2"
+	"k8s.io/kops/pkg/apis/nodeup"
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/commands/commandutils"
@@ -512,8 +513,6 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 	// 	cluster.Spec.KubeAPIServer = &kops.KubeAPIServerConfig{}
 	// }
 
-	vfsContext := clientset.VFSContext()
-
 	// getAssets := false
 	// assetBuilder := assets.NewAssetBuilder(vfsContext, cluster.Spec.Assets, cluster.Spec.KubernetesVersion, getAssets)
 
@@ -600,116 +599,16 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 		return nil, err
 	}
 
-	bootstrapData.configFiles = make(map[string][]byte)
-
-	rewriteFile := func(vfsPath string) (string, error) {
-		srcPath, err := vfsContext.BuildVfsPath(vfsPath)
-		if err != nil {
-			return "", fmt.Errorf("error building vfs path %q: %w", vfsPath, err)
-		}
-
-		b, err := srcPath.ReadFile(ctx)
-		if err != nil {
-			return "", fmt.Errorf("reading vfs file %q: %w", vfsPath, err)
-		}
-
-		p := filepath.Join("/opt/kops/conf", strings.ReplaceAll(vfsPath, "://", "/"))
-		bootstrapData.configFiles[p] = b
-		return "file://" + p, nil
+	configBase, err := clientset.ConfigBaseFor(cluster)
+	if err != nil {
+		return nil, err
 	}
 
-	rewriteRelativePath := func(relativePath string) error {
-		vfsPath := fi.ValueOf(bootConfig.ConfigBase) + "/" + relativePath
-		srcPath, err := vfsContext.BuildVfsPath(vfsPath)
-		if err != nil {
-			return fmt.Errorf("error building vfs path %q: %w", vfsPath, err)
-		}
-
-		b, err := srcPath.ReadFile(ctx)
-		if err != nil {
-			return fmt.Errorf("reading vfs file %q: %w", vfsPath, err)
-		}
-
-		p := filepath.Join("/opt/kops/conf", relativePath)
-		bootstrapData.configFiles[p] = b
-		return nil
+	configFiles, err := rewriteFiles(ctx, clientset, configBase, nodeupConfig)
+	if err != nil {
+		return nil, err
 	}
-
-	rewriteFileTree := func(vfsPath string) (string, error) {
-		srcPath, err := vfsContext.BuildVfsPath(vfsPath)
-		if err != nil {
-			return "", fmt.Errorf("error building vfs path %q: %w", vfsPath, err)
-		}
-
-		srcFiles, err := srcPath.ReadTree(ctx)
-		if err != nil {
-			return "", fmt.Errorf("reading vfs tree %q: %w", vfsPath, err)
-		}
-
-		klog.Infof("ReadTree %v => %v", vfsPath, srcFiles)
-
-		for _, srcFile := range srcFiles {
-			b, err := srcFile.ReadFile(ctx)
-			if err != nil {
-				return "", fmt.Errorf("reading vfs file %q: %w", srcFile.Path(), err)
-			}
-			p := filepath.Join("/opt/kops/conf", strings.ReplaceAll(srcFile.Path(), "://", "/"))
-			klog.Infof("ReadTree %v :: %v", srcFile, p)
-			bootstrapData.configFiles[p] = b
-		}
-
-		rootPath := filepath.Join("/opt/kops/conf", strings.ReplaceAll(srcPath.Path(), "://", "/"))
-		return "file://" + rootPath, nil
-	}
-
-	for i, srcPath := range nodeupConfig.EtcdManifests {
-		p, err := rewriteFile(srcPath)
-		if err != nil {
-			return nil, err
-		}
-		nodeupConfig.EtcdManifests[i] = p
-	}
-
-	parentPath := func(s string) string {
-		index := strings.LastIndex(s, "/")
-		return s[:index+1]
-	}
-
-	for i, srcPath := range nodeupConfig.Channels {
-		p, err := rewriteFile(srcPath)
-		if err != nil {
-			return nil, err
-		}
-
-		parent := parentPath(srcPath)
-		if _, err := rewriteFileTree(parent); err != nil {
-			return nil, err
-		}
-
-		nodeupConfig.Channels[i] = p
-	}
-
-	for _, staticManifest := range nodeupConfig.StaticManifests {
-		if err := rewriteRelativePath(staticManifest.Path); err != nil {
-			return nil, err
-		}
-	}
-
-	if nodeupConfig.ConfigStore != nil {
-		p, err := rewriteFileTree(nodeupConfig.ConfigStore.Keypairs)
-		if err != nil {
-			return nil, err
-		}
-		nodeupConfig.ConfigStore.Keypairs = p
-	}
-
-	if nodeupConfig.ConfigStore != nil {
-		p, err := rewriteFileTree(nodeupConfig.ConfigStore.Secrets)
-		if err != nil {
-			return nil, err
-		}
-		nodeupConfig.ConfigStore.Secrets = p
-	}
+	bootstrapData.configFiles = configFiles
 
 	bootConfig.CloudProvider = "metal"
 
@@ -790,4 +689,132 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 	bootstrapData.nodeupScript = nodeupScriptBytes
 
 	return bootstrapData, nil
+}
+
+func rewriteFiles(ctx context.Context, clientset simple.Clientset, configBase vfs.Path, nodeupConfig *nodeup.Config) (map[string][]byte, error) {
+	// vfsContext := clientset.VFSContext()
+
+	configFiles := make(map[string][]byte)
+
+	buildPath := func(vfsPath string) (vfs.Path, error) {
+		base := configBase.Path()
+		if !strings.HasSuffix(base, "/") {
+			base += "/"
+		}
+		if !strings.HasPrefix(vfsPath, base) {
+			return nil, fmt.Errorf("path %q did not start with prefix %q", vfsPath, base)
+		}
+		relative := strings.TrimPrefix(vfsPath, base)
+		return configBase.Join(relative), nil
+	}
+
+	rewriteFile := func(srcPath vfs.Path) (string, error) {
+		b, err := srcPath.ReadFile(ctx)
+		if err != nil {
+			return "", fmt.Errorf("reading vfs file %q: %w", srcPath.Path(), err)
+		}
+
+		p := filepath.Join("/opt/kops/conf", strings.ReplaceAll(srcPath.Path(), "://", "/"))
+		configFiles[p] = b
+		return "file://" + p, nil
+	}
+
+	rewriteRelativePath := func(relativePath string) error {
+		srcPath := configBase.Join(relativePath)
+
+		b, err := srcPath.ReadFile(ctx)
+		if err != nil {
+			return fmt.Errorf("reading vfs file %q: %w", srcPath, err)
+		}
+
+		p := filepath.Join("/opt/kops/conf", relativePath)
+		configFiles[p] = b
+		return nil
+	}
+
+	rewriteFileTree := func(vfsPath string) (string, error) {
+		srcPath, err := buildPath(vfsPath) //vfsContext.BuildVfsPath(vfsPath)
+		if err != nil {
+			return "", fmt.Errorf("error building vfs path %q: %w", vfsPath, err)
+		}
+
+		srcFiles, err := srcPath.ReadTree(ctx)
+		if err != nil {
+			return "", fmt.Errorf("reading vfs tree %q: %w", vfsPath, err)
+		}
+
+		klog.Infof("ReadTree %v => %v", vfsPath, srcFiles)
+
+		for _, srcFile := range srcFiles {
+			b, err := srcFile.ReadFile(ctx)
+			if err != nil {
+				return "", fmt.Errorf("reading vfs file %q: %w", srcFile.Path(), err)
+			}
+			p := filepath.Join("/opt/kops/conf", strings.ReplaceAll(srcFile.Path(), "://", "/"))
+			klog.Infof("ReadTree %v :: %v", srcFile, p)
+			configFiles[p] = b
+		}
+
+		rootPath := filepath.Join("/opt/kops/conf", strings.ReplaceAll(srcPath.Path(), "://", "/"))
+		return "file://" + rootPath, nil
+	}
+
+	for i, srcPath := range nodeupConfig.EtcdManifests {
+		srcVFS, err := buildPath(srcPath)
+		if err != nil {
+			return nil, err
+		}
+		p, err := rewriteFile(srcVFS)
+		if err != nil {
+			return nil, err
+		}
+		nodeupConfig.EtcdManifests[i] = p
+	}
+
+	parentPath := func(s string) string {
+		index := strings.LastIndex(s, "/")
+		return s[:index+1]
+	}
+
+	for i, srcPath := range nodeupConfig.Channels {
+		srcVFS, err := buildPath(srcPath)
+		if err != nil {
+			return nil, err
+		}
+		p, err := rewriteFile(srcVFS)
+		if err != nil {
+			return nil, err
+		}
+
+		parent := parentPath(srcPath)
+		if _, err := rewriteFileTree(parent); err != nil {
+			return nil, err
+		}
+
+		nodeupConfig.Channels[i] = p
+	}
+
+	for _, staticManifest := range nodeupConfig.StaticManifests {
+		if err := rewriteRelativePath(staticManifest.Path); err != nil {
+			return nil, err
+		}
+	}
+
+	if nodeupConfig.ConfigStore != nil {
+		p, err := rewriteFileTree(nodeupConfig.ConfigStore.Keypairs)
+		if err != nil {
+			return nil, err
+		}
+		nodeupConfig.ConfigStore.Keypairs = p
+	}
+
+	if nodeupConfig.ConfigStore != nil {
+		p, err := rewriteFileTree(nodeupConfig.ConfigStore.Secrets)
+		if err != nil {
+			return nil, err
+		}
+		nodeupConfig.ConfigStore.Secrets = p
+	}
+
+	return configFiles, nil
 }
