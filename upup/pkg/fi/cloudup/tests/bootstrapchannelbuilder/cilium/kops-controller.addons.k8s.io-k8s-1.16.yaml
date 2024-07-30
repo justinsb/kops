@@ -55,6 +55,8 @@ spec:
                 operator: Exists
               - key: kops.k8s.io/kops-controller-pki
                 operator: Exists
+                node.cilium.io/agent-not-ready
+                
       containers:
       - args:
         - --v=2

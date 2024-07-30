@@ -75,9 +75,13 @@ func (b *KubeletBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 		return fmt.Errorf("error building kubelet config: %v", err)
 	}
 
+	componentConfig, err := buildKubeletComponentConfig(kubeletConfig)
+	if err != nil {
+		return err
+	}
+
 	{
 		// Set the provider ID to help speed node registration on large clusters
-		var providerID string
 		if b.CloudProvider() == kops.CloudProviderAWS {
 			config, err := awsconfig.LoadDefaultConfig(ctx)
 			if err != nil {
@@ -88,15 +92,66 @@ func (b *KubeletBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 			if err != nil {
 				return err
 			}
-			providerID = fmt.Sprintf("aws:///%s/%s", instanceIdentity.AvailabilityZone, instanceIdentity.InstanceID)
+			componentConfig.ProviderID = fmt.Sprintf("aws:///%s/%s", instanceIdentity.AvailabilityZone, instanceIdentity.InstanceID)
 		}
+	}
 
-		t, err := buildKubeletComponentConfig(kubeletConfig, providerID)
+	// Doesn't seem to be honored
+	// if b.CloudProvider() == kops.CloudProviderMetal {
+	// 	if b.IsIPv6Only() {
+	// 		interfaces, err := net.Interfaces()
+	// 		if err != nil {
+	// 			return fmt.Errorf("getting local network interfaces: %w", err)
+	// 		}
+	// 		var podCIDRs []*net.IPNet
+	// 		for _, intf := range interfaces {
+	// 			addresses, err := intf.Addrs()
+	// 			if err != nil {
+	// 				return fmt.Errorf("getting addresses for network interface %q: %w", intf.Name, err)
+	// 			}
+	// 			for _, addr := range addresses {
+	// 				ip, cidr, err := net.ParseCIDR(addr.String())
+	// 				if ip == nil {
+	// 					return fmt.Errorf("parsing ip address %q (bound to network %q): %w", addr.String(), intf.Name, err)
+	// 				}
+	// 				if ip.To4() != nil {
+	// 					// We're only looking for ipv6
+	// 					continue
+	// 				}
+	// 				if ip.IsLinkLocalUnicast() {
+	// 					klog.V(4).Infof("ignoring link-local unicast addr %v", addr)
+	// 					continue
+	// 				}
+	// 				if ip.IsLinkLocalMulticast() {
+	// 					klog.V(4).Infof("ignoring link-local multicast addr %v", addr)
+	// 					continue
+	// 				}
+	// 				if ip.IsLoopback() {
+	// 					klog.V(4).Infof("ignoring loopback addr %v", addr)
+	// 					continue
+	// 				}
+	// 				podCIDRs = append(podCIDRs, cidr)
+	// 			}
+	// 		}
+	// 		if len(podCIDRs) > 1 {
+	// 			klog.Warningf("found multiple podCIDRs, choosing first: %v", podCIDRs)
+	// 		}
+	// 		if len(podCIDRs) == 0 {
+	// 			klog.Warningf("did not find podCIDRs address for kubelet")
+	// 		}
+	// 		if len(podCIDRs) > 0 {
+	// 			componentConfig.PodCIDR = podCIDRs[0].String()
+	// 		}
+	// 	}
+	// }
+
+	{
+		componentConfigTask, err := buildKubeletComponentConfigTask(componentConfig)
 		if err != nil {
 			return err
 		}
 
-		c.AddTask(t)
+		c.AddTask(componentConfigTask)
 	}
 
 	{
@@ -237,11 +292,8 @@ func (b *KubeletBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	return nil
 }
 
-func buildKubeletComponentConfig(kubeletConfig *kops.KubeletConfigSpec, providerID string) (*nodetasks.File, error) {
-	componentConfig := kubelet.KubeletConfiguration{}
-	if providerID != "" {
-		componentConfig.ProviderID = providerID
-	}
+func buildKubeletComponentConfig(kubeletConfig *kops.KubeletConfigSpec) (*kubelet.KubeletConfiguration, error) {
+	componentConfig := &kubelet.KubeletConfiguration{}
 	if kubeletConfig.ShutdownGracePeriod != nil {
 		componentConfig.ShutdownGracePeriod = *kubeletConfig.ShutdownGracePeriod
 	}
@@ -250,6 +302,10 @@ func buildKubeletComponentConfig(kubeletConfig *kops.KubeletConfigSpec, provider
 	}
 	componentConfig.MemorySwap.SwapBehavior = kubeletConfig.MemorySwapBehavior
 
+	return componentConfig, nil
+}
+
+func buildKubeletComponentConfigTask(componentConfig *kubelet.KubeletConfiguration) (*nodetasks.File, error) {
 	s := runtime.NewScheme()
 	if err := kubelet.AddToScheme(s); err != nil {
 		return nil, err
@@ -263,7 +319,7 @@ func buildKubeletComponentConfig(kubeletConfig *kops.KubeletConfigSpec, provider
 	}
 	encoder := codecFactory.EncoderForVersion(info.Serializer, gv)
 	var w bytes.Buffer
-	if err := encoder.Encode(&componentConfig, &w); err != nil {
+	if err := encoder.Encode(componentConfig, &w); err != nil {
 		return nil, err
 	}
 
@@ -417,6 +473,7 @@ func (b *KubeletBuilder) buildSystemdService() *nodetasks.Service {
 		Definition: s(manifestString),
 	}
 
+	// TODO: No dependency on --config=/var/lib/kubelet/kubelet.conf ??
 	service.InitDefaults()
 
 	if b.ConfigurationMode == "Warming" {

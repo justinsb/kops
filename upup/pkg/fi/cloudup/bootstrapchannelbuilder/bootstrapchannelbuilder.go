@@ -1235,7 +1235,6 @@ func (b *BootstrapChannelBuilder) buildAddons(c *fi.CloudupModelBuilderContext) 
 
 		case kops.CloudProviderMetal:
 			useIRSA = true
-
 		}
 	}
 

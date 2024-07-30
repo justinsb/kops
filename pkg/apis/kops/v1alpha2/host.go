@@ -34,6 +34,12 @@ type Host struct {
 type HostSpec struct {
 	PublicKey     string `json:"publicKey,omitempty"`
 	InstanceGroup string `json:"instanceGroup,omitempty"`
+
+	// PodCIDRs configures the IP ranges to be used for pods on this node/host.
+	PodCIDRs []string `json:"podCIDRs,omitempty"`
+
+	// Addresses configures the IP addresses on which we can reach the node, e.g. for configuration or a challenge callback.
+	Addresses []string `json:"addresses,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

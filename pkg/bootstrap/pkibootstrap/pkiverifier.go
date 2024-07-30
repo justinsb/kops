@@ -26,7 +26,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +38,7 @@ import (
 	kops "k8s.io/kops/pkg/apis/kops/v1alpha2"
 	"k8s.io/kops/pkg/bootstrap"
 	"k8s.io/kops/pkg/pki"
+	"k8s.io/kops/pkg/wellknownports"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -155,10 +158,26 @@ func (v *verifier) getSigningKey(ctx context.Context, tokenData *AuthTokenData) 
 
 	var sans []string
 
+	challengeEndpoint := ""
+	if len(host.Spec.Addresses) > 0 {
+		challengeEndpoint = net.JoinHostPort(host.Spec.Addresses[0], strconv.Itoa(wellknownports.NodeupChallenge))
+	}
+
+	if challengeEndpoint == "" {
+		return nil, nil, fmt.Errorf("no address for host %q", id)
+	}
+	// challengeEndpoint, _, err := net.SplitHostPort(remoteAddress)
+	// if err != nil {
+	// 	return nil, nil, fmt.Errorf("cannot parse remote address %q: %w", remoteAddress, err)
+	// }
+
+	// // TODO: Validate challenge endpoint against remote IP
+
 	result := &bootstrap.VerifyResult{
 		NodeName:          nodeName,
 		InstanceGroupName: instanceGroup,
 		CertificateNames:  sans,
+		ChallengeEndpoint: challengeEndpoint,
 	}
 
 	return result, pubKey.Key, nil

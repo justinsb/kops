@@ -223,7 +223,6 @@ func main() {
 		if err := setupCloudIPAM(ctx, mgr, &opt); err != nil {
 			setupLog.Error(err, "unable to setup cloud IPAM")
 			os.Exit(1)
-
 		}
 	}
 
@@ -390,6 +389,12 @@ func setupCloudIPAM(ctx context.Context, mgr manager.Manager, opt *config.Option
 		ipamController, err := controllers.NewGCEIPAMReconciler(mgr)
 		if err != nil {
 			return fmt.Errorf("creating gce IPAM controller: %w", err)
+		}
+		controller = ipamController
+	case "metal":
+		ipamController, err := controllers.NewMetalIPAMReconciler(mgr)
+		if err != nil {
+			return fmt.Errorf("creating metal IPAM controller: %w", err)
 		}
 		controller = ipamController
 	default:

@@ -21,6 +21,7 @@ import (
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -102,6 +103,8 @@ type ToolboxEnrollOptions struct {
 
 	SSHUser string
 	SSHPort int
+
+	PodCIDRs []string
 }
 
 func (o *ToolboxEnrollOptions) InitDefaults() {
@@ -211,6 +214,7 @@ func RunToolboxEnroll(ctx context.Context, f commandutils.Factory, out io.Writer
 			// }
 			if ingress.IP != "" {
 				wellKnownAddresses[wellknownservices.KubeAPIServer] = append(wellKnownAddresses[wellknownservices.KubeAPIServer], ingress.IP)
+				wellKnownAddresses[wellknownservices.KopsController] = append(wellKnownAddresses[wellknownservices.KopsController], ingress.IP)
 			}
 		}
 	}
@@ -248,6 +252,10 @@ func RunToolboxEnroll(ctx context.Context, f commandutils.Factory, out io.Writer
 }
 
 func enrollHost(ctx context.Context, ig *kops.InstanceGroup, options *ToolboxEnrollOptions, bootstrapData *bootstrapData, restConfig *rest.Config) error {
+	if len(options.PodCIDRs) == 0 {
+		return fmt.Errorf("cannot enroll host without podCIDRs")
+	}
+
 	scheme := runtime.NewScheme()
 	if err := v1alpha2.AddToScheme(scheme); err != nil {
 		return fmt.Errorf("building kubernetes scheme: %w", err)
@@ -269,6 +277,8 @@ func enrollHost(ctx context.Context, ig *kops.InstanceGroup, options *ToolboxEnr
 		return err
 	}
 	defer host.Close()
+
+	hostObj := &v1alpha2.Host{}
 
 	publicKeyPath := "/etc/kubernetes/kops/pki/machine/public.pem"
 
@@ -294,15 +304,43 @@ func enrollHost(ctx context.Context, ig *kops.InstanceGroup, options *ToolboxEnr
 		publicKeyBytes = b
 	}
 	klog.V(2).Infof("public key is %s", string(publicKeyBytes))
+	hostObj.Spec.PublicKey = string(publicKeyBytes)
 
 	hostname, err := host.getHostname(ctx)
 	if err != nil {
 		return err
 	}
 
+	hostObj.Spec.InstanceGroup = ig.Name
+	hostObj.Spec.Addresses = []string{options.Host}
+	hostObj.Spec.PodCIDRs = options.PodCIDRs
+
+	// ipLinks, err := host.getIPAddresses(ctx)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// for _, link := range ipLinks {
+	// 	for _, addr := range link.AddressInfo {
+	// 		s := fmt.Sprintf("%s/%d", addr.Local, addr.PrefixLength)
+	// 		ip, podCIDR, err := net.ParseCIDR(s)
+	// 		if err != nil {
+	// 			return fmt.Errorf("cannot parse cidr %q: %w", s, err)
+	// 		}
+	// 		if ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
+	// 			continue
+	// 		}
+	// 		if ip.To4() != nil {
+	// 			continue
+	// 		}
+	// 		hostObj.Spec.PodCIDRs = append(hostObj.Spec.PodCIDRs, podCIDR.String())
+	// 	}
+	// }
+
 	isControlPlane := ig.HasAPIServer()
+	// Pre-create, so node bootstrap works
 	if !isControlPlane {
-		if err := createHost(ctx, options, hostname, publicKeyBytes, kubeClient); err != nil {
+		if err := createHost(ctx, hostname, hostObj, kubeClient); err != nil {
 			return err
 		}
 	}
@@ -317,17 +355,28 @@ func enrollHost(ctx context.Context, ig *kops.InstanceGroup, options *ToolboxEnr
 			return err
 		}
 	}
+
+	// Not needed for bootstrap, create after kube-apiserver is (hopefully) running
+	if isControlPlane {
+		if err := createHost(ctx, hostname, hostObj, kubeClient); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func createHost(ctx context.Context, options *ToolboxEnrollOptions, nodeName string, publicKey []byte, client client.Client) error {
-	host := &v1alpha2.Host{}
+func createHost(ctx context.Context, nodeName string, host *v1alpha2.Host, c client.Client) error {
 	host.Namespace = "kops-system"
 	host.Name = nodeName
-	host.Spec.InstanceGroup = options.InstanceGroup
-	host.Spec.PublicKey = string(publicKey)
 
-	if err := client.Create(ctx, host); err != nil {
+	// if err := client.Create(ctx, host); err != nil {
+	// 	return fmt.Errorf("failed to create host %s/%s: %w", host.Namespace, host.Name, err)
+	// }
+
+	host.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind("Host"))
+
+	if err := c.Patch(ctx, host, client.Apply, client.FieldOwner("kops:enroll")); err != nil {
 		return fmt.Errorf("failed to create host %s/%s: %w", host.Namespace, host.Name, err)
 	}
 
@@ -501,6 +550,34 @@ func (s *SSHHost) getHostname(ctx context.Context) (string, error) {
 	return hostname, nil
 }
 
+// getIPAddresses gets and parses the `ip addr list` output.
+// This is used to compute the pod CIDRs.
+func (s *SSHHost) getIPAddresses(ctx context.Context) ([]ipLinkInfo, error) {
+	output, err := s.runCommand(ctx, "ip -json addr list", ExecOptions{Sudo: false, Echo: true})
+	if err != nil {
+		return nil, fmt.Errorf("running command 'ip -json addr list': %w", err)
+	}
+
+	j := output.Stdout.Bytes()
+	var links []ipLinkInfo
+	if err := json.Unmarshal(j, &links); err != nil {
+		return nil, fmt.Errorf("parsing output of 'ip -json addr list': %w", err)
+	}
+	return links, nil
+}
+
+type ipLinkInfo struct {
+	IFIndex     int             `json:"ifindex"`
+	IFName      string          `json:"ifname"`
+	AddressInfo []ipAddressInfo `json:"addr_info"`
+}
+
+type ipAddressInfo struct {
+	Family       string `json:"family"`
+	Local        string `json:"local"`
+	PrefixLength int    `json:"prefixlen"`
+	Scope        string `json:"scope"`
+}
 type bootstrapData struct {
 	nodeupScript []byte
 	configFiles  map[string][]byte
@@ -614,7 +691,7 @@ func buildBootstrapData(ctx context.Context, clientset simple.Clientset, cluster
 
 	bootConfig.ConfigBase = fi.PtrTo("file:///opt/kops/conf")
 
-	{
+	if bootConfig.InstanceGroupRole == kops.InstanceGroupRoleControlPlane {
 		nodeupConfigBytes, err := yaml.Marshal(nodeupConfig)
 		if err != nil {
 			return nil, fmt.Errorf("error converting nodeup config to yaml: %w", err)

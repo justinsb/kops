@@ -165,6 +165,7 @@ func (b *SysctlBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 				}
 			}
 		}
+		// TODO: Is this safe?  Do we need iptables rules?
 		sysctls = append(sysctls,
 			"# Enable IPv6 forwarding for network plugins that don't do it themselves",
 			"net.ipv6.conf.all.forwarding=1",

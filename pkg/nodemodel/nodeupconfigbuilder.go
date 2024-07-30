@@ -346,7 +346,7 @@ func (n *nodeUpConfigBuilder) BuildConfig(ig *kops.InstanceGroup, wellKnownAddre
 			}
 		}
 
-	case kops.CloudProviderDO, kops.CloudProviderScaleway, kops.CloudProviderAzure:
+	case kops.CloudProviderDO, kops.CloudProviderScaleway, kops.CloudProviderAzure, kops.CloudProviderMetal:
 		// Use any IP address that is found (including public ones)
 		for _, additionalIP := range wellKnownAddresses[wellknownservices.KubeAPIServer] {
 			controlPlaneIPs = append(controlPlaneIPs, additionalIP)

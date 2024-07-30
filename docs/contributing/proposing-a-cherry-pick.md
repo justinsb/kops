@@ -35,13 +35,19 @@ chmod +x /usr/local/bin/cherry_pick_pull.sh
 
 (You may also have `~/bin` on your `PATH`, which is probably a better location than `/usr/local/bin`)
 
+```
+wget -O ~/bin/cherry_pick_pull.sh https://raw.githubusercontent.com/kubernetes/kubernetes/master/hack/cherry_pick_pull.sh
+chmod +x ~/bin/cherry_pick_pull.sh
+```
+
+
 Then you can propose a cherry pick of PR using something like:
 
 ```
 UPSTREAM_REMOTE=origin \
 FORK_REMOTE=${USER} \
 GITHUB_USER=${USER} \
-cherry_pick_pull.sh origin/release-1.15 12345
+cherry_pick_pull.sh ${UPSTREAM_REMOTE}/release-1.15 12345
 ```
 
 Tip: If you find yourself doing this often, you may want to create a wrapper script
