@@ -27,7 +27,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
@@ -36,6 +35,7 @@ import (
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/commands/commandutils"
 	"k8s.io/kops/pkg/kubeconfig"
+	"k8s.io/kops/pkg/predicates"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/upup/pkg/fi/utils"
@@ -306,54 +306,11 @@ func RunUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer, c *Up
 		lifecycleOverrideMap[taskName] = lifecycleOverride
 	}
 
-	list, err := clientset.InstanceGroupsFor(cluster).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	var allInstanceGroups []*kops.InstanceGroup
-	for i := range list.Items {
-		instanceGroup := &list.Items[i]
-		allInstanceGroups = append(allInstanceGroups, instanceGroup)
-	}
-
-	var filteredInstanceGroups []*kops.InstanceGroup
+	var instanceGroupFilters []predicates.Predicate[*kops.InstanceGroup]
 	if len(c.InstanceGroups) != 0 {
-		var filtered []*kops.InstanceGroup
-
-		for _, instanceGroupName := range c.InstanceGroups {
-			var found *kops.InstanceGroup
-			for _, ig := range allInstanceGroups {
-				if ig.ObjectMeta.Name == instanceGroupName {
-					found = ig
-					break
-				}
-			}
-			if found == nil {
-				return nil, fmt.Errorf("instance group %q not found", instanceGroupName)
-			}
-
-			filtered = append(filtered, found)
-		}
-
-		filteredInstanceGroups = filtered
-	}
-	if len(c.InstanceGroupRoles) != 0 {
-		var filtered []*kops.InstanceGroup
-
-		for _, role := range c.InstanceGroupRoles {
-			s, f := kops.ParseInstanceGroupRole(role, true)
-			if !f {
-				return nil, fmt.Errorf("instance group role %q invalid", role)
-			}
-			for _, ig := range allInstanceGroups {
-				if ig.Spec.Role == s {
-					filtered = append(filtered, ig)
-				}
-			}
-		}
-
-		filteredInstanceGroups = filtered
+		instanceGroupFilters = append(instanceGroupFilters, matchInstanceGroupNames(c.InstanceGroups))
+	} else if len(c.InstanceGroupRoles) != 0 {
+		instanceGroupFilters = append(instanceGroupFilters, matchInstanceGroupRoles(c.InstanceGroupRoles))
 	}
 
 	cloud, err := cloudup.BuildCloud(cluster)
@@ -362,19 +319,19 @@ func RunUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer, c *Up
 	}
 
 	applyCmd := &cloudup.ApplyClusterCmd{
-		Cloud:                  cloud,
-		Clientset:              clientset,
-		Cluster:                cluster,
-		DryRun:                 isDryrun,
-		AllowKopsDowngrade:     c.AllowKopsDowngrade,
-		RunTasksOptions:        &c.RunTasksOptions,
-		OutDir:                 c.OutDir,
-		FilteredInstanceGroups: filteredInstanceGroups,
-		Phase:                  phase,
-		TargetName:             targetName,
-		LifecycleOverrides:     lifecycleOverrideMap,
-		GetAssets:              c.GetAssets,
-		DeletionProcessing:     deletionProcessing,
+		Cloud:               cloud,
+		Clientset:           clientset,
+		Cluster:             cluster,
+		DryRun:              isDryrun,
+		AllowKopsDowngrade:  c.AllowKopsDowngrade,
+		RunTasksOptions:     &c.RunTasksOptions,
+		OutDir:              c.OutDir,
+		InstanceGroupFilter: predicates.AllOf(instanceGroupFilters...),
+		Phase:               phase,
+		TargetName:          targetName,
+		LifecycleOverrides:  lifecycleOverrideMap,
+		GetAssets:           c.GetAssets,
+		DeletionProcessing:  deletionProcessing,
 	}
 
 	applyResults, err := applyCmd.Run(ctx)
@@ -589,4 +546,32 @@ func completeLifecycleOverrides(cmd *cobra.Command, args []string, toComplete st
 		completions = append(completions, split[0]+lifecycle)
 	}
 	return completions, cobra.ShellCompDirectiveNoFileComp
+}
+
+// matchInstanceGroupNames returns a predicate that matches instance groups by name
+func matchInstanceGroupNames(names []string) predicates.Predicate[*kops.InstanceGroup] {
+	return func(ig *kops.InstanceGroup) bool {
+		for _, name := range names {
+			if ig.ObjectMeta.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// matchInstanceGroupRoles returns a predicate that matches instance groups by role
+func matchInstanceGroupRoles(roles []string) predicates.Predicate[*kops.InstanceGroup] {
+	return func(ig *kops.InstanceGroup) bool {
+		for _, role := range roles {
+			instanceGroupRole, ok := kops.ParseInstanceGroupRole(role, true)
+			if !ok {
+				continue
+			}
+			if ig.Spec.Role == instanceGroupRole {
+				return true
+			}
+		}
+		return false
+	}
 }
