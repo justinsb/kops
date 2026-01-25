@@ -97,9 +97,18 @@ func (s *S3Context) getClient(ctx context.Context, region string) (*s3.Client, e
 		var err error
 		endpoint := os.Getenv("S3_ENDPOINT")
 		if endpoint == "" {
-			config, err = awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
-			if err != nil {
-				return nil, fmt.Errorf("error loading AWS config: %v", err)
+			// Check if IAM Roles Anywhere is configured
+			if isRolesAnywhereConfigured() {
+				klog.V(2).Info("Using IAM Roles Anywhere for authentication")
+				config, err = getRolesAnywhereAWSConfig(ctx, region)
+				if err != nil {
+					return nil, fmt.Errorf("error configuring IAM Roles Anywhere: %v", err)
+				}
+			} else {
+				config, err = awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+				if err != nil {
+					return nil, fmt.Errorf("error loading AWS config: %v", err)
+				}
 			}
 		} else {
 			// Use customized S3 storage
@@ -142,6 +151,37 @@ func getCustomS3Config(ctx context.Context, region string) (aws.Config, error) {
 		return aws.Config{}, fmt.Errorf("error loading AWS config: %v", err)
 	}
 	return s3Config, nil
+}
+
+func getRolesAnywhereAWSConfig(ctx context.Context, region string) (aws.Config, error) {
+	raConfig := getRolesAnywhereConfig()
+	if raConfig == nil {
+		return aws.Config{}, fmt.Errorf("IAM Roles Anywhere not configured")
+	}
+
+	// Create the credentials provider
+	provider, err := NewRolesAnywhereCredentialsProvider(
+		raConfig.certPath,
+		raConfig.keyPath,
+		raConfig.trustAnchorARN,
+		raConfig.profileARN,
+		raConfig.roleARN,
+		raConfig.region,
+	)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("failed to create IAM Roles Anywhere credentials provider: %w", err)
+	}
+
+	// Load AWS config with our custom credentials provider
+	awsConfig, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithRegion(region),
+		awsconfig.WithCredentialsProvider(provider),
+	)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("error loading AWS config with IAM Roles Anywhere: %v", err)
+	}
+
+	return awsConfig, nil
 }
 
 func (s *S3Context) getDetailsForBucket(ctx context.Context, bucket string) (*S3BucketDetails, error) {
