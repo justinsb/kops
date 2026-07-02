@@ -134,6 +134,11 @@ func (s *Server) getNodeConfig(ctx context.Context, req *nodeup.BootstrapRequest
 		for _, id := range secretIDs {
 			secret, err := s.secretStore.FindSecret(id)
 			if err != nil {
+				// dockerconfig is optional; many clusters do not configure a private registry.
+				if id == "dockerconfig" {
+					log.Info("optional secret not loaded", "id", id, "error", err)
+					continue
+				}
 				return nil, fmt.Errorf("error loading secret %q: %w", id, err)
 			}
 			if secret != nil && secret.Data != nil {
