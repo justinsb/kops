@@ -26,6 +26,13 @@ fi
 
 IMAGE_TAG=$(date +%Y%m%d%H%M%S)
 
+
+VERSION=$(./tools/get_version.sh | grep VERSION | awk '{print $2}')
+export VERSION
+
+GITSHA=$(git describe --always)
+export GITSHA
+
 # Build the controller image
 KO_DOCKER_REPO="${IMAGE_PREFIX}kops-controller" go run github.com/google/ko@v0.18.0 \
   build --tags "${IMAGE_TAG}" --platform=linux/amd64,linux/arm64 --bare ./cmd/kops-controller/
