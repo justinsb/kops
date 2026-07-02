@@ -23,21 +23,25 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/bootstrap"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
 	"k8s.io/kops/util/pkg/vfs"
 )
+
+// ErrNodeAlreadyRegistered is returned when kops-controller responds with HTTP 409,
+// indicating the node is already registered.  Callers re-running nodeup should reuse
+// existing keys/certs on disk instead of requesting new ones.
+var ErrNodeAlreadyRegistered = errors.New("node already registered with kops-controller")
 
 type Client struct {
 	// Authenticator generates authentication credentials for requests.
@@ -137,13 +141,14 @@ func (b *Client) Query(ctx context.Context, req any, resp any) error {
 		return fmt.Errorf("timed out waiting for a successful response from kops-controller")
 	}
 
-	// if we receive StatusConflict it means that we should exit gracefully
+	// if we receive StatusConflict the node is already registered; callers that are
+	// re-running nodeup (for example in-place updates) should reuse existing keys/certs
+	// on disk rather than exiting.
 	if response.StatusCode == http.StatusConflict {
-		klog.Infof("kops-controller returned status code %d", response.StatusCode)
 		if response.Body != nil {
 			response.Body.Close()
 		}
-		os.Exit(0)
+		return ErrNodeAlreadyRegistered
 	}
 
 	if response.Body != nil {

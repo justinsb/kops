@@ -19,9 +19,13 @@ package nodetasks
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"os"
 	"strconv"
 
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/nodeup"
 	"k8s.io/kops/pkg/bootstrap"
 	"k8s.io/kops/pkg/kopscontrollerclient"
@@ -134,6 +138,10 @@ func (b *BootstrapClientTask) Run(c *fi.NodeupContext) error {
 
 	var resp nodeup.BootstrapResponse
 	err := b.Client.Query(ctx, &req, &resp)
+	if errors.Is(err, kopscontrollerclient.ErrNodeAlreadyRegistered) {
+		klog.Infof("node already registered with kops-controller; reusing existing bootstrap keys")
+		return b.loadExistingBootstrapCerts()
+	}
 	if err != nil {
 		return err
 	}
@@ -151,4 +159,76 @@ func (b *BootstrapClientTask) Run(c *fi.NodeupContext) error {
 	}
 
 	return nil
+}
+
+// loadExistingBootstrapCerts populates bootstrap cert resources from keys already on disk.
+// This is used when kops-controller rejects certificate re-issuance for an already-registered node.
+func (b *BootstrapClientTask) loadExistingBootstrapCerts() error {
+	if b.keys == nil {
+		b.keys = map[string]*pki.PrivateKey{}
+	}
+
+	for name, certRequest := range b.Certs {
+		certPEM, keyPEM, err := loadBootstrapCertMaterial(name)
+		if err != nil {
+			return fmt.Errorf("loading existing bootstrap cert %q: %w", name, err)
+		}
+
+		certificate, err := pki.ParsePEMCertificate(certPEM)
+		if err != nil {
+			return fmt.Errorf("parsing existing bootstrap cert %q: %w", name, err)
+		}
+		privateKey, err := pki.ParsePEMPrivateKey(keyPEM)
+		if err != nil {
+			return fmt.Errorf("parsing existing bootstrap key %q: %w", name, err)
+		}
+
+		certRequest.Cert.Resource = &asBytesResource{certificate}
+		certRequest.Key.Resource = &asBytesResource{privateKey}
+		b.keys[name] = privateKey
+	}
+
+	return nil
+}
+
+func loadBootstrapCertMaterial(name string) (certPEM []byte, keyPEM []byte, err error) {
+	switch name {
+	case "kubelet-server":
+		certPEM, err = os.ReadFile("/srv/kubernetes/kubelet-server.crt")
+		if err != nil {
+			return nil, nil, err
+		}
+		keyPEM, err = os.ReadFile("/srv/kubernetes/kubelet-server.key")
+		return certPEM, keyPEM, err
+	case "etcd-client-cilium":
+		certPEM, err = os.ReadFile("/etc/kubernetes/pki/cilium/etcd-client-cilium.crt")
+		if err != nil {
+			return nil, nil, err
+		}
+		keyPEM, err = os.ReadFile("/etc/kubernetes/pki/cilium/etcd-client-cilium.key")
+		return certPEM, keyPEM, err
+	case "kubelet":
+		return clientCredentialsFromKubeconfig("/var/lib/kubelet/kubeconfig", name)
+	case "kube-proxy":
+		return clientCredentialsFromKubeconfig("/var/lib/kube-proxy/kubeconfig", name)
+	case "kube-router":
+		return clientCredentialsFromKubeconfig("/var/lib/kube-router/kubeconfig", name)
+	default:
+		return nil, nil, fmt.Errorf("unknown bootstrap cert %q", name)
+	}
+}
+
+func clientCredentialsFromKubeconfig(path, userName string) ([]byte, []byte, error) {
+	config, err := clientcmd.LoadFromFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	authInfo, ok := config.AuthInfos[userName]
+	if !ok || authInfo == nil {
+		return nil, nil, fmt.Errorf("user %q not found in kubeconfig %q", userName, path)
+	}
+	if len(authInfo.ClientCertificateData) == 0 || len(authInfo.ClientKeyData) == 0 {
+		return nil, nil, fmt.Errorf("kubeconfig %q has no client credentials for user %q", path, userName)
+	}
+	return authInfo.ClientCertificateData, authInfo.ClientKeyData, nil
 }

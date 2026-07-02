@@ -192,28 +192,6 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Once the node is registered, we don't allow further registrations, this protects against a pod or escaped workload attempting to impersonate the node.
-	{
-		node := &corev1.Node{}
-		err := s.uncachedClient.Get(ctx, types.NamespacedName{Name: id.NodeName}, node)
-		if err == nil {
-			for _, condition := range node.Status.Conditions {
-				if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
-					klog.Infof("bootstrap %s node %q already exists; denying to avoid node-impersonation attacks", r.RemoteAddr, id.NodeName)
-					w.WriteHeader(http.StatusConflict)
-					_, _ = w.Write([]byte("node already registered"))
-					return
-				}
-			}
-		}
-		if err != nil && !errors.IsNotFound(err) {
-			klog.Infof("bootstrap %s error querying for node %q: %v", r.RemoteAddr, id.NodeName, err)
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("internal error"))
-			return
-		}
-	}
-
 	req := &nodeup.BootstrapRequest{}
 	if err := json.Unmarshal(body, req); err != nil {
 		klog.Infof("bootstrap %s decode err: %v", r.RemoteAddr, err)
@@ -227,6 +205,31 @@ func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte("unexpected APIVersion"))
 		return
+	}
+
+	// Once the node is registered, we don't allow issuing new certificates; this protects
+	// against a pod or escaped workload attempting to impersonate the node.  Config-only
+	// bootstrap requests (for example in-place nodeup updates) are allowed for the same
+	// authenticated node; the node reuses its existing keys on disk.
+	if len(req.Certs) > 0 {
+		node := &corev1.Node{}
+		err := s.uncachedClient.Get(ctx, types.NamespacedName{Name: id.NodeName}, node)
+		if err == nil {
+			for _, condition := range node.Status.Conditions {
+				if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+					klog.Infof("bootstrap %s node %q already registered; denying certificate re-issuance", r.RemoteAddr, id.NodeName)
+					w.WriteHeader(http.StatusConflict)
+					_, _ = w.Write([]byte("node already registered"))
+					return
+				}
+			}
+		}
+		if err != nil && !errors.IsNotFound(err) {
+			klog.Infof("bootstrap %s error querying for node %q: %v", r.RemoteAddr, id.NodeName, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("internal error"))
+			return
+		}
 	}
 
 	if model.UseChallengeCallback(kops.CloudProviderID(s.opt.Cloud)) {
