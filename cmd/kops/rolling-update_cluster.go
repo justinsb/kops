@@ -36,6 +36,7 @@ import (
 	kopsapi "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cloudinstances"
 	"k8s.io/kops/pkg/commands/commandutils"
+	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/instancegroups"
 	"k8s.io/kops/pkg/kubeconfig"
 	"k8s.io/kops/pkg/pretty"
@@ -60,6 +61,9 @@ var (
 
 	If the cluster is in a broken state and cannot be validated, rolling-update will get stuck and eventually 
 	fail; you can force the update to proceed with the --cloudonly flag, which will skip validation.
+
+	On bare-metal clusters, machines cannot be deleted and replaced; instead each machine is updated
+	in-place, by connecting over SSH (using the SSH agent) and re-running the nodeup bootstrap script.
 
 	Note: terraform users will need to run all of the following commands from the same directory
 	` + pretty.Bash("kops update cluster --target=terraform") + ` then ` + pretty.Bash("terraform plan") + ` then
@@ -219,6 +223,9 @@ func NewCmdRollingUpdateCluster(f *util.Factory, out io.Writer) *cobra.Command {
 	cmd.Flags().BoolVar(&options.FailOnDrainError, "fail-on-drain-error", true, "Fail if draining a node fails")
 	cmd.Flags().BoolVar(&options.FailOnValidate, "fail-on-validate-error", true, "Fail if the cluster fails to validate")
 
+	cmd.Flags().StringVar(&options.SSHUser, "ssh-user", options.SSHUser, "user for SSH connections when updating bare-metal machines in-place")
+	cmd.Flags().IntVar(&options.SSHPort, "ssh-port", options.SSHPort, "port for SSH connections when updating bare-metal machines in-place")
+
 	options.CreateKubecfgOptions.AddCommonFlags(cmd.Flags())
 
 	cmd.Flags().SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
@@ -243,6 +250,10 @@ func RunRollingUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer
 	cluster, err := GetCluster(ctx, f, options.ClusterName)
 	if err != nil {
 		return err
+	}
+
+	if cluster.GetCloudProvider() == kopsapi.CloudProviderMetal && !featureflag.Metal.Enabled() {
+		return fmt.Errorf("bare-metal support requires the Metal feature flag to be enabled")
 	}
 
 	var nodes []v1.Node
@@ -374,6 +385,9 @@ func RunRollingUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer
 		// TODO should we expose this to the UI?
 		ValidateTickDuration:    30 * time.Second,
 		ValidateSuccessDuration: 10 * time.Second,
+
+		// Bare-metal machines cannot be deleted and replaced; we update them in-place.
+		UpdateInPlace: cluster.GetCloudProvider() == kopsapi.CloudProviderMetal,
 
 		// TODO: Move more of the passthrough options here, instead of duplicating them.
 		Options: options.RollingUpdateOptions,

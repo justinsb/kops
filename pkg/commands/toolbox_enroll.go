@@ -31,6 +31,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -52,6 +53,7 @@ import (
 	"k8s.io/kops/pkg/k8scodecs"
 	"k8s.io/kops/pkg/kubeconfig"
 	"k8s.io/kops/pkg/kubemanifest"
+	"k8s.io/kops/pkg/metal"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/model/resources"
 	"k8s.io/kops/pkg/nodemodel"
@@ -236,18 +238,74 @@ func enrollHost(ctx context.Context, ig *kops.InstanceGroup, bootstrapData *Boot
 		}
 	}
 
+	return sshTarget.ApplyNodeup(ctx, bootstrapData, ApplyNodeupOptions{})
+}
+
+// ApplyNodeupOptions configures how ApplyNodeup runs nodeup on a machine.
+type ApplyNodeupOptions struct {
+	// Wait, if true, runs nodeup directly and synchronously (the same command
+	// kops-configuration.service runs), and does not return until configuration
+	// has been applied.  Used by rolling-update in-place updates.
+	//
+	// When false (the default), the bootstrap script runs nodeup --install-systemd-unit,
+	// which only installs/restarts the kops-configuration systemd unit and returns
+	// quickly; the actual configuration is applied asynchronously by that unit.
+	// This matches toolbox enroll behavior.
+	Wait bool
+
+	// Timeout is the maximum time to allow for the synchronous nodeup run when
+	// Wait is true.  Defaults to 15 minutes.
+	Timeout time.Duration
+}
+
+// ApplyNodeup writes bootstrap files to the host and runs the nodeup bootstrap script.
+// This is the shared entry point for toolbox enroll and rolling-update in-place updates.
+func (s *SSHHost) ApplyNodeup(ctx context.Context, bootstrapData *BootstrapData, opts ApplyNodeupOptions) error {
 	for k, v := range bootstrapData.NodeupScriptAdditionalFiles {
-		if err := sshTarget.writeFile(ctx, k, bytes.NewReader(v)); err != nil {
+		if err := s.writeFile(ctx, k, bytes.NewReader(v)); err != nil {
 			return fmt.Errorf("writing file %q over SSH: %w", k, err)
 		}
 	}
 
-	if len(bootstrapData.NodeupScript) != 0 {
-		if _, err := sshTarget.runScript(ctx, string(bootstrapData.NodeupScript), ExecOptions{Echo: true}); err != nil {
+	if len(bootstrapData.NodeupScript) == 0 {
+		return nil
+	}
+
+	script := string(bootstrapData.NodeupScript)
+	if opts.Wait {
+		timeout := opts.Timeout
+		if timeout == 0 {
+			timeout = 15 * time.Minute
+		}
+		var err error
+		script, err = nodeupScriptForSyncRun(script, timeout)
+		if err != nil {
 			return err
 		}
+		klog.Infof("running nodeup synchronously on host %q (this may take a while)", s.hostname)
+	}
+
+	if _, err := s.runScript(ctx, script, ExecOptions{Echo: true}); err != nil {
+		return err
 	}
 	return nil
+}
+
+// nodeupBootstrapInstall invokes nodeup in --install-systemd-unit mode (from the
+// generated bootstrap script).  This exits quickly after configuring the
+// kops-configuration systemd unit; it does not apply node configuration itself.
+const nodeupBootstrapInstall = "./nodeup --install-systemd-unit --conf=${INSTALL_DIR}/conf/kube_env.yaml --v=8"
+
+// nodeupScriptForSyncRun adapts the bootstrap script for a synchronous in-place update.
+// It replaces the --install-systemd-unit invocation with a direct nodeup run (what
+// kops-configuration.service ExecStart runs), wrapped in timeout(1).
+func nodeupScriptForSyncRun(script string, timeout time.Duration) (string, error) {
+	directRun := fmt.Sprintf("timeout %d ./nodeup --conf=${INSTALL_DIR}/conf/kube_env.yaml --v=8", int(timeout.Seconds()))
+	got := strings.Replace(script, nodeupBootstrapInstall, directRun, 1)
+	if got == script {
+		return "", fmt.Errorf("bootstrap script did not contain expected nodeup invocation %q", nodeupBootstrapInstall)
+	}
+	return got, nil
 }
 
 const scriptCreateKey = `
@@ -842,7 +900,7 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 
 	nodeupScript.CloudProvider = string(cluster.GetCloudProvider())
 
-	bootConfig.ConfigBase = fi.PtrTo("file:///etc/kubernetes/kops/config")
+	bootConfig.ConfigBase = fi.PtrTo(metal.LocalConfigFileURL())
 
 	nodeupScriptResource, err := nodeupScript.Build()
 	if err != nil {
@@ -857,7 +915,7 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 		remapPrefix := "s3://" // TODO: Support GCS?
 
 		// targetDir is the location of the config on the target node.
-		targetDir := "/etc/kubernetes/kops/config"
+		targetDir := metal.LocalConfigRoot
 
 		// remapFile remaps a file from s3/gcs etc to the local file system on the target node.
 		remapFile := func(pSrc *string, destDir string) error {
@@ -868,11 +926,11 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 
 			srcPath, err := vfsContext.BuildVfsPath(src)
 			if err != nil {
-				return fmt.Errorf("building vfs path: %w", err)
+				return fmt.Errorf("building vfs path %q: %w", src, err)
 			}
 			b, err := srcPath.ReadFile(ctx)
 			if err != nil {
-				return fmt.Errorf("reading file: %w", err)
+				return fmt.Errorf("reading file %q: %w", src, err)
 			}
 
 			dest := strings.TrimPrefix(src, remapPrefix)
@@ -892,18 +950,18 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 
 			srcPath, err := vfsContext.BuildVfsPath(src)
 			if err != nil {
-				return fmt.Errorf("building vfs path: %w", err)
+				return fmt.Errorf("building vfs path %q: %w", src, err)
 			}
 
 			srcFiles, err := srcPath.ReadTree(ctx)
 			if err != nil {
-				return fmt.Errorf("reading tree: %w", err)
+				return fmt.Errorf("reading tree %q: %w", src, err)
 			}
 			basePath := srcPath.Path()
 			for _, srcFile := range srcFiles {
 				b, err := srcFile.ReadFile(ctx)
 				if err != nil {
-					return fmt.Errorf("reading file: %w", err)
+					return fmt.Errorf("reading file %q: %w", srcFile.Path(), err)
 				}
 
 				if !strings.HasPrefix(srcFile.Path(), basePath) {
@@ -939,7 +997,6 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 			if err := remapTree(&addonsPath, path.Join(targetDir, "addons")); err != nil {
 				return nil, err
 			}
-			localAddons := addonsPath // remapTree mutated it in place to the on-host destination
 			if err := remapFile(&nodeupConfig.ChannelsManifest, targetDir); err != nil {
 				return nil, err
 			}

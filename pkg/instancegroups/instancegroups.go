@@ -477,6 +477,33 @@ func (c *RollingUpdateCluster) drainTerminateAndWait(ctx context.Context, u *clo
 		}
 	}
 
+	if c.UpdateInPlace {
+		// Bare-metal machines cannot be deleted and replaced;
+		// instead we update them in-place, by re-running nodeup over SSH.
+		if err := c.updateInPlace(ctx, u); err != nil {
+			klog.Errorf("error updating instance %q, node %q in-place: %v", instanceID, nodeName, err)
+			return err
+		}
+
+		klog.Infof("waiting for %v after in-place update", sleepAfterTerminate)
+		time.Sleep(sleepAfterTerminate)
+
+		if c.K8sClient != nil && nodeName != "" {
+			if err := c.makeNodeSchedulable(ctx, nodeName); err != nil {
+				return fmt.Errorf("marking node %q as schedulable after in-place update: %w", nodeName, err)
+			}
+		}
+
+		if c.K8sClient != nil &&
+			u.CloudInstanceGroup.InstanceGroup.Spec.Role.HasControlPlane() &&
+			c.Cluster.GetCloudProvider() == api.CloudProviderMetal {
+			if err := commands.SyncMetalClusterStateToControlPlane(ctx, c.Cluster, c.Clientset, c.K8sClient, c.Options.SSHUser, c.Options.SSHPort, nil); err != nil {
+				return fmt.Errorf("syncing control-plane state after in-place update: %w", err)
+			}
+		}
+		return nil
+	}
+
 	if err := c.deleteInstance(u); err != nil {
 		klog.Errorf("error deleting instance %q, node %q: %v", instanceID, nodeName, err)
 		return err
@@ -689,6 +716,10 @@ func (c *RollingUpdateCluster) drainNode(ctx context.Context, u *cloudinstances.
 		Out:                 os.Stdout,
 		ErrOut:              os.Stderr,
 		Timeout:             c.DrainTimeout,
+
+		// Wait before retrying failed evictions, e.g. when blocked by a PodDisruptionBudget;
+		// without this the drain helper retries immediately (and logs) in a tight loop.
+		EvictErrorRetryDelay: 5 * time.Second,
 
 		// We want to proceed even when pods are using emptyDir volumes
 		DeleteEmptyDirData: true,

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/blang/semver/v4"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kops/dnsprovider/pkg/dnsprovider"
@@ -57,9 +58,10 @@ func (c *Cloud) DeleteInstance(instance *cloudinstances.CloudInstance) error {
 	return fmt.Errorf("method metal.Cloud::DeleteInstance not implemented")
 }
 
-// // DeregisterInstance drains a cloud instance and loadbalancers.
+// DeregisterInstance drains a cloud instance and loadbalancers.
+// For metal there are no cloud-managed load balancers, so this is a no-op.
 func (c *Cloud) DeregisterInstance(instance *cloudinstances.CloudInstance) error {
-	return fmt.Errorf("method metal.Cloud::DeregisterInstance not implemented")
+	return nil
 }
 
 // DeleteGroup deletes the cloud resources that make up a CloudInstanceGroup, including the instances.
@@ -78,10 +80,13 @@ func (c *Cloud) GetCloudGroups(cluster *kops.Cluster, instancegroups []*kops.Ins
 	groups := make(map[string]*cloudinstances.CloudInstanceGroup)
 	for _, ig := range instancegroups {
 		cloudInstanceGroup := &cloudinstances.CloudInstanceGroup{
+			HumanName:     ig.ObjectMeta.Name,
 			InstanceGroup: ig,
 		}
 		groups[ig.ObjectMeta.Name] = cloudInstanceGroup
-		for _, node := range nodes {
+		for i := range nodes {
+			node := &nodes[i]
+
 			isControlPlaneNode := false
 			for k := range node.Labels {
 				if k == "node-role.kubernetes.io/control-plane" {
@@ -103,17 +108,54 @@ func (c *Cloud) GetCloudGroups(cluster *kops.Cluster, instancegroups []*kops.Ins
 				}
 			}
 
-			if match {
-				cloudInstanceGroup.Ready = append(cloudInstanceGroup.Ready, &cloudinstances.CloudInstance{
-					ID:                 node.Name,
-					Node:               &node,
-					CloudInstanceGroup: cloudInstanceGroup,
-				})
+			// If the node is labeled with its instance group, require an exact match;
+			// this avoids matching the same node to multiple instance groups with the same role.
+			if igName, found := node.Labels["kops.k8s.io/instancegroup"]; found && igName != ig.ObjectMeta.Name {
+				match = false
+			}
+
+			if !match {
+				continue
+			}
+
+			status := cloudinstances.CloudInstanceStatusUpToDate
+			if !nodeMatchesKubernetesVersion(node, cluster.Spec.KubernetesVersion) {
+				status = cloudinstances.CloudInstanceStatusNeedsUpdate
+			}
+			if _, err := cloudInstanceGroup.NewCloudInstance(node.Name, status, node); err != nil {
+				return nil, fmt.Errorf("building cloud instance for node %q: %w", node.Name, err)
 			}
 		}
+
+		// We cannot create machines, so the target size is simply the machines that exist.
+		numInstances := len(cloudInstanceGroup.Ready) + len(cloudInstanceGroup.NeedUpdate)
+		cloudInstanceGroup.MinSize = numInstances
+		cloudInstanceGroup.TargetSize = numInstances
+		cloudInstanceGroup.MaxSize = numInstances
 	}
 
 	return groups, nil
+}
+
+// nodeMatchesKubernetesVersion checks whether the kubelet on the node is running the
+// kubernetes version specified in the cluster spec.  We cannot (easily) compare the full
+// nodeup configuration for bare-metal machines, so we use the kubelet version as the
+// signal that the machine needs an in-place update.  Machines can additionally be marked
+// for update with the kops.k8s.io/needs-update annotation, or updated with --force.
+func nodeMatchesKubernetesVersion(node *v1.Node, kubernetesVersion string) bool {
+	kubeletVersion, err := semver.ParseTolerant(node.Status.NodeInfo.KubeletVersion)
+	if err != nil {
+		klog.Warningf("cannot parse kubelet version %q for node %q; assuming up-to-date", node.Status.NodeInfo.KubeletVersion, node.Name)
+		return true
+	}
+	wantVersion, err := semver.ParseTolerant(kubernetesVersion)
+	if err != nil {
+		klog.Warningf("cannot parse cluster kubernetes version %q; assuming node %q is up-to-date", kubernetesVersion, node.Name)
+		return true
+	}
+	return kubeletVersion.Major == wantVersion.Major &&
+		kubeletVersion.Minor == wantVersion.Minor &&
+		kubeletVersion.Patch == wantVersion.Patch
 }
 
 // Region returns the cloud region bound to the cloud instance.

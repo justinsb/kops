@@ -35,7 +35,9 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	apisutil "k8s.io/kops/pkg/apis/kops/util"
 	"k8s.io/kops/pkg/assets"
+	"k8s.io/kops/pkg/commands"
 	"k8s.io/kops/pkg/commands/commandutils"
+	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/kubeconfig"
 	"k8s.io/kops/pkg/predicates"
 	"k8s.io/kops/upup/pkg/fi"
@@ -113,6 +115,11 @@ type CoreUpdateClusterOptions struct {
 	// The goal is that the cluster can keep running even during more disruptive
 	// infrastructure changes.
 	Prune bool
+
+	// SSHUser is the user for SSH connections when syncing bare-metal state to control-plane nodes.
+	SSHUser string
+	// SSHPort is the port for SSH connections when syncing bare-metal state to control-plane nodes.
+	SSHPort int
 }
 
 func (o *UpdateClusterOptions) InitDefaults() {
@@ -133,6 +140,8 @@ func (o *CoreUpdateClusterOptions) InitDefaults() {
 	o.IgnoreKubeletVersionSkew = false
 
 	o.Prune = false
+	o.SSHUser = "root"
+	o.SSHPort = 22
 
 	o.RunTasksOptions.InitDefaults()
 }
@@ -192,6 +201,8 @@ func NewCmdUpdateCluster(f *util.Factory, out io.Writer) *cobra.Command {
 
 	cmd.Flags().BoolVar(&options.Prune, "prune", options.Prune, "Delete old revisions of cloud resources that were needed during an upgrade")
 	cmd.Flags().BoolVar(&options.IgnoreKubeletVersionSkew, "ignore-kubelet-version-skew", options.IgnoreKubeletVersionSkew, "Setting this to true will force updating the kubernetes version on all instance groups, regardles of which control plane version is running")
+	cmd.Flags().StringVar(&options.SSHUser, "ssh-user", options.SSHUser, "User for SSH connections when syncing bare-metal state to control-plane nodes")
+	cmd.Flags().IntVar(&options.SSHPort, "ssh-port", options.SSHPort, "Port for SSH connections when syncing bare-metal state to control-plane nodes")
 
 	return cmd
 }

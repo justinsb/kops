@@ -19,6 +19,7 @@ package commands
 import (
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
@@ -95,5 +96,25 @@ spec:
 	}
 	if mount.MountPath != "/etc/kubernetes/kops/config/addons" {
 		t.Errorf("expected mountPath /etc/kubernetes/kops/config/addons, got %q", mount.MountPath)
+	}
+}
+
+func TestNodeupScriptForSyncRun(t *testing.T) {
+	script := strings.Join([]string{
+		"function download-release() {",
+		"  cd ${INSTALL_DIR}/bin",
+		"  ( cd ${INSTALL_DIR}/bin; ./nodeup --install-systemd-unit --conf=${INSTALL_DIR}/conf/kube_env.yaml --v=8  )",
+		"}",
+	}, "\n")
+
+	got, err := nodeupScriptForSyncRun(script, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("nodeupScriptForSyncRun: %v", err)
+	}
+	if strings.Contains(got, "--install-systemd-unit") {
+		t.Fatalf("expected --install-systemd-unit to be replaced:\n%s", got)
+	}
+	if !strings.Contains(got, "timeout 900 ./nodeup --conf=${INSTALL_DIR}/conf/kube_env.yaml --v=8") {
+		t.Fatalf("expected direct nodeup invocation with timeout:\n%s", got)
 	}
 }

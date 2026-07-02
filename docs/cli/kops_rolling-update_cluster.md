@@ -20,6 +20,9 @@ deemed validated when all required nodes are running and all pods with a critica
 If the cluster is in a broken state and cannot be validated, rolling-update will get stuck and eventually 
 fail; you can force the update to proceed with the --cloudonly flag, which will skip validation.
 
+On bare-metal clusters, machines cannot be deleted and replaced; instead each machine is updated
+in-place, by connecting over SSH (using the SSH agent) and re-running the nodeup bootstrap script.
+
 Note: terraform users will need to run all of the following commands from the same directory
 `kops update cluster --target=terraform` then `terraform plan` then
 `terraform apply` prior to running `kops rolling-update cluster`.
@@ -74,6 +77,8 @@ kops rolling-update cluster [CLUSTER] [flags]
   -i, --interactive                       Prompt to continue after each instance is updated
       --node-interval duration            Time to wait between restarting worker nodes (default 15s)
       --post-drain-delay duration         Time to wait after draining each node (default 5s)
+      --ssh-port int                      port for SSH connections when updating bare-metal machines in-place (default 22)
+      --ssh-user string                   user for SSH connections when updating bare-metal machines in-place (default "root")
       --use-kubeconfig                    Use the server endpoint from the local kubeconfig instead of inferring from cluster name
       --validate-count int32              Number of times that a cluster needs to be validated after single node update (default 2)
       --validation-timeout duration       Maximum time to wait for a cluster to validate (default 15m0s)

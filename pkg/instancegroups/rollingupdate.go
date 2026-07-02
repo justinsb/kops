@@ -33,6 +33,7 @@ import (
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/client/simple"
 	"k8s.io/kops/pkg/cloudinstances"
+	"k8s.io/kops/pkg/commands"
 	"k8s.io/kops/pkg/validation"
 	"k8s.io/kops/upup/pkg/fi"
 )
@@ -84,18 +85,35 @@ type RollingUpdateCluster struct {
 	// DrainTimeout is the maximum amount of time to wait while draining a node.
 	DrainTimeout time.Duration
 
+	// UpdateInPlace controls whether instances are updated in-place (by re-running nodeup over SSH),
+	// instead of being deleted and replaced.  This is used for bare-metal machines,
+	// which cannot be deleted and recreated.
+	UpdateInPlace bool
+
 	// Options holds user-specified options
 	Options RollingUpdateOptions
+
+	// inPlaceBootstrapData caches the bootstrap data (nodeup script etc) per instance group,
+	// for in-place updates of bare-metal machines.
+	inPlaceBootstrapData      map[string]*commands.BootstrapData
+	inPlaceBootstrapDataMutex sync.Mutex
 }
 
 type RollingUpdateOptions struct {
 	// DeregisterControlPlaneNodes controls if we deregister control plane instances from load balacners etc before draining/terminating.
 	// When a cluster only has a single apiserver, we don't want to do this, as we can't drain after deregistering it.
 	DeregisterControlPlaneNodes bool
+
+	// SSHUser is the user to use for SSH connections to bare-metal machines, when updating them in-place.
+	SSHUser string
+	// SSHPort is the port to use for SSH connections to bare-metal machines, when updating them in-place.
+	SSHPort int
 }
 
 func (o *RollingUpdateOptions) InitDefaults() {
 	o.DeregisterControlPlaneNodes = true
+	o.SSHUser = "root"
+	o.SSHPort = 22
 }
 
 // AdjustNeedUpdate adjusts the set of instances that need updating, using factors outside those known by the cloud implementation
