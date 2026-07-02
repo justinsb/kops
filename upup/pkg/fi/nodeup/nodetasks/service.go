@@ -252,7 +252,67 @@ func (e *Service) Find(_ *fi.NodeupContext) (*Service, error) {
 		actual.Enabled = fi.PtrTo(false)
 	}
 
+	// If the service is running but its dependencies (e.g. the binary in ExecStart, or an
+	// EnvironmentFile) have changed since it started, report the service as not Running so
+	// that Render restarts it.  Without this, a service task with an unchanged unit file has
+	// no changes at all, Render is never invoked, and the SmartRestart check there never runs;
+	// that is how re-running nodeup on a live machine (e.g. a bare-metal in-place update)
+	// could replace the kubelet binary without restarting kubelet.
+	// Note that this task depends on the File tasks, so any new binaries have already been
+	// written by the time Find runs.
+	if fi.ValueOf(actual.Running) && fi.ValueOf(e.Running) && fi.ValueOf(e.ManageState) && fi.ValueOf(e.SmartRestart) {
+		needsRestart, err := needsSmartRestart(e.Name, string(d), systemdSystemPath, properties)
+		if err != nil {
+			return nil, err
+		}
+		if needsRestart {
+			klog.V(2).Infof("dependencies of service %q changed after service start; will restart", e.Name)
+			actual.Running = fi.PtrTo(false)
+		}
+	}
+
 	return actual, nil
+}
+
+// needsSmartRestart checks whether any of the service's dependencies (the systemd unit file
+// itself, the ExecStart binary and any EnvironmentFile) were modified after the service
+// started, in which case the service should be restarted to pick up the changes.
+func needsSmartRestart(serviceName string, definition string, systemdSystemPath string, properties map[string]string) (bool, error) {
+	dependencies, err := getSystemdDependencies(serviceName, definition)
+	if err != nil {
+		return false, err
+	}
+
+	// Include the systemd unit file itself
+	dependencies = append(dependencies, path.Join(systemdSystemPath, serviceName))
+
+	var newest time.Time
+	for _, dependency := range dependencies {
+		stat, err := os.Stat(dependency)
+		if err != nil {
+			klog.Infof("Ignoring error checking service dependency %q: %v", dependency, err)
+			continue
+		}
+		modTime := stat.ModTime()
+		if newest.IsZero() || newest.Before(modTime) {
+			newest = modTime
+		}
+	}
+
+	if newest.IsZero() {
+		return false, nil
+	}
+
+	startedAt := properties["ExecMainStartTimestamp"]
+	if startedAt == "" {
+		klog.Warningf("service was running, but did not have ExecMainStartTimestamp: %q", serviceName)
+		return false, nil
+	}
+	startedAtTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", startedAt)
+	if err != nil {
+		return false, fmt.Errorf("unable to parse service ExecMainStartTimestamp %q: %v", startedAt, err)
+	}
+	return startedAtTime.Before(newest), nil
 }
 
 // Parse the systemd unit file to extract obvious dependencies
@@ -345,48 +405,20 @@ func (s *Service) RenderLocal(_ *local.LocalTarget, a, e, changes *Service) erro
 		}
 
 		if action == "" && fi.ValueOf(e.Running) && definition != "" {
-			dependencies, err := getSystemdDependencies(serviceName, definition)
+			properties, err := getSystemdStatus(e.Name)
 			if err != nil {
 				return err
 			}
 
-			// Include the systemd unit file itself
-			dependencies = append(dependencies, path.Join(systemdSystemPath, serviceName))
-
-			var newest time.Time
-			for _, dependency := range dependencies {
-				stat, err := os.Stat(dependency)
-				if err != nil {
-					klog.Infof("Ignoring error checking service dependency %q: %v", dependency, err)
-					continue
-				}
-				modTime := stat.ModTime()
-				if newest.IsZero() || newest.Before(modTime) {
-					newest = modTime
-				}
+			needsRestart, err := needsSmartRestart(serviceName, definition, systemdSystemPath, properties)
+			if err != nil {
+				return err
 			}
-
-			if !newest.IsZero() {
-				properties, err := getSystemdStatus(e.Name)
-				if err != nil {
-					return err
-				}
-
-				startedAt := properties["ExecMainStartTimestamp"]
-				if startedAt == "" {
-					klog.Warningf("service was running, but did not have ExecMainStartTimestamp: %q", serviceName)
-				} else {
-					startedAtTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", startedAt)
-					if err != nil {
-						return fmt.Errorf("unable to parse service ExecMainStartTimestamp %q: %v", startedAt, err)
-					}
-					if startedAtTime.Before(newest) {
-						klog.V(2).Infof("will restart service %q because dependency changed after service start", serviceName)
-						action = "restart"
-					} else {
-						klog.V(2).Infof("will not restart service %q - started after dependencies", serviceName)
-					}
-				}
+			if needsRestart {
+				klog.V(2).Infof("will restart service %q because dependency changed after service start", serviceName)
+				action = "restart"
+			} else {
+				klog.V(2).Infof("will not restart service %q - started after dependencies", serviceName)
 			}
 		}
 	}
