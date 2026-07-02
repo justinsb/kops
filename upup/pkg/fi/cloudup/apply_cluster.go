@@ -729,7 +729,13 @@ func (c *ApplyClusterCmd) Run(ctx context.Context) (*ApplyResults, error) {
 			)
 
 		case kops.CloudProviderMetal:
-			// No special builders for bare metal (yet)
+			l.Builders = append(l.Builders,
+				&metal.IGConfigBuilder{
+					KopsModelContext:       modelContext,
+					Lifecycle:              clusterLifecycle,
+					BootstrapScriptBuilder: bootstrapScriptBuilder,
+				},
+			)
 
 		default:
 			return nil, fmt.Errorf("unknown cloudprovider %q", cluster.GetCloudProvider())

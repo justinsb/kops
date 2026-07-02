@@ -55,6 +55,7 @@ import (
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/flagbuilder"
 	"k8s.io/kops/pkg/kubemanifest"
+	"k8s.io/kops/pkg/metal"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/model/components/kopscontroller"
 	"k8s.io/kops/pkg/model/iam"
@@ -864,11 +865,20 @@ func (tf *TemplateFunctions) DNSControllerArgv() ([]string, error) {
 func (tf *TemplateFunctions) KopsControllerConfig() (string, error) {
 	cluster := tf.Cluster
 
+	configBase := cluster.Spec.ConfigStore.Base
+	secretStore := cluster.Spec.ConfigStore.Secrets
+	if cluster.GetCloudProvider() == kops.CloudProviderMetal {
+		// Bare-metal control-plane nodes do not have cloud credentials to read the
+		// remote state store. toolbox enroll mirrors state under LocalConfigRoot;
+		// kops-controller must use the same on-host paths.
+		configBase, secretStore = metal.KopsControllerStorePaths(cluster)
+	}
+
 	config := &kopscontrollerconfig.Options{
 		ClusterName: cluster.Name,
 		Cloud:       string(cluster.GetCloudProvider()),
-		ConfigBase:  cluster.Spec.ConfigStore.Base,
-		SecretStore: cluster.Spec.ConfigStore.Secrets,
+		ConfigBase:  configBase,
+		SecretStore: secretStore,
 	}
 
 	if featureflag.CacheNodeidentityInfo.Enabled() {

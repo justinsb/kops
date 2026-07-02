@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
@@ -28,7 +29,10 @@ import (
 	"k8s.io/kops/pkg/apis/nodeup"
 	"k8s.io/kops/pkg/bootstrap"
 	"k8s.io/kops/pkg/commands"
+	"k8s.io/kops/pkg/metal"
 	"k8s.io/kops/pkg/nodeidentity/clusterapi"
+	"k8s.io/kops/upup/pkg/fi/utils"
+	"sigs.k8s.io/yaml"
 )
 
 func (s *Server) getNodeConfig(ctx context.Context, req *nodeup.BootstrapRequest, identity *bootstrap.VerifyResult) (*nodeup.NodeConfig, error) {
@@ -67,7 +71,34 @@ func (s *Server) getNodeConfig(ctx context.Context, req *nodeup.BootstrapRequest
 		log.Info("built InstanceGroup from CAPI Machine", "instanceGroup", instanceGroup)
 		configBuilder.InstanceGroup = instanceGroup
 	} else if s.opt.Cloud == "metal" {
-		configBuilder.InstanceGroupName = instanceGroupName
+		cluster, err := s.clientset.GetCluster(ctx, s.opt.ClusterName)
+		if err != nil {
+			return nil, fmt.Errorf("getting cluster %q: %w", s.opt.ClusterName, err)
+		}
+		ig, err := s.clientset.InstanceGroupsFor(cluster).Get(ctx, instanceGroupName, metav1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("getting InstanceGroup %q: %w", instanceGroupName, err)
+		}
+
+		p := s.configBase.Join("igconfig", ig.Spec.Role.ToLowerString(), instanceGroupName, "nodeupconfig.yaml")
+		b, err := p.ReadFile(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error loading NodeupConfig %q: %v", p, err)
+		}
+
+		nodeupConfig := &nodeup.Config{}
+		if err := utils.YamlUnmarshal(b, nodeupConfig); err != nil {
+			return nil, fmt.Errorf("error parsing NodeupConfig %q: %v", p, err)
+		}
+		metal.RemapNodeupConfigPaths(nodeupConfig)
+
+		nodeupConfigBytes, err := yaml.Marshal(nodeupConfig)
+		if err != nil {
+			return nil, fmt.Errorf("marshalling NodeupConfig %q: %v", p, err)
+		}
+
+		nodeConfig = &nodeup.NodeConfig{}
+		nodeConfig.NodeupConfig = string(nodeupConfigBytes)
 	} else {
 		// Note: For now, we're assuming there is only a single cluster, and it is ours.
 		// We therefore use the configured base path

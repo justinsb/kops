@@ -451,6 +451,27 @@ func RunUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer, c *Up
 		}
 	}
 
+	if !isDryrun && cluster.GetCloudProvider() == kops.CloudProviderMetal && featureflag.Metal.Enabled() {
+		restConfig, err := f.RESTConfig(ctx, cluster, c.CreateKubecfgOptions)
+		if err != nil {
+			return results, fmt.Errorf("getting rest config for bare-metal state sync: %w", err)
+		}
+
+		httpClient, err := f.HTTPClient(restConfig)
+		if err != nil {
+			return results, fmt.Errorf("getting http client for bare-metal state sync: %w", err)
+		}
+
+		k8sClient, err := kubernetes.NewForConfigAndClient(restConfig, httpClient)
+		if err != nil {
+			return results, fmt.Errorf("getting kubernetes client for bare-metal state sync: %w", err)
+		}
+
+		if err := commands.SyncMetalClusterStateToControlPlane(ctx, cluster, clientset, k8sClient, c.SSHUser, c.SSHPort, out); err != nil {
+			return results, err
+		}
+	}
+
 	if !isDryrun {
 		sb := new(bytes.Buffer)
 

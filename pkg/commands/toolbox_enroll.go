@@ -997,6 +997,7 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 			if err := remapTree(&addonsPath, path.Join(targetDir, "addons")); err != nil {
 				return nil, err
 			}
+			localAddons := addonsPath // remapTree mutated it in place to the on-host destination
 			if err := remapFile(&nodeupConfig.ChannelsManifest, targetDir); err != nil {
 				return nil, err
 			}

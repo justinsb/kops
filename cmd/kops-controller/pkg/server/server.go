@@ -27,7 +27,9 @@ import (
 	"hash/fnv"
 	"io"
 	"net/http"
+	"path"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -95,6 +97,14 @@ func NewServer(vfsContext *vfs.VFSContext, opt *config.Options, verifier bootstr
 		return nil, fmt.Errorf("cannot parse ConfigBase %q: %w", opt.ConfigBase, err)
 	}
 	s.configBase = configBase
+
+	if opt.SecretStore == "" && opt.ConfigBase != "" {
+		secretSubdir := "secrets"
+		if strings.HasPrefix(opt.ConfigBase, "file://") || strings.HasPrefix(opt.ConfigBase, "/") {
+			secretSubdir = "pki"
+		}
+		opt.SecretStore = path.Join(strings.TrimPrefix(opt.ConfigBase, "file://"), secretSubdir)
+	}
 
 	s.keystore, s.keypairIDs, err = newKeystore(opt.Server.CABasePath, opt.Server.SigningCAs)
 	if err != nil {

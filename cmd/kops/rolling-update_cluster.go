@@ -35,6 +35,7 @@ import (
 	"k8s.io/kops/cmd/kops/util"
 	kopsapi "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cloudinstances"
+	"k8s.io/kops/pkg/commands"
 	"k8s.io/kops/pkg/commands/commandutils"
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/instancegroups"
@@ -480,6 +481,12 @@ func RunRollingUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer
 		}
 	}
 	d.ClusterValidator = clusterValidator
+
+	if cluster.GetCloudProvider() == kopsapi.CloudProviderMetal && featureflag.Metal.Enabled() && k8sClient != nil {
+		if err := commands.SyncMetalClusterStateToControlPlane(ctx, cluster, clientset, k8sClient, options.SSHUser, options.SSHPort, out); err != nil {
+			return fmt.Errorf("syncing cluster state to control plane before rolling update: %w", err)
+		}
+	}
 
 	return d.RollingUpdate(ctx, groups, list)
 }

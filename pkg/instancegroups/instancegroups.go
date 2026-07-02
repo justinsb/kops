@@ -38,6 +38,7 @@ import (
 
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cloudinstances"
+	"k8s.io/kops/pkg/commands"
 	"k8s.io/kops/pkg/validation"
 )
 

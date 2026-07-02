@@ -71,6 +71,11 @@ spec:
           name: kops-controller-config
         - mountPath: /etc/kubernetes/kops-controller/pki/
           name: kops-controller-pki
+{{- if eq GetCloudProvider "metal" }}
+        - mountPath: /etc/kubernetes/kops/config
+          name: kops-state-store
+          readOnly: true
+{{- end }}
         args:
 {{ range $arg := KopsControllerArgv }}
         - "{{ $arg }}"
@@ -111,6 +116,12 @@ spec:
         hostPath:
           path: /etc/kubernetes/kops-controller/
           type: Directory
+{{- if eq GetCloudProvider "metal" }}
+      - name: kops-state-store
+        hostPath:
+          path: /etc/kubernetes/kops/config
+          type: Directory
+{{- end }}
 ---
 
 apiVersion: v1
