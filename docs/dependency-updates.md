@@ -282,7 +282,7 @@ Kubernetes version recommendations only, and an addon bump never touches them.
 | **B. Template literal with an `or` fallback** | the `.yaml.template` itself | calico, aws-load-balancer-controller, coredns, metrics-server |
 | **C. Fully hardcoded in the template** | the `.yaml.template` itself | cert-manager, snapshot-controller, external-dns, flannel, kube-router, amazon-vpc-cni, and the CSI **sidecar** images of aws-ebs-csi |
 
-Templates using `{{ .Version }}` open with a `{{ with .Path.To.Spec }}` block — that is why the bare
+Templates using `{% raw %}{{ .Version }}{% endraw %}` open with a `{% raw %}{{ with .Path.To.Spec }}{% endraw %}` block — that is why the bare
 field resolves.
 
 ### Finding the current version and the upstream source
@@ -371,7 +371,7 @@ High-coverage cases include `many-addons`, `many-addons-ccm*`, `minimal-aws`, `p
 
 ### kOps-owned addons — never bump these by hand
 
-`dns-controller.addons.k8s.io` and `kops-controller.addons.k8s.io` use `{{ KopsVersionImageTag }}`,
+`dns-controller.addons.k8s.io` and `kops-controller.addons.k8s.io` use `{% raw %}{{ KopsVersionImageTag }}{% endraw %}`,
 driven by `kops-version.go`. They move only via `hack/set-version`, enforced by
 `make verify-versions`.
 
