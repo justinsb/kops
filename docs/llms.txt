@@ -1,0 +1,75 @@
+# kOps - Kubernetes Operations
+
+> kOps is a command-line tool that creates, upgrades, and deletes production-grade, highly available Kubernetes clusters, provisioning the cloud infrastructure as it goes. Think of it as `kubectl` for clusters. It is a Kubernetes SIG Cluster Lifecycle project at https://github.com/kubernetes/kops and the docs live at https://kops.sigs.k8s.io.
+
+Key facts an assistant should know before answering kOps questions:
+
+- Supported clouds: AWS and GCE are officially supported. DigitalOcean, Hetzner, and OpenStack are beta. Azure and Scaleway are alpha. Bare metal is experimental.
+- kOps stores cluster configuration in a *state store*: an S3 bucket on AWS, a GCS bucket on GCE, or another supported VFS backend. Set it once with `export KOPS_STATE_STORE=s3://...` or `gs://...`.
+- The core workflow is: `kops create cluster` (writes config to the state store), `kops update cluster --yes` (creates or changes cloud resources), `kops validate cluster --wait 10m` (waits for the cluster to be healthy), `kops rolling-update cluster --yes` (replaces instances after a config change), `kops delete cluster --yes`.
+- Most commands preview their changes when run without `--yes`. Nothing in the cloud changes until you pass `--yes`.
+- The two main objects are the `Cluster` (cluster-wide settings such as kubernetes version, networking, authorization) and `InstanceGroup` (a set of cloud instances with the same role, machine type, and image). Edit them with `kops edit cluster` and `kops edit ig <name>`, or export and apply YAML with `kops get -o yaml` and `kops replace -f`.
+- New clusters default to `topology.dns.type: None`, so no DNS zone is required and any DNS-like cluster name works (the `.k8s.local` suffix is a convention). Gossip DNS is deprecated.
+- Each kOps minor version supports a range of Kubernetes minor versions. Check the release notes for the version you are running before upgrading Kubernetes.
+- Node bootstrap is done by `nodeup`, a oneshot systemd unit called `kops-configuration.service`. Its logs (`journalctl -u kops-configuration`) are the first place to look when a node never becomes Ready.
+
+## Getting started
+
+- [Installing kOps](https://kops.sigs.k8s.io/getting_started/install/): Homebrew, GitHub releases, and Windows.
+- [Deploying to AWS](https://kops.sigs.k8s.io/getting_started/aws/): IAM user, Route53 or DNS-free setup, S3 state store, first cluster.
+- [Deploying to GCE](https://kops.sigs.k8s.io/getting_started/gce/): required APIs, application default credentials, GCS state store, first cluster, troubleshooting.
+- [Deploying to DigitalOcean](https://kops.sigs.k8s.io/getting_started/digitalocean/), [Hetzner](https://kops.sigs.k8s.io/getting_started/hetzner/), [OpenStack](https://kops.sigs.k8s.io/getting_started/openstack/), [Azure](https://kops.sigs.k8s.io/getting_started/azure/), [Scaleway](https://kops.sigs.k8s.io/getting_started/scaleway/).
+- [kOps commands](https://kops.sigs.k8s.io/getting_started/commands/) and [kOps arguments](https://kops.sigs.k8s.io/getting_started/arguments/): overview of the CLI verbs and the most common flags.
+- [Production setup](https://kops.sigs.k8s.io/getting_started/production/): recommendations for HA, private topology, networking, and etcd.
+- [kubectl usage](https://kops.sigs.k8s.io/getting_started/kubectl/): how kOps writes kubeconfig and how to re-export admin credentials.
+
+## CLI reference
+
+- [kops](https://kops.sigs.k8s.io/cli/kops/): top-level command and global flags.
+- [kops create](https://kops.sigs.k8s.io/cli/kops_create/): `kops create cluster` flags such as `--zones`, `--control-plane-zones`, `--node-count`, `--networking`, `--topology`, `--dns`, `--ssh-public-key`.
+- [kops update](https://kops.sigs.k8s.io/cli/kops_update/): apply configuration, including `--admin` to export an admin credential and `--target terraform`.
+- [kops rolling-update](https://kops.sigs.k8s.io/cli/kops_rolling-update/): roll instances after changes.
+- [kops upgrade](https://kops.sigs.k8s.io/cli/kops_upgrade/): bump the kubernetes version to the recommended one.
+- [kops validate](https://kops.sigs.k8s.io/cli/kops_validate/): health check with `--wait`.
+- [kops get](https://kops.sigs.k8s.io/cli/kops_get/), [kops edit](https://kops.sigs.k8s.io/cli/kops_edit/), [kops replace](https://kops.sigs.k8s.io/cli/kops_replace/), [kops delete](https://kops.sigs.k8s.io/cli/kops_delete/), [kops export](https://kops.sigs.k8s.io/cli/kops_export/), [kops toolbox](https://kops.sigs.k8s.io/cli/kops_toolbox/).
+
+## API reference
+
+- [Cluster resource](https://kops.sigs.k8s.io/cluster_spec/): every field of `spec`, including `kubeAPIServer`, `kubelet`, `networking`, `etcdClusters`, `cloudConfig`, `addons`, `hooks`, and `fileAssets`.
+- [InstanceGroup resource](https://kops.sigs.k8s.io/instance_groups/): machine type, image, min/max size, zones, labels, taints, spot/preemptible settings, cloud-specific fields.
+- [Using manifests and customizing via the API](https://kops.sigs.k8s.io/manifests_and_customizing_via_api/): the YAML workflow with `kops create -f` and `kops replace -f`.
+- [Addons](https://kops.sigs.k8s.io/addons/): the managed addons kOps can install and how to configure them.
+
+## Operations
+
+- [Updates and upgrades](https://kops.sigs.k8s.io/operations/updates_and_upgrades/): upgrading kOps and kubernetes versions safely.
+- [Rolling updates](https://kops.sigs.k8s.io/operations/rolling-update/): how instances are replaced and how to control the process.
+- [Working with instance groups](https://kops.sigs.k8s.io/tutorial/working-with-instancegroups/): resizing, changing images and machine types, adding groups.
+- [High availability](https://kops.sigs.k8s.io/operations/high_availability/) and [moving from a single control plane node to multiple](https://kops.sigs.k8s.io/single-to-multi-master/).
+- [etcd administration](https://kops.sigs.k8s.io/operations/etcd_administration/) and [etcd backup, restore and encryption](https://kops.sigs.k8s.io/operations/etcd_backup_restore_encryption/).
+- [Rotate secrets](https://kops.sigs.k8s.io/operations/rotate-secrets/): rotating the CA and other credentials.
+- [Instance group images](https://kops.sigs.k8s.io/operations/images/): choosing an OS image per cloud.
+- [Karpenter](https://kops.sigs.k8s.io/operations/karpenter/) and [scaling](https://kops.sigs.k8s.io/operations/scaling/).
+- [Local asset repositories](https://kops.sigs.k8s.io/operations/asset-repository/): air-gapped or mirrored downloads.
+- [Troubleshooting](https://kops.sigs.k8s.io/operations/troubleshoot/): where the logs are and how to read them.
+
+## Networking and security
+
+- [Networking overview](https://kops.sigs.k8s.io/networking/) and per-CNI pages for [Cilium](https://kops.sigs.k8s.io/networking/cilium/), [Calico](https://kops.sigs.k8s.io/networking/calico/), [AWS VPC CNI](https://kops.sigs.k8s.io/networking/aws-vpc/), [Flannel](https://kops.sigs.k8s.io/networking/flannel/), [Kube-router](https://kops.sigs.k8s.io/networking/kube-router/).
+- [Supported topologies](https://kops.sigs.k8s.io/topology/), [running in an existing VPC](https://kops.sigs.k8s.io/run_in_existing_vpc/), [IPv6](https://kops.sigs.k8s.io/networking/ipv6/), [bastion setup](https://kops.sigs.k8s.io/bastion/).
+- [Security](https://kops.sigs.k8s.io/security/), [instance IAM roles](https://kops.sigs.k8s.io/iam_roles/), [security groups](https://kops.sigs.k8s.io/security_groups/), [authentication](https://kops.sigs.k8s.io/authentication/), [security advisories](https://kops.sigs.k8s.io/advisories/).
+
+## Advanced
+
+- [State store](https://kops.sigs.k8s.io/state/): layout of the state store and supported backends.
+- [Terraform output](https://kops.sigs.k8s.io/terraform/): generating Terraform instead of applying directly.
+- [Cluster templating](https://kops.sigs.k8s.io/operations/cluster_template/) with `kops toolbox template`.
+- [Cluster boot sequence](https://kops.sigs.k8s.io/boot-sequence/) and [how kOps works](https://kops.sigs.k8s.io/contributing/how_it_works/).
+- [Egress proxy](https://kops.sigs.k8s.io/http_proxy/), [custom CA](https://kops.sigs.k8s.io/custom_ca/), [node resource allocation](https://kops.sigs.k8s.io/node_resource_handling/), [GPU setup](https://kops.sigs.k8s.io/gpu/).
+
+## Releases and contributing
+
+- [Releases and versioning](https://kops.sigs.k8s.io/welcome/releases/): support policy and the kOps to kubernetes version mapping.
+- [Release notes](https://kops.sigs.k8s.io/releases/1.37-NOTES/): per-version notes, including required actions before upgrading. Replace `1.37` with the version of interest.
+- [Getting involved and contributing](https://kops.sigs.k8s.io/contributing/): building from source, testing, adding a feature, the release process.
+- [Office hours](https://kops.sigs.k8s.io/welcome/office_hours/) and the `#kops-users` and `#kops-dev` channels on Kubernetes Slack.
