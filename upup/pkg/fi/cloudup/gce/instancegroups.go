@@ -473,8 +473,11 @@ func addCloudInstanceData(cm *cloudinstances.CloudInstance, instance *compute.In
 			cm.ExternalIP = fi.ValueOf(&instance.NetworkInterfaces[0].AccessConfigs[0].NatIP)
 		}
 		if role == "master" || role == "control-plane" {
-			cm.Roles = append(cm.Roles, "control-plane")
-		} else {
+			// Control plane instances carry both the legacy "master" and the "control-plane" role labels;
+			// report the role once.
+			role = "control-plane"
+		}
+		if !slices.Contains(cm.Roles, role) {
 			cm.Roles = append(cm.Roles, role)
 		}
 	}

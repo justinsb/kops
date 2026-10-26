@@ -17,6 +17,7 @@ limitations under the License.
 package gce_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -314,5 +315,70 @@ func TestGetCloudGroups(t *testing.T) {
 	g := groups[testMIG]
 	if g == nil || len(g.NeedUpdate) != 1 || g.NeedUpdate[0].ID != testMIG {
 		t.Fatalf("unexpected group %q: %+v", testMIG, g)
+	}
+}
+
+// TestGetCloudGroupsControlPlaneRoles verifies that a control plane instance, which kOps labels with both
+// the legacy "master" role and the "control-plane" role, is reported with a single "control-plane" role.
+func TestGetCloudGroupsControlPlaneRoles(t *testing.T) {
+	cloud := newTestCloud(t)
+	clusterName := "testcluster.example.com"
+	migName := "a-control-plane-testcluster-example-com"
+
+	tpl := &compute.InstanceTemplate{
+		Name: "control-plane-template",
+		Properties: &compute.InstanceProperties{
+			Metadata: &compute.Metadata{
+				Items: []*compute.MetadataItems{
+					{Key: gcemetadata.MetadataKeyClusterName, Value: &clusterName},
+				},
+			},
+		},
+	}
+	if _, err := cloud.Compute().InstanceTemplates().Insert(testProject, tpl); err != nil {
+		t.Fatalf("Insert InstanceTemplate: %v", err)
+	}
+
+	mig := &compute.InstanceGroupManager{
+		Name:             migName,
+		Zone:             testZone,
+		InstanceTemplate: tpl.SelfLink,
+		TargetSize:       1,
+	}
+	if _, err := cloud.Compute().InstanceGroupManagers().Insert(testProject, testZone, mig); err != nil {
+		t.Fatalf("Insert InstanceGroupManager: %v", err)
+	}
+
+	clusterLabel := gceup.LabelForCluster(clusterName)
+	if _, err := cloud.Compute().Instances().Insert(testProject, testZone, &compute.Instance{
+		Name:   migName,
+		Status: "RUNNING",
+		Labels: map[string]string{
+			clusterLabel.Key:                               clusterLabel.Value,
+			gceup.GceLabelNameRolePrefix + "master":        "master",
+			gceup.GceLabelNameRolePrefix + "control-plane": "control-plane",
+		},
+		NetworkInterfaces: []*compute.NetworkInterface{{NetworkIP: "10.0.0.2"}},
+	}); err != nil {
+		t.Fatalf("Insert Instance: %v", err)
+	}
+
+	cluster := &kops.Cluster{ObjectMeta: metav1.ObjectMeta{Name: clusterName}}
+	ig := &kops.InstanceGroup{ObjectMeta: metav1.ObjectMeta{Name: "control-plane"}}
+
+	groups, err := gceup.GetCloudGroups(cloud, cluster, []*kops.InstanceGroup{ig}, false, nil)
+	if err != nil {
+		t.Fatalf("GetCloudGroups() error = %v", err)
+	}
+	g := groups[migName]
+	if g == nil || len(g.NeedUpdate) != 1 {
+		t.Fatalf("unexpected group %q: %+v", migName, g)
+	}
+	instance := g.NeedUpdate[0]
+	if want := []string{"control-plane"}; !slices.Equal(instance.Roles, want) {
+		t.Errorf("Roles = %v, want %v", instance.Roles, want)
+	}
+	if instance.PrivateIP != "10.0.0.2" {
+		t.Errorf("PrivateIP = %q, want %q", instance.PrivateIP, "10.0.0.2")
 	}
 }
