@@ -226,6 +226,10 @@ func clusterOutputTable(clusters []*kopsapi.Cluster, out io.Writer) error {
 		for _, s := range c.Spec.Networking.Subnets {
 			if s.Zone != "" {
 				zones.Insert(s.Zone)
+			} else if s.Region != "" {
+				// Some clouds (e.g. GCE) have regional subnets, which don't have a zone.
+				// Showing the region is more useful than showing nothing.
+				zones.Insert(s.Region)
 			}
 		}
 		return strings.Join(zones.List(), ",")
