@@ -488,7 +488,16 @@ func RunUpdateCluster(ctx context.Context, f *util.Factory, out io.Writer, c *Up
 			fmt.Fprintf(sb, " * validate cluster: kops validate cluster --wait 10m\n")
 			fmt.Fprintf(sb, " * list nodes: kubectl get nodes --show-labels\n")
 			if !usesBastion(applyCmd.InstanceGroups) {
-				fmt.Fprintf(sb, " * ssh to a control-plane node: ssh -i ~/.ssh/id_rsa ubuntu@%s\n", cluster.Spec.API.PublicName)
+				switch {
+				case cluster.GetCloudProvider() == kops.CloudProviderGCE:
+					// kOps does not manage SSH keys on GCE by default; gcloud injects keys via instance metadata.
+					fmt.Fprintf(sb, " * ssh to a control-plane node: gcloud compute ssh <instance> --zone <zone> (list instances with kops get instances)\n")
+				case cluster.Spec.API.PublicName != "":
+					fmt.Fprintf(sb, " * ssh to a control-plane node: ssh -i ~/.ssh/id_rsa ubuntu@%s\n", cluster.Spec.API.PublicName)
+				default:
+					// With topology.dns.type=None there is no DNS name for the API; point at kops get instances instead.
+					fmt.Fprintf(sb, " * ssh to a control-plane node: find its address with kops get instances, then ssh -i ~/.ssh/id_rsa ubuntu@<address>\n")
+				}
 			} else {
 				bastionPublicName := findBastionPublicName(cluster)
 				if bastionPublicName != "" {
