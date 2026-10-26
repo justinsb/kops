@@ -44,4 +44,6 @@ unset DIGITALOCEAN_ACCESS_TOKEN
 export KUBECONFIG=/dev/null
 
 # Run the tests in "autofix mode"
-HACK_UPDATE_EXPECTED_IN_PLACE=1 go test "${PKG}" "${RUN_FILTER[@]}" -count=1
+# "${RUN_FILTER[@]}" on an empty array is an unbound-variable error under `set -u` in bash 3.2
+# (the macOS default), so expand it only when it has elements.
+HACK_UPDATE_EXPECTED_IN_PLACE=1 go test "${PKG}" ${RUN_FILTER[@]+"${RUN_FILTER[@]}"} -count=1
