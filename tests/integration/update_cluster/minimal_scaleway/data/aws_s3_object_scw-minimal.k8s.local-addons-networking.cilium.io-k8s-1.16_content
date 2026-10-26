@@ -135,6 +135,7 @@ data:
   k8s-require-ipv4-pod-cidr: "false"
   k8s-require-ipv6-pod-cidr: "false"
   kube-proxy-replacement: "true"
+  kube-proxy-replacement-healthz-bind-address: 0.0.0.0:10256
   max-connected-clusters: "255"
   mesh-auth-enabled: "true"
   mesh-auth-gc-interval: 5m0s

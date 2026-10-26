@@ -91,6 +91,11 @@ Be aware that you need to use an AMI with at least Linux 4.19.57 for this featur
 
 Also be aware that while enabling this on an existing cluster is safe, disabling this is disruptive and requires you to run `kops rolling-upgrade cluster --cloudonly`.
 
+In this mode Cilium also serves kube-proxy's health endpoint on port 10256 of every node. Cloud load balancers use it
+to decide which nodes can receive traffic for a `Service` of type `LoadBalancer`; for example the GCE cloud controller
+manager health-checks `http://<node>:10256/healthz`. Make sure your firewall rules allow the cloud provider's health
+check ranges to reach that port (kOps and the cloud controller manager create these rules for you on GCE).
+
 ```yaml
   kubeProxy:
     enabled: false

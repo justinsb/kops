@@ -342,6 +342,13 @@ data:
   enable-local-redirect-policy: "{{ .EnableLocalRedirectPolicy }}"
 
   kube-proxy-replacement: "{{- if .EnableNodePort -}}true{{- else -}}false{{- end -}}"
+  {{ if .EnableNodePort }}
+  # Serve the kube-proxy-compatible healthz endpoint on the node. Cloud load balancer health checks
+  # (e.g. the GCE cloud-controller-manager's HTTP check on :10256) rely on it; without it every node is
+  # reported unhealthy. Validation guarantees kube-proxy is disabled when NodePort is enabled, so the
+  # port is free.
+  kube-proxy-replacement-healthz-bind-address: "{{- if IsIPv6Only -}}[::]{{- else -}}0.0.0.0{{- end -}}:10256"
+  {{ end }}
   bpf-lb-sock: "{{ .BPFLBSock }}"
   bpf-lb-sock-hostns-only: "{{ .BPFLBSockHostNSOnly }}"
   enable-node-port: "{{ .EnableNodePort }}"
