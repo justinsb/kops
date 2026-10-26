@@ -23,14 +23,16 @@ RUN apk add --no-cache \
   python3-dev \
   curl \
   build-base \
-  && python3 -m ensurepip \
-  && rm -r /usr/lib/python*/ensurepip \
-  && pip3 install --upgrade pip setuptools \
-  && rm -r /root/.cache \
   && rm -rf /var/cache/apk/*
 
+# Alpine's python is "externally managed" (PEP 668), so pip refuses to install into the system
+# site-packages. Install mkdocs and its plugins into a virtualenv instead.
+RUN python3 -m venv /opt/venv \
+  && /opt/venv/bin/pip install --no-cache-dir --upgrade pip setuptools
+ENV PATH="/opt/venv/bin:${PATH}"
+
 COPY requirements.txt /requirements.txt
-RUN pip install -U -r /requirements.txt
+RUN pip install --no-cache-dir -U -r /requirements.txt
 
 WORKDIR /docs
 
