@@ -7,7 +7,11 @@ The first step to debugging a kOps cluster is to run `kops validate cluster --na
 If the above-mentioned command complains about an unavailable API server, it means the control plane isn't working properly.
 In order to diagnose further, you need to log into one of the control plane nodes.
 
-Run `kops get instances` (1.19+) or look in the AWS console to identify a node with the master role. Then ssh into the IP address listed.
+Run `kops get instances` (1.19+) or look in your cloud provider's console to identify a node with the control-plane role. Then ssh into the IP address listed.
+
+On GCE, kOps does not install an SSH key by default, so use `gcloud compute ssh <instance-name> --zone <zone>` instead,
+which manages keys through instance metadata. If you cannot reach a node at all, the serial console still works:
+`gcloud compute instances get-serial-port-output <instance-name> --zone <zone>` shows the nodeup output described below.
 
 The logs on the control plane resides in`/var/log`. Assume the logs are there unless otherwise noted.
 
