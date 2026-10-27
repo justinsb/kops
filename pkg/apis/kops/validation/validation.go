@@ -391,6 +391,12 @@ func validateCloudProvider(c *kops.Cluster, provider *kops.CloudProviderSpec, fi
 			allErrs = append(allErrs, field.Forbidden(fieldSpec.Child("gce"), "only one cloudProvider option permitted"))
 		}
 		optionTaken = true
+		switch c.Spec.CloudProvider.GCE.PodCredentials {
+		case "", kops.GCEPodCredentialsNodeServiceAccount, kops.GCEPodCredentialsNone:
+		default:
+			allErrs = append(allErrs, field.NotSupported(fieldSpec.Child("gce", "podCredentials"), c.Spec.CloudProvider.GCE.PodCredentials,
+				[]kops.GCEPodCredentials{kops.GCEPodCredentialsNodeServiceAccount, kops.GCEPodCredentialsNone}))
+		}
 		constraints.requiresNetworkCIDR = false
 		constraints.requiresSubnetCIDR = false
 		constraints.requiresSubnetRegion = true

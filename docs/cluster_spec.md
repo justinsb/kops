@@ -1580,6 +1580,38 @@ spec:
     managed: false
 ```
 
+## GCE Pod credentials
+
+On GCE every Pod can normally reach the Compute Engine metadata server, which hands out access tokens for
+the node's service account and the instance identity token. Any workload that can open a TCP connection
+therefore holds the node's cloud credentials. `podCredentials` chooses whether that is so:
+
+```yaml
+spec:
+  cloudProvider:
+    gce:
+      podCredentials: None
+```
+
+| Value | Meaning |
+|---|---|
+| `NodeServiceAccount` (default) | Pods can use the node's service account through the metadata server. |
+| `None` | Pods cannot reach the metadata server; connections are refused. Pods on the host network (`hostNetwork: true`) are not affected, which is what the cloud controller manager and other node-level components rely on. |
+
+With `None`, nodeup installs the block at boot, before any Pod can be started on the node, so it does not
+depend on the order in which things come up. Workloads that need Google Cloud access should use Workload
+Identity Federation with their Kubernetes ServiceAccount tokens (see
+[Service Account Issuer Discovery](#service-account-issuer-discovery-and-aws-iam-roles-for-service-accounts-irsa))
+rather than the node's credentials. Workloads that merely ask the metadata server for the project id or zone
+also stop working under `None`; configure them explicitly.
+
+Changing the value changes the instance configuration, so it takes effect through `kops rolling-update
+cluster`. The block works with the kOps-managed `gcp` networking and with CNIs whose Pod traffic passes
+through the host's netfilter tables; Cilium with eBPF host routing bypasses those tables.
+
+This is the GCE counterpart of the AWS default, where the instance metadata hop limit of 1 keeps IMDS out
+of reach of Pods.
+
 ## Service Account Issuer Discovery and AWS IAM Roles for Service Accounts (IRSA)
 
 {{ kops_feature_table(kops_added_default='1.21') }}
@@ -1665,6 +1697,7 @@ the removal of fields no longer in use.
 | cloudConfig.azure.subscriptionId                       | cloudProvider.azure.subscriptionID                             |
 | cloudConfig.azure.tenantId                             | cloudProvider.azure.tenantID                                   |
 | cloudConfig.gcpPDCSIDriver                             | cloudProvider.gce.pdCSIDriver                                  |
+| cloudConfig.gcePodCredentials                          | cloudProvider.gce.podCredentials                               |
 | cloudConfig.disableSecurityGroupIngress                | cloudProvider.aws.disableSecurityGroupIngress                  |
 | cloudConfig.elbSecurityGroup                           | cloudProvider.aws.elbSecurityGroup                             |
 | cloudConfig.gceServiceAccount                          | cloudProvider.gce.serviceAccount                               |

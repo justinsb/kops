@@ -210,6 +210,13 @@ func TestMinimalGCE(t *testing.T) {
 		runTestTerraformGCE(t)
 }
 
+// TestGCEPodCredentialsNone runs tests on a GCE configuration with podCredentials: None, which tells
+// nodeup to block Pod access to the metadata server.
+func TestGCEPodCredentialsNone(t *testing.T) {
+	newIntegrationTest("gce-pod-credentials-none.example.com", "gce_pod_credentials_none").
+		runTestTerraformGCE(t)
+}
+
 // TestMinimalGCEPrivate runs tests on a minimal GCE configuration with private topology.
 func TestMinimalGCEPrivate(t *testing.T) {
 	newIntegrationTest("minimal-gce-private.example.com", "minimal_gce_private").

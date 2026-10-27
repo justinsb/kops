@@ -4488,6 +4488,7 @@ func autoConvert_v1alpha3_GCESpec_To_kops_GCESpec(in *GCESpec, out *kops.GCESpec
 	}
 	out.UseStartupScript = in.UseStartupScript
 	out.BinariesLocation = in.BinariesLocation
+	out.PodCredentials = kops.GCEPodCredentials(in.PodCredentials)
 	return nil
 }
 
@@ -4513,6 +4514,7 @@ func autoConvert_kops_GCESpec_To_v1alpha3_GCESpec(in *kops.GCESpec, out *GCESpec
 	}
 	out.UseStartupScript = in.UseStartupScript
 	out.BinariesLocation = in.BinariesLocation
+	out.PodCredentials = GCEPodCredentials(in.PodCredentials)
 	return nil
 }
 

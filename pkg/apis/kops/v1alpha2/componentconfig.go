@@ -1061,6 +1061,10 @@ type CloudConfiguration struct {
 	// GCPPDCSIDriver is the config for the GCP PD CSI driver
 	// +k8s:conversion-gen=false
 	GCPPDCSIDriver *PDCSIDriver `json:"gcpPDCSIDriver,omitempty"`
+	// GCEPodCredentials selects which cloud credentials Pods can obtain from the node on GCE:
+	// "NodeServiceAccount" (default) or "None".
+	// +k8s:conversion-gen=false
+	GCEPodCredentials string `json:"gcePodCredentials,omitempty"`
 }
 
 // EBSCSIDriverSpec is the config for the AWS EBS CSI driver

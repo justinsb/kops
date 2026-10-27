@@ -267,7 +267,25 @@ type GCESpec struct {
 
 	// BinariesLocation is the location of the GCE cloud provider binaries.
 	BinariesLocation *string `json:"binariesLocation,omitempty"`
+
+	// PodCredentials selects which cloud credentials Pods (outside the host network) can obtain
+	// from the node. Defaults to NodeServiceAccount, the historical behaviour.
+	PodCredentials GCEPodCredentials `json:"podCredentials,omitempty"`
 }
+
+// GCEPodCredentials describes which cloud credentials Pods can obtain from the node they run on.
+type GCEPodCredentials string
+
+const (
+	// GCEPodCredentialsNodeServiceAccount lets Pods reach the Compute Engine metadata server and so
+	// obtain access tokens for the node's service account, as well as the instance identity token.
+	GCEPodCredentialsNodeServiceAccount GCEPodCredentials = "NodeServiceAccount" //nolint:gosec // an enum value, not a credential
+	// GCEPodCredentialsNone keeps Pods away from the node's credentials: nodeup blocks Pod traffic to
+	// the metadata server at boot, before any Pod can start (connections are refused). Pods on the host
+	// network are not affected. Workloads needing Google Cloud access should use Workload Identity
+	// Federation with their Kubernetes ServiceAccount tokens instead.
+	GCEPodCredentialsNone GCEPodCredentials = "None"
+)
 
 // HetznerSpec configures the Hetzner cloud provider.
 type HetznerSpec struct{}

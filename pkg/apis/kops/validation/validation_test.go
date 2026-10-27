@@ -2934,3 +2934,20 @@ func TestValidateKubeletKubeAPIBurst(t *testing.T) {
 		testErrors(t, g.Input, errs, g.ExpectedErrors)
 	}
 }
+
+func TestValidateGCEPodCredentials(t *testing.T) {
+	for _, tc := range []struct {
+		value    kops.GCEPodCredentials
+		expected []string
+	}{
+		{value: ""},
+		{value: kops.GCEPodCredentialsNodeServiceAccount},
+		{value: kops.GCEPodCredentialsNone},
+		{value: "Proxied", expected: []string{"Unsupported value::spec.cloudProvider.gce.podCredentials"}},
+	} {
+		cluster := &kops.Cluster{}
+		cluster.Spec.CloudProvider.GCE = &kops.GCESpec{PodCredentials: tc.value}
+		errs, _ := validateCloudProvider(cluster, &cluster.Spec.CloudProvider, field.NewPath("spec", "cloudProvider"))
+		testErrors(t, tc.value, errs, tc.expected)
+	}
+}

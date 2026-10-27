@@ -2404,6 +2404,7 @@ func autoConvert_v1alpha2_CloudConfiguration_To_kops_CloudConfiguration(in *Clou
 	// INFO: in.Azure opted out of conversion generation
 	// INFO: in.AWSEBSCSIDriver opted out of conversion generation
 	// INFO: in.GCPPDCSIDriver opted out of conversion generation
+	// INFO: in.GCEPodCredentials opted out of conversion generation
 	return nil
 }
 

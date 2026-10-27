@@ -263,6 +263,12 @@ func Convert_v1alpha2_ClusterSpec_To_kops_ClusterSpec(in *ClusterSpec, out *kops
 				return err
 			}
 		}
+		if in.CloudConfig.GCEPodCredentials != "" {
+			if out.CloudProvider.GCE == nil {
+				return field.Forbidden(field.NewPath("spec").Child("cloudConfig", "gcePodCredentials"), "pod credentials supports only GCE")
+			}
+			out.CloudProvider.GCE.PodCredentials = kops.GCEPodCredentials(in.CloudConfig.GCEPodCredentials)
+		}
 		if in.CloudConfig.Multizone != nil {
 			if out.CloudProvider.GCE == nil {
 				return field.Forbidden(field.NewPath("spec").Child("cloudConfig", "multizone"), "multizone supports only GCE")
@@ -625,6 +631,12 @@ func Convert_kops_ClusterSpec_To_v1alpha2_ClusterSpec(in *kops.ClusterSpec, out 
 			if err := autoConvert_kops_PDCSIDriver_To_v1alpha2_PDCSIDriver(gce.PDCSIDriver, out.CloudConfig.GCPPDCSIDriver, s); err != nil {
 				return err
 			}
+		}
+		if gce.PodCredentials != "" {
+			if out.CloudConfig == nil {
+				out.CloudConfig = &CloudConfiguration{}
+			}
+			out.CloudConfig.GCEPodCredentials = string(gce.PodCredentials)
 		}
 	case kops.CloudProviderOpenstack:
 		if out.CloudConfig == nil {

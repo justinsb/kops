@@ -138,6 +138,9 @@ type Config struct {
 	Multizone          *bool   `json:"multizone,omitempty"`
 	NodeTags           *string `json:"nodeTags,omitempty"`
 	NodeInstancePrefix *string `json:"nodeInstancePrefix,omitempty"`
+	// GCEBlockPodMetadataAccess makes nodeup block Pod traffic to the GCE metadata server at boot
+	// (spec.cloudProvider.gce.podCredentials: None).
+	GCEBlockPodMetadataAccess bool `json:"gceBlockPodMetadataAccess,omitempty"`
 
 	// Openstack-specific
 	Openstack *kops.OpenstackSpec `json:",omitempty"`
@@ -312,6 +315,9 @@ func NewConfig(cluster *kops.Cluster, instanceGroup *kops.InstanceGroup) (*Confi
 		config.Multizone = gce.Multizone
 		config.NodeTags = gce.NodeTags
 		config.NodeInstancePrefix = gce.NodeInstancePrefix
+		if gce.PodCredentials == kops.GCEPodCredentialsNone {
+			config.GCEBlockPodMetadataAccess = true
+		}
 	}
 
 	config.Openstack = cluster.Spec.CloudProvider.Openstack
