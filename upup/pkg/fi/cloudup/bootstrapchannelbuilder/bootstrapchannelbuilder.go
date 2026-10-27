@@ -17,6 +17,7 @@ limitations under the License.
 package bootstrapchannelbuilder
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -25,6 +26,7 @@ import (
 	channelsapi "k8s.io/kops/channels/pkg/api"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/assets"
+	"k8s.io/kops/pkg/clusterpackages"
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/pkg/model"
@@ -146,6 +148,10 @@ func (b *BootstrapChannelBuilder) Build(c *fi.CloudupModelBuilderContext) error 
 		}
 	}
 
+	if err := b.buildClusterPackages(addons); err != nil {
+		return err
+	}
+
 	// Not all objects in ClusterAddons should be applied to the cluster - although most should.
 	// However, there are a handful of well-known exceptions:
 	// e.g. configuration objects which are instead configured via files on the nodes.
@@ -219,6 +225,51 @@ func (b *BootstrapChannelBuilder) Build(c *fi.CloudupModelBuilderContext) error 
 		addonManifests: addonTasks,
 	})
 
+	return nil
+}
+
+// buildClusterPackages turns ClusterPackage addon objects into channel addons and removes them
+// (and GCPResource objects) from the list of objects applied directly to the cluster.
+func (b *BootstrapChannelBuilder) buildClusterPackages(addons *AddonList) error {
+	partition := clusterpackages.PartitionObjects(b.ClusterAddons)
+	if len(partition.ClusterPackages) == 0 && len(partition.GCPResources) == 0 {
+		return nil
+	}
+	if !featureflag.ClusterPackages.Enabled() {
+		return fmt.Errorf("found %d ClusterPackage and %d GCPResource addon objects, but the ClusterPackages feature flag is not enabled (set KOPS_FEATURE_FLAGS=ClusterPackages)", len(partition.ClusterPackages), len(partition.GCPResources))
+	}
+	if len(partition.GCPResources) != 0 {
+		// Parse them so that malformed objects are reported now; creating the cloud resources
+		// is not implemented yet.
+		values := clusterpackages.ValuesForCluster(b.Cluster)
+		for _, object := range partition.GCPResources {
+			if _, err := clusterpackages.ParseGCPResource(values, object.ToUnstructured()); err != nil {
+				return err
+			}
+		}
+		return fmt.Errorf("GCPResource objects are not supported yet (found %d)", len(partition.GCPResources))
+	}
+
+	values := clusterpackages.ValuesForCluster(b.Cluster)
+	for _, object := range partition.ClusterPackages {
+		pkg, err := clusterpackages.LoadPackage(context.TODO(), vfs.Context, values, object.ToUnstructured())
+		if err != nil {
+			return err
+		}
+		key := pkg.Name
+		location := key + "/" + pkg.Version + ".yaml"
+		addon := addons.AddWithSource(&channelsapi.AddonSpec{
+			Name:     new(key),
+			Id:       pkg.Version,
+			Selector: map[string]string{"k8s-addon": key},
+			Manifest: new(location),
+		}, fi.NewBytesResource(pkg.Manifest))
+		// The manifest was rendered (if requested) against the package Values already, so the
+		// internal addon template functions are not applied to it. Remapping stays on so every
+		// object gets the kops labels that pruning relies on.
+		addon.BuildPrune = pkg.Prune
+	}
+	b.ClusterAddons = partition.Other
 	return nil
 }
 

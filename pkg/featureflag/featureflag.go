@@ -87,6 +87,8 @@ var (
 	ExperimentalRoles = new("ExperimentalRoles", Bool(false))
 	// UseAddonOperators activates experimental addon operator support
 	UseAddonOperators = new("UseAddonOperators", Bool(false))
+	// ClusterPackages activates experimental support for ClusterPackage and GCPResource addon objects
+	ClusterPackages = new("ClusterPackages", Bool(false))
 	// TerraformManagedFiles enables rendering managed files into the Terraform configuration.
 	TerraformManagedFiles = new("TerraformManagedFiles", Bool(true))
 	// ImageDigest remaps all manifests with image digests

@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/kops/pkg/clusterpackages"
 )
 
 func ValidateAdditionalObject(ctx context.Context, fieldPath *field.Path, u *unstructured.Unstructured) field.ErrorList {
@@ -38,6 +39,7 @@ func ValidateAdditionalObject(ctx context.Context, fieldPath *field.Path, u *uns
 	// It would be nice to be able to consume validation code e.g. via a container,
 	// so we could be more extensible.
 	errors = append(errors, validateAdditionalObjectKubescheduler(ctx, fieldPath, gvk, u)...)
+	errors = append(errors, clusterpackages.ValidateObject(fieldPath, u)...)
 	return errors
 }
 
