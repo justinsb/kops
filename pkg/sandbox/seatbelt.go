@@ -64,8 +64,8 @@ func seatbeltProfile(cmd *Command) string {
 	b.WriteString("(allow process-fork)\n")
 	b.WriteString("(allow file-read-metadata)\n")
 	fmt.Fprintf(&b, "(allow file-read* (literal %s))\n", sbString(cmd.Tool.HostPath))
-	// Go binaries read the root directory itself during startup (path resolution of the executable);
-	// without this helm exits 1 before printing anything. Only "/" is allowed, not its contents.
+	// dyld reads the root directory itself while locating the shared cache (dyld4::CacheFinder on
+	// macOS 26), so without this every process aborts before main. Only "/" is allowed, not its contents.
 	b.WriteString("(allow file-read* (literal \"/\"))\n")
 	for _, p := range []string{"/usr/lib", "/System", "/private/var/db/dyld", "/usr/share/zoneinfo", "/private/etc/ssl", "/etc/ssl", "/Library/Keychains", "/private/var/db/mds", "/System/Library/Keychains"} {
 		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", sbString(p))
