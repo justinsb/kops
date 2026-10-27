@@ -36,6 +36,9 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/kops/pkg/model/components/channels"
+	"k8s.io/kops/util/pkg/vfs"
+
 	"golang.org/x/crypto/ssh"
 	"k8s.io/kops/cmd/kops/util"
 	"k8s.io/kops/pkg/apis/kops"
@@ -69,6 +72,9 @@ type integrationTest struct {
 	ciliumEtcd         bool
 	// verify "kops get assets" functionality
 	testGetAssets bool
+	// memfsFiles are written to the in-memory VFS before the cluster is created, so that
+	// scenarios can reference them (e.g. custom addon manifests) without network access.
+	memfsFiles map[string]string
 }
 
 func newIntegrationTest(clusterName, srcDir string) *integrationTest {
@@ -78,6 +84,14 @@ func newIntegrationTest(clusterName, srcDir string) *integrationTest {
 		version:     "v1alpha2",
 		sshKey:      true,
 	}
+}
+
+func (i *integrationTest) withMemfsFile(path, content string) *integrationTest {
+	if i.memfsFiles == nil {
+		i.memfsFiles = map[string]string{}
+	}
+	i.memfsFiles[path] = content
+	return i
 }
 
 func (i *integrationTest) withTestGetAssets() *integrationTest {
@@ -294,6 +308,33 @@ func TestMinimalGCEDNSNone(t *testing.T) {
 	newIntegrationTest("minimal-gce.example.com", "minimal_gce_dns-none").
 		runTestTerraformGCE(t)
 }
+
+// TestCustomAddonsGCE runs tests on a GCE configuration with spec.addons: a plain manifest that is
+// snapshotted into the state store, and an Addons index that is referenced in place.
+func TestCustomAddonsGCE(t *testing.T) {
+	newIntegrationTest("minimal-gce.example.com", "custom_addons_gce").
+		withMemfsFile("memfs://tests/custom-addons/hello.yaml", customAddonManifest).
+		withMemfsFile("memfs://tests/custom-addons/index.yaml", customAddonIndex).
+		runTestTerraformGCE(t)
+}
+
+const customAddonManifest = `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-custom-addon
+  namespace: kube-system
+data:
+  hello: world
+`
+
+const customAddonIndex = `kind: Addons
+metadata:
+  name: example
+spec:
+  addons:
+  - name: example
+    manifest: example/v1.yaml
+`
 
 // TestMinimalScaleway runs tests on a minimal Scaleway cluster
 func TestMinimalScaleway(t *testing.T) {
@@ -768,6 +809,16 @@ func (i *integrationTest) runTest(t *testing.T, ctx context.Context, h *testutil
 	expectedDataDir := filepath.Join(i.srcDir, "data")
 	expectedDataFilenames := readDirFilenames(t, expectedDataDir)
 
+	for p, content := range i.memfsFiles {
+		vfsPath, err := vfs.Context.BuildVfsPath(p)
+		if err != nil {
+			t.Fatalf("building memfs path %q: %v", p, err)
+		}
+		if err := vfsPath.WriteFile(ctx, strings.NewReader(content), nil); err != nil {
+			t.Fatalf("writing memfs file %q: %v", p, err)
+		}
+	}
+	channels.ResetCustomAddonCache()
 	factory := i.setupCluster(t, ctx, inputYAML, stdout)
 
 	{

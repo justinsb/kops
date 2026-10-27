@@ -37,7 +37,6 @@ import (
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/fitasks"
 	"k8s.io/kops/util/pkg/env"
-	"k8s.io/kops/util/pkg/vfs"
 )
 
 const (
@@ -61,9 +60,37 @@ type ChannelsBuilder struct {
 var _ fi.CloudupModelBuilder = &ChannelsBuilder{}
 
 func (b *ChannelsBuilder) Build(c *fi.CloudupModelBuilderContext) error {
-	channels, err := b.channelList()
+	channels, err := ChannelURLs(b.Cluster)
 	if err != nil {
 		return err
+	}
+
+	// Copy plain custom-addon manifests into the state store so that the control plane reads
+	// exactly the reviewed content from a location it can already reach.
+	customAddons, err := ResolveCustomAddons(b.Cluster)
+	if err != nil {
+		return err
+	}
+	for _, addon := range customAddons {
+		if addon.IsIndex {
+			continue
+		}
+		index, err := addon.SnapshotIndex()
+		if err != nil {
+			return fmt.Errorf("building snapshot index for %s: %w", addon.Spec.Manifest, err)
+		}
+		c.AddTask(&fitasks.ManagedFile{
+			Name:      new("custom-addon-" + addon.Name + "-index"),
+			Lifecycle: b.Lifecycle,
+			Location:  new(addon.SnapshotDir() + "/addons.yaml"),
+			Contents:  fi.NewBytesResource(index),
+		})
+		c.AddTask(&fitasks.ManagedFile{
+			Name:      new("custom-addon-" + addon.Name + "-manifest"),
+			Lifecycle: b.Lifecycle,
+			Location:  new(addon.SnapshotDir() + "/manifest.yaml"),
+			Contents:  fi.NewBytesResource(addon.Content),
+		})
 	}
 
 	pod, err := b.buildPod(channels)
@@ -82,22 +109,6 @@ func (b *ChannelsBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 		Name:      new("manifests-channels-kops-channels"),
 	})
 	return nil
-}
-
-// channelList returns the bootstrap channel plus cluster.Spec.Addons. The bootstrap URL is
-// built via vfs path joining so toolbox_enroll's identity comparison stays byte-identical.
-func (b *ChannelsBuilder) channelList() ([]string, error) {
-	configBase, err := vfs.Context.BuildVfsPath(b.Cluster.Spec.ConfigStore.Base)
-	if err != nil {
-		return nil, fmt.Errorf("parsing configStore.base %q: %w", b.Cluster.Spec.ConfigStore.Base, err)
-	}
-	channels := []string{
-		configBase.Join("addons", "bootstrap-channel.yaml").Path(),
-	}
-	for i := range b.Cluster.Spec.Addons {
-		channels = append(channels, b.Cluster.Spec.Addons[i].Manifest)
-	}
-	return channels, nil
 }
 
 func (b *ChannelsBuilder) buildPod(channels []string) (*v1.Pod, error) {

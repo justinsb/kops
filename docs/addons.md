@@ -428,17 +428,50 @@ spec:
 
 ## Custom addons
 
-Static addons are configured with `spec.addons`. Each entry points to a manifest that the control plane can read.
+Custom addons are configured with `spec.addons`. Each entry points to a manifest.
 
 ```yaml
 spec:
   addons:
-  - manifest: https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml
+  - manifest: https://github.com/cert-manager/cert-manager/releases/download/v1.21.3/cert-manager.yaml
+    sha256: c04a51295adda2b1a775146751f973e787190778c7f35180861d9678876e5c74
 ```
 
-Starting with kOps 1.36, that file can be a regular Kubernetes resource manifest. For example, the manifest above installs the Gateway API CRDs. kOps applies the resources as-is.
+### Plain manifests
 
-It can also be a kOps `Addons` index. Use this when one entry in `spec.addons` should point at multiple versioned manifests. The [addon management](contributing/addons.md#addon-management) docs describe versioned addon indexes in more detail.
+A plain Kubernetes manifest (the cert-manager release file above, the Gateway API CRDs, your own YAML)
+is handled like this:
+
+1. `kops update cluster` fetches the manifest from the operator's machine. Any URL the `kops` CLI can
+   read works: `https://`, `s3://`, `gs://`, and also `file://` for a local file.
+2. If `sha256` is set, the content must match or the update fails. Pinning is recommended for `https`
+   URLs so that a changed upstream file cannot be applied unreviewed.
+3. The content is copied into the state store under `addons/custom/<name>/<content hash>/`, and the
+   kops-channels static pod on the control plane is pointed at that copy. The control plane therefore
+   needs no network access to the original URL, and it applies exactly the content that was fetched.
+4. Because the copy's path contains the content hash, changing the manifest changes the control-plane
+   instance configuration. `kops update cluster` reports that instances need to restart, and
+   `kops rolling-update cluster` replaces the control-plane nodes, after which kops-channels applies the
+   new content. The roll is deliberate: it makes an addon change go through the same gradual,
+   validated rollout as any other control-plane change.
+
+To upgrade a plain custom addon, change `manifest` (and `sha256`), then run `kops update cluster --yes`
+followed by `kops rolling-update cluster --yes`.
+
+kops-channels names the addon `manifest-` followed by the first 12 characters of the hash of the URL,
+and records what it applied in an annotation on the `kube-system` namespace. Objects are applied as-is;
+kOps does not add labels to them or delete objects that a later version of the manifest no longer
+contains.
+
+### Addons indexes
+
+An entry can also point at a kOps `Addons` index. Use this when one entry in `spec.addons` should point
+at multiple versioned manifests. Indexes are not copied to the state store, because their manifest paths
+are relative to the index: the control plane reads the index and its manifests directly, polls them on
+the kops-channels interval, and applies changes without a roll. The index must therefore be reachable
+from the control plane (so not `file://`), and if it lives in a private bucket the control plane needs
+read access; see below. The [addon management](contributing/addons.md#addon-management) docs describe
+versioned addon indexes in more detail.
 
 Here is a minimal `Addons` index that installs two addons.
 

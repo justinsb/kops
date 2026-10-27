@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-custom-addon
+  namespace: kube-system
+data:
+  hello: world

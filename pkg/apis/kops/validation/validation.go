@@ -17,6 +17,8 @@ limitations under the License.
 package validation
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
@@ -188,12 +190,18 @@ func validateClusterSpec(spec *kops.ClusterSpec, c *kops.Cluster, fieldPath *fie
 		allErrs = append(allErrs, validateSnapshotController(c, spec.SnapshotController, fieldPath.Child("snapshotController"))...)
 	}
 
-	// Custom addons: the kops-channels static pod fetches manifests via VFS at boot, so file:// schemes
-	// (which would resolve inside the container's mount namespace) aren't supported. Push the manifest
-	// to the state store or another VFS-supported backend.
+	// Custom addons: plain manifests are fetched at `kops update cluster` and copied to the state
+	// store, so any VFS URL the operator can read works, including file://. Addons indexes are
+	// referenced in place and must therefore be reachable from the control plane; that is checked
+	// when the manifest is fetched, since the kind is only known then.
 	for i, addon := range spec.Addons {
-		if strings.HasPrefix(addon.Manifest, "file://") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("addons").Index(i).Child("manifest"), addon.Manifest, "file:// addon manifests are not supported"))
+		if addon.Manifest == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("addons").Index(i).Child("manifest"), ""))
+		}
+		if addon.SHA256 != "" {
+			if b, err := hex.DecodeString(addon.SHA256); err != nil || len(b) != sha256.Size {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("addons").Index(i).Child("sha256"), addon.SHA256, "must be 64 hex characters"))
+			}
 		}
 	}
 

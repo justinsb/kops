@@ -1,0 +1,9 @@
+kind: Addons
+metadata:
+  name: manifest-a735770a46c3
+spec:
+  addons:
+  - manifest: manifest.yaml
+    manifestHash: ed59dedbaf48a89679732bba2b72972e8cc47c79d17a7520804c665378c1a57c
+    name: manifest-a735770a46c3
+    selector: null

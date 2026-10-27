@@ -53,6 +53,12 @@ type Config struct {
 	// ChannelsManifest is the state-store path of the kops-channels static pod manifest,
 	// set on control-plane instance groups.
 	ChannelsManifest string `json:"channelsManifest,omitempty"`
+	// ChannelsManifestHash is a hash of the channel list in that manifest, set when the cluster has
+	// custom addons (spec.addons). The manifest is only copied at provisioning time, so recording
+	// the hash here makes a change to the custom addons a change to the instance configuration,
+	// which is what `kops rolling-update cluster` uses to decide that control-plane nodes need
+	// replacing.
+	ChannelsManifestHash string `json:"channelsManifestHash,omitempty"`
 
 	// CAs are the CA certificates to trust.
 	CAs map[string]string

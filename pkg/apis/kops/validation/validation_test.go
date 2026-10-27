@@ -791,8 +791,19 @@ func Test_Validate_Addons(t *testing.T) {
 			Input: []kops.AddonSpec{{Manifest: "s3://somebucket/example.yaml"}},
 		},
 		{
-			Input:          []kops.AddonSpec{{Manifest: "file:///etc/kubernetes/kops/config/addons/extra.yaml"}},
-			ExpectedErrors: []string{"Invalid value::spec.addons[0].manifest"},
+			// file:// is fine: plain manifests are copied to the state store at update time.
+			Input: []kops.AddonSpec{{Manifest: "file:///etc/kubernetes/kops/config/addons/extra.yaml"}},
+		},
+		{
+			Input: []kops.AddonSpec{{Manifest: "https://example.com/extra.yaml", SHA256: strings.Repeat("ab", 32)}},
+		},
+		{
+			Input:          []kops.AddonSpec{{Manifest: "https://example.com/extra.yaml", SHA256: "abc"}},
+			ExpectedErrors: []string{"Invalid value::spec.addons[0].sha256"},
+		},
+		{
+			Input:          []kops.AddonSpec{{}},
+			ExpectedErrors: []string{"Required value::spec.addons[0].manifest"},
 		},
 	}
 	for _, g := range grid {

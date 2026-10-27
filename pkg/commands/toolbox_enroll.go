@@ -952,6 +952,7 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 			rewritten, err := rewriteChannelsManifestForEnroll(
 				bootstrapData.NodeupScriptAdditionalFiles[nodeupConfig.ChannelsManifest],
 				bootstrapChannelURL,
+				configBase.Join("addons").Path(),
 				localAddons,
 			)
 			if err != nil {
@@ -1007,18 +1008,26 @@ func (b *ConfigBuilder) GetBootstrapData(ctx context.Context) (*BootstrapData, e
 // mount so the container can read the bootstrap from the host. Custom addons pass through
 // unchanged. If no arg matches the bootstrap URL we warn — the cloudup manifest shape almost
 // certainly drifted and the enrolled node won't be able to reach the bootstrap channel.
-func rewriteChannelsManifestForEnroll(data []byte, bootstrapChannelURL string, localAddonsDir string) ([]byte, error) {
+// rewriteChannelsManifestForEnroll points the kops-channels pod at the copy of the addons tree on
+// the enrolled host. The bootstrap channel and any custom-addon snapshot live under addonsURL in the
+// state store, so every channel argument with that prefix is rewritten; channels served from
+// elsewhere (e.g. an Addons index on https) are left alone.
+func rewriteChannelsManifestForEnroll(data []byte, bootstrapChannelURL string, addonsURL string, localAddonsDir string) ([]byte, error) {
 	pod := &corev1.Pod{}
 	if err := yaml.Unmarshal(data, pod); err != nil {
 		return nil, fmt.Errorf("parsing kops-channels manifest: %w", err)
 	}
-	localBootstrap := "file://" + path.Join(localAddonsDir, "bootstrap-channel.yaml")
+	addonsPrefix := strings.TrimSuffix(addonsURL, "/") + "/"
 	rewroteContainer := -1
 	for ci := range pod.Spec.Containers {
 		args := pod.Spec.Containers[ci].Args
 		for i, arg := range args {
-			if arg == bootstrapChannelURL {
-				args[i] = localBootstrap
+			switch {
+			case arg == bootstrapChannelURL:
+				args[i] = "file://" + path.Join(localAddonsDir, "bootstrap-channel.yaml")
+				rewroteContainer = ci
+			case strings.HasPrefix(arg, addonsPrefix):
+				args[i] = "file://" + path.Join(localAddonsDir, strings.TrimPrefix(arg, addonsPrefix))
 				rewroteContainer = ci
 			}
 		}

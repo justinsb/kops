@@ -39,12 +39,14 @@ spec:
     - channel
     - --yes
     - s3://example/clusters/my-cluster/addons/bootstrap-channel.yaml
-    - s3://example/clusters/my-cluster/addons/custom.yaml
+    - s3://example/clusters/my-cluster/addons/custom/manifest-abcdef012345/0123/addons.yaml
+    - https://example.com/other-channel/addons.yaml
 `)
 
 	out, err := rewriteChannelsManifestForEnroll(
 		in,
 		"s3://example/clusters/my-cluster/addons/bootstrap-channel.yaml",
+		"s3://example/clusters/my-cluster/addons",
 		"/etc/kubernetes/kops/config/addons",
 	)
 	if err != nil {
@@ -58,8 +60,11 @@ spec:
 	if !strings.Contains(s, "file:///etc/kubernetes/kops/config/addons/bootstrap-channel.yaml") {
 		t.Errorf("expected local file:// bootstrap URL in args:\n%s", s)
 	}
-	if !strings.Contains(s, "s3://example/clusters/my-cluster/addons/custom.yaml") {
-		t.Errorf("non-bootstrap channel URL should not be rewritten:\n%s", s)
+	if !strings.Contains(s, "file:///etc/kubernetes/kops/config/addons/custom/manifest-abcdef012345/0123/addons.yaml") {
+		t.Errorf("custom addon snapshot under the addons tree should be rewritten to the local copy:\n%s", s)
+	}
+	if !strings.Contains(s, "https://example.com/other-channel/addons.yaml") {
+		t.Errorf("channel URL outside the addons tree should not be rewritten:\n%s", s)
 	}
 
 	pod := &corev1.Pod{}

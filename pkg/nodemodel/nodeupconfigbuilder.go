@@ -33,6 +33,7 @@ import (
 	"k8s.io/kops/pkg/apis/nodeup"
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/model"
+	"k8s.io/kops/pkg/model/components/channels"
 	"k8s.io/kops/pkg/wellknownports"
 	"k8s.io/kops/pkg/wellknownservices"
 	"k8s.io/kops/upup/pkg/fi"
@@ -43,6 +44,7 @@ import (
 type nodeUpConfigBuilder struct {
 	assetBuilder               *assets.AssetBuilder
 	channelsManifest           string
+	channelsManifestHash       string
 	configBase                 vfs.Path
 	cluster                    *kops.Cluster
 	etcdManifests              map[string][]string
@@ -58,6 +60,10 @@ func NewNodeUpConfigBuilder(cluster *kops.Cluster, assetBuilder *assets.AssetBui
 
 	// Must match channelsManifestPath in pkg/model/components/channels/model.go.
 	channelsManifest := configBase.Join("manifests/channels/kops-channels.yaml").Path()
+	channelsManifestHash, err := channels.ChannelListHash(cluster)
+	if err != nil {
+		return nil, err
+	}
 
 	etcdManifests := map[string][]string{}
 	images := map[kops.InstanceGroupRole]map[architectures.Architecture][]*nodeup.Image{}
@@ -172,6 +178,7 @@ func NewNodeUpConfigBuilder(cluster *kops.Cluster, assetBuilder *assets.AssetBui
 	configBuilder := nodeUpConfigBuilder{
 		assetBuilder:               assetBuilder,
 		channelsManifest:           channelsManifest,
+		channelsManifestHash:       channelsManifestHash,
 		configBase:                 configBase,
 		cluster:                    cluster,
 		etcdManifests:              etcdManifests,
@@ -383,6 +390,7 @@ func (n *nodeUpConfigBuilder) BuildConfig(ig *kops.InstanceGroup, wellKnownAddre
 	}
 	if isMaster || role.HasAPIServer() {
 		config.ChannelsManifest = n.channelsManifest
+		config.ChannelsManifestHash = n.channelsManifestHash
 	}
 
 	if cluster.Spec.CloudProvider.AWS != nil {
