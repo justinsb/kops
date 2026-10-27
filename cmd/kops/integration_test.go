@@ -24,6 +24,8 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/kops/util/pkg/vfs"
 	"maps"
 	"os"
 	"path"
@@ -293,6 +295,88 @@ func TestMinimalGCEInternalLoadBalancerLongClusterName(t *testing.T) {
 func TestMinimalGCEDNSNone(t *testing.T) {
 	newIntegrationTest("minimal-gce.example.com", "minimal_gce_dns-none").
 		runTestTerraformGCE(t)
+}
+
+// TestClusterPackageGCE runs tests on a GCE configuration that installs a ClusterPackage addon object
+func TestClusterPackageGCE(t *testing.T) {
+	featureflag.ParseFlags("+ClusterPackages")
+	defer featureflag.ParseFlags("-ClusterPackages")
+	newIntegrationTest("minimal-gce.example.com", "clusterpackage_gce").
+		runTestTerraformGCE(t)
+}
+
+// TestCreateAdditionalObjectsByName verifies that `kops create -f` can add additional objects to an
+// existing cluster identified by --name, and that doing so merges with the objects already stored
+// instead of replacing them.
+func TestCreateAdditionalObjectsByName(t *testing.T) {
+	featureflag.ParseFlags("+ClusterPackages")
+	defer featureflag.ParseFlags("-ClusterPackages")
+
+	ctx := context.Background()
+	vfs.Context.ResetMemfsContext(true)
+	i := newIntegrationTest("minimal-gce.example.com", "clusterpackage_gce")
+	i.srcDir = updateClusterTestBase + i.srcDir
+	var stdout bytes.Buffer
+	factory := i.setupCluster(t, ctx, "in-v1alpha2.yaml", stdout)
+
+	clientset, err := factory.KopsClient()
+	if err != nil {
+		t.Fatalf("getting clientset: %v", err)
+	}
+	cluster, err := clientset.GetCluster(ctx, i.clusterName)
+	if err != nil {
+		t.Fatalf("getting cluster: %v", err)
+	}
+
+	listNames := func() []string {
+		objects, err := clientset.AddonsFor(cluster).List(ctx)
+		if err != nil {
+			t.Fatalf("listing addon objects: %v", err)
+		}
+		var names []string
+		for _, o := range objects {
+			u := o.ToUnstructured()
+			names = append(names, u.GetKind()+"/"+u.GetName())
+		}
+		return names
+	}
+	if got := listNames(); !reflect.DeepEqual(got, []string{"ClusterPackage/hello-package"}) {
+		t.Fatalf("unexpected initial addon objects: %v", got)
+	}
+
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		p := path.Join(dir, name)
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	// Without a Cluster object in the file and without --name, we cannot know the cluster.
+	cm := write("cm.yaml", "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: extra\n  namespace: kube-system\ndata:\n  v: \"1\"\n")
+	if err := RunCreate(ctx, factory, &stdout, &CreateOptions{Filenames: []string{cm}}); err == nil {
+		t.Fatalf("expected an error when no cluster is specified")
+	}
+	// With --name, the object is added next to the existing one.
+	if err := RunCreate(ctx, factory, &stdout, &CreateOptions{Filenames: []string{cm}, ClusterName: i.clusterName}); err != nil {
+		t.Fatalf("RunCreate with ClusterName: %v", err)
+	}
+	if got := listNames(); !reflect.DeepEqual(got, []string{"ClusterPackage/hello-package", "ConfigMap/extra"}) {
+		t.Fatalf("expected the object to be merged with existing ones, got %v", got)
+	}
+	// Creating the same object again replaces it rather than duplicating it.
+	cm2 := write("cm2.yaml", "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: extra\n  namespace: kube-system\ndata:\n  v: \"2\"\n")
+	if err := RunCreate(ctx, factory, &stdout, &CreateOptions{Filenames: []string{cm2}, ClusterName: i.clusterName}); err != nil {
+		t.Fatalf("RunCreate replacing object: %v", err)
+	}
+	if got := listNames(); !reflect.DeepEqual(got, []string{"ClusterPackage/hello-package", "ConfigMap/extra"}) {
+		t.Fatalf("expected the object to be replaced in place, got %v", got)
+	}
+	objects, _ := clientset.AddonsFor(cluster).List(ctx)
+	data, _, _ := unstructured.NestedString(objects[1].ToUnstructured().Object, "data", "v")
+	if data != "2" {
+		t.Errorf("expected the replaced object's data, got %q", data)
+	}
 }
 
 // TestMinimalScaleway runs tests on a minimal Scaleway cluster

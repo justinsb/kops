@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kops/cmd/kops/util"
 	kopsapi "k8s.io/kops/pkg/apis/kops"
+	"k8s.io/kops/pkg/clusteraddons"
 	"k8s.io/kops/pkg/kopscodecs"
 	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/upup/pkg/fi/cloudup"
@@ -39,6 +40,9 @@ import (
 
 type CreateOptions struct {
 	Filenames []string
+	// ClusterName is the cluster that additional (non-kOps) objects belong to, when the
+	// files do not themselves contain a Cluster object. It comes from --name / KOPS_CLUSTER_NAME.
+	ClusterName string
 }
 
 var (
@@ -72,6 +76,7 @@ func NewCmdCreate(f *util.Factory, out io.Writer) *cobra.Command {
 		Example: createExample,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			options.ClusterName = rootCommand.ClusterName(false)
 			return RunCreate(cmd.Context(), f, out, options)
 		},
 	}
@@ -218,16 +223,38 @@ func RunCreate(ctx context.Context, f *util.Factory, out io.Writer, c *CreateOpt
 		if len(clusters) > 1 {
 			return fmt.Errorf("cannot specify additional objects when multiple clusters are created")
 		}
-		if len(clusters) == 0 {
-			return fmt.Errorf("must specify a cluster when creating additional objects")
+		var cluster *kopsapi.Cluster
+		switch {
+		case len(clusters) == 1:
+			cluster = clusters[0]
+		case c.ClusterName != "":
+			// Adding objects to an existing cluster: the files contain only the objects.
+			existingCluster, err := clientset.GetCluster(ctx, c.ClusterName)
+			if err != nil {
+				return fmt.Errorf("error querying cluster %q: %v", c.ClusterName, err)
+			}
+			if existingCluster == nil {
+				return fmt.Errorf("cluster %q not found", c.ClusterName)
+			}
+			cluster = existingCluster
+			clusterName = cluster.Name
+		default:
+			return fmt.Errorf("must specify a cluster when creating additional objects (include a Cluster object in the file, or pass --name)")
 		}
-		cluster := clusters[0]
 
 		addonsClient := clientset.AddonsFor(cluster)
 
-		if err := addonsClient.Replace(addons); err != nil {
+		// Merge with the objects already stored for the cluster, so that adding an object
+		// does not drop the ones added earlier.
+		existing, err := addonsClient.List(ctx)
+		if err != nil {
+			return fmt.Errorf("error reading existing additional objects: %v", err)
+		}
+		merged := clusteraddons.Merge(existing, addons)
+		if err := addonsClient.Replace(merged); err != nil {
 			return fmt.Errorf("error writing additional objects: %v", err)
 		}
+		fmt.Fprintf(&sb, "Stored %d additional object(s) for cluster %s (%d total)\n", len(addons), cluster.Name, len(merged))
 	}
 
 	{
