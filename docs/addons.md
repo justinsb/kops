@@ -458,6 +458,10 @@ is handled like this:
 To upgrade a plain custom addon, change `manifest` (and `sha256`), then run `kops update cluster --yes`
 followed by `kops rolling-update cluster --yes`.
 
+Note that on a cluster with a single control-plane node, rolling the control plane means the Kubernetes
+API is unavailable for a few minutes; on a highly available control plane the nodes are replaced one at
+a time without an outage.
+
 kops-channels names the addon `manifest-` followed by the first 12 characters of the hash of the URL,
 and records what it applied in an annotation on the `kube-system` namespace. Objects are applied as-is;
 kOps does not add labels to them or delete objects that a later version of the manifest no longer
