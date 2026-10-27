@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"maps"
 	"os"
 	"path"
@@ -335,6 +336,33 @@ spec:
   - name: example
     manifest: example/v1.yaml
 `
+
+// TestHelmAddonsGCE runs tests on a GCE configuration with a Helm chart in spec.addons. The chart is
+// rendered by a fake renderer that echoes its inputs, so the golden files show what reached Helm and
+// how the rendered output is snapshotted and wired into the channel.
+func TestHelmAddonsGCE(t *testing.T) {
+	restore := channels.SetChartRendererForTests(fakeChartRenderer{})
+	defer restore()
+	newIntegrationTest("minimal-gce.example.com", "helm_addons_gce").
+		runTestTerraformGCE(t)
+}
+
+type fakeChartRenderer struct{}
+
+func (fakeChartRenderer) Render(_ context.Context, cluster *kops.Cluster, chart *kops.AddonChartSpec) ([]byte, error) {
+	manifest := fmt.Sprintf(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rendered-%s
+  namespace: %s
+data:
+  repository: %q
+  version: %q
+  kubernetesVersion: %q
+  values: %q
+`, chart.Name, chart.Namespace, chart.Repository, chart.Version, cluster.Spec.KubernetesVersion, chart.Values)
+	return []byte(manifest), nil
+}
 
 // TestMinimalScaleway runs tests on a minimal Scaleway cluster
 func TestMinimalScaleway(t *testing.T) {

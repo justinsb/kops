@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hello
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rendered-hello
+  namespace: hello
+data:
+  repository: "https://charts.example.com/stable"
+  version: "1.2.3"
+  kubernetesVersion: "1.32.0"
+  values: "replicas: 2\ngreeting: world\n"

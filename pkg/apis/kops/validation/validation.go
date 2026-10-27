@@ -31,6 +31,8 @@ import (
 	"strings"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/blang/semver/v4"
 	"golang.org/x/net/ipv4"
@@ -195,13 +197,23 @@ func validateClusterSpec(spec *kops.ClusterSpec, c *kops.Cluster, fieldPath *fie
 	// referenced in place and must therefore be reachable from the control plane; that is checked
 	// when the manifest is fetched, since the kind is only known then.
 	for i, addon := range spec.Addons {
-		if addon.Manifest == "" {
-			allErrs = append(allErrs, field.Required(fieldPath.Child("addons").Index(i).Child("manifest"), ""))
+		addonPath := fieldPath.Child("addons").Index(i)
+		switch {
+		case addon.Manifest == "" && addon.Chart == nil:
+			allErrs = append(allErrs, field.Required(addonPath, "one of manifest or chart"))
+		case addon.Manifest != "" && addon.Chart != nil:
+			allErrs = append(allErrs, field.Invalid(addonPath, "", "only one of manifest and chart may be set"))
 		}
 		if addon.SHA256 != "" {
-			if b, err := hex.DecodeString(addon.SHA256); err != nil || len(b) != sha256.Size {
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("addons").Index(i).Child("sha256"), addon.SHA256, "must be 64 hex characters"))
+			if addon.Chart != nil {
+				allErrs = append(allErrs, field.Invalid(addonPath.Child("sha256"), addon.SHA256, "applies to manifest; use chart.sha256 to pin a chart"))
 			}
+			if !isSHA256Hex(addon.SHA256) {
+				allErrs = append(allErrs, field.Invalid(addonPath.Child("sha256"), addon.SHA256, "must be 64 hex characters"))
+			}
+		}
+		if addon.Chart != nil {
+			allErrs = append(allErrs, validateAddonChart(addon.Chart, addonPath.Child("chart"))...)
 		}
 	}
 
@@ -2222,6 +2234,46 @@ func validateRollingUpdate(rollingUpdate *kops.RollingUpdate, fldpath *field.Pat
 		}
 		if unavailable == 0 && surge == 0 {
 			allErrs = append(allErrs, field.Forbidden(fldpath.Child("maxSurge"), "Cannot be zero if maxUnavailable is zero"))
+		}
+	}
+	return allErrs
+}
+
+func isSHA256Hex(s string) bool {
+	b, err := hex.DecodeString(s)
+	return err == nil && len(b) == sha256.Size
+}
+
+func validateAddonChart(chart *kops.AddonChartSpec, fldPath *field.Path) field.ErrorList {
+	var allErrs field.ErrorList
+	if chart.Repository == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("repository"), ""))
+	} else if !strings.HasPrefix(chart.Repository, "https://") && !strings.HasPrefix(chart.Repository, "oci://") {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("repository"), chart.Repository, "must be an https:// Helm repository URL or an oci:// reference"))
+	}
+	if chart.Name == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("name"), ""))
+	}
+	if chart.Version == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("version"), ""))
+	}
+	if chart.SHA256 != "" && !isSHA256Hex(chart.SHA256) {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("sha256"), chart.SHA256, "must be 64 hex characters"))
+	}
+	if chart.Namespace != "" {
+		for _, msg := range utilvalidation.IsDNS1123Label(chart.Namespace) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("namespace"), chart.Namespace, msg))
+		}
+	}
+	if chart.ReleaseName != "" {
+		for _, msg := range utilvalidation.IsDNS1123Subdomain(chart.ReleaseName) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("releaseName"), chart.ReleaseName, msg))
+		}
+	}
+	if strings.TrimSpace(chart.Values) != "" {
+		var values map[string]interface{}
+		if err := yaml.Unmarshal([]byte(chart.Values), &values); err != nil {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("values"), chart.Values, fmt.Sprintf("must be a YAML mapping: %v", err)))
 		}
 	}
 	return allErrs

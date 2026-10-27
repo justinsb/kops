@@ -1,0 +1,9 @@
+kind: Addons
+metadata:
+  name: chart-b4a2a11d9025
+spec:
+  addons:
+  - manifest: manifest.yaml
+    manifestHash: 62c20b7be5de213b1e640f7941031b69d66cfc379f5154f6aaf8fd4056d1464a
+    name: chart-b4a2a11d9025
+    selector: null

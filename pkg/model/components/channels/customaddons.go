@@ -17,6 +17,7 @@ limitations under the License.
 package channels
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -87,11 +88,12 @@ func ResolveCustomAddons(cluster *kops.Cluster) ([]*CustomAddon, error) {
 	var out []*CustomAddon
 	for i := range cluster.Spec.Addons {
 		spec := cluster.Spec.Addons[i]
-		key := spec.Manifest + "|" + spec.SHA256
+		key := cacheKey(cluster, spec)
 		if cached, ok := customAddonCache.Load(key); ok {
 			out = append(out, cached.(*CustomAddon))
 			continue
 		}
+		chartRenderCluster = cluster
 		addon, err := resolveCustomAddon(spec)
 		if err != nil {
 			return nil, fmt.Errorf("spec.addons[%d]: %w", i, err)
@@ -100,6 +102,19 @@ func ResolveCustomAddons(cluster *kops.Cluster) ([]*CustomAddon, error) {
 		out = append(out, addon)
 	}
 	return out, nil
+}
+
+// chartRenderCluster is the cluster being resolved, made available to the chart renderer (which
+// needs e.g. the kubernetes version). Resolution is not concurrent.
+var chartRenderCluster *kops.Cluster
+
+// cacheKey identifies an addon entry for memoization: everything that influences the result.
+func cacheKey(cluster *kops.Cluster, spec kops.AddonSpec) string {
+	if spec.Chart == nil {
+		return "manifest|" + spec.Manifest + "|" + spec.SHA256
+	}
+	c := spec.Chart
+	return strings.Join([]string{"chart", cluster.Name, cluster.Spec.KubernetesVersion, c.Repository, c.Name, c.Version, c.SHA256, c.ReleaseName, c.Namespace, fmt.Sprint(c.CreateNamespace != nil && !*c.CreateNamespace), fmt.Sprint(c.IncludeCRDs != nil && !*c.IncludeCRDs), c.Values}, "|")
 }
 
 // ResetCustomAddonCache clears the memoized addons; for tests.
@@ -111,8 +126,11 @@ func ResetCustomAddonCache() {
 }
 
 func resolveCustomAddon(spec kops.AddonSpec) (*CustomAddon, error) {
+	if spec.Chart != nil {
+		return resolveChartAddon(spec)
+	}
 	if spec.Manifest == "" {
-		return nil, fmt.Errorf("manifest is required")
+		return nil, fmt.Errorf("one of manifest and chart is required")
 	}
 	locationHash, err := utils.HashString(spec.Manifest)
 	if err != nil {
@@ -147,6 +165,31 @@ func resolveCustomAddon(spec kops.AddonSpec) (*CustomAddon, error) {
 
 	addon.Content = content
 	addon.ContentHash = contentHash
+	return addon, nil
+}
+
+// resolveChartAddon renders a Helm chart and wraps the result as a snapshotted custom addon. The addon
+// name derives from the repository and chart name only, so bumping the version is an update of the
+// same addon rather than a new one.
+func resolveChartAddon(spec kops.AddonSpec) (*CustomAddon, error) {
+	chart := spec.Chart
+	locationHash, err := utils.HashString(strings.TrimSuffix(chart.Repository, "/") + "/" + chart.Name)
+	if err != nil {
+		return nil, err
+	}
+	addon := &CustomAddon{Spec: spec, Name: "chart-" + locationHash[:12]}
+
+	rendered, err := chartRenderer.Render(context.TODO(), chartRenderCluster, chart)
+	if err != nil {
+		return nil, err
+	}
+	content, err := ensureChartNamespace(rendered, chart)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(content)
+	addon.Content = content
+	addon.ContentHash = hex.EncodeToString(sum[:])
 	return addon, nil
 }
 

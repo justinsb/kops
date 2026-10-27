@@ -803,7 +803,29 @@ func Test_Validate_Addons(t *testing.T) {
 		},
 		{
 			Input:          []kops.AddonSpec{{}},
-			ExpectedErrors: []string{"Required value::spec.addons[0].manifest"},
+			ExpectedErrors: []string{"Required value::spec.addons[0]"},
+		},
+		{
+			Input: []kops.AddonSpec{{Chart: &kops.AddonChartSpec{Repository: "https://charts.jetstack.io", Name: "cert-manager", Version: "v1.21.3", Namespace: "cert-manager", Values: "crds:\n  enabled: true\n"}}},
+		},
+		{
+			Input: []kops.AddonSpec{{Chart: &kops.AddonChartSpec{Repository: "oci://registry.example.com/charts", Name: "x", Version: "1.0.0"}}},
+		},
+		{
+			Input:          []kops.AddonSpec{{Manifest: "https://example.com/a.yaml", Chart: &kops.AddonChartSpec{Repository: "https://charts.example.com", Name: "x", Version: "1"}}},
+			ExpectedErrors: []string{"Invalid value::spec.addons[0]"},
+		},
+		{
+			Input:          []kops.AddonSpec{{Chart: &kops.AddonChartSpec{Repository: "http://charts.example.com", Name: "x", Version: "1"}}},
+			ExpectedErrors: []string{"Invalid value::spec.addons[0].chart.repository"},
+		},
+		{
+			Input:          []kops.AddonSpec{{Chart: &kops.AddonChartSpec{Repository: "https://charts.example.com"}}},
+			ExpectedErrors: []string{"Required value::spec.addons[0].chart.name", "Required value::spec.addons[0].chart.version"},
+		},
+		{
+			Input:          []kops.AddonSpec{{Chart: &kops.AddonChartSpec{Repository: "https://charts.example.com", Name: "x", Version: "1", Namespace: "Not_Valid", Values: "- not a mapping\n"}}},
+			ExpectedErrors: []string{"Invalid value::spec.addons[0].chart.namespace", "Invalid value::spec.addons[0].chart.values"},
 		},
 	}
 	for _, g := range grid {

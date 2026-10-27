@@ -467,6 +467,54 @@ and records what it applied in an annotation on the `kube-system` namespace. Obj
 kOps does not add labels to them or delete objects that a later version of the manifest no longer
 contains.
 
+### Helm charts
+
+An entry can render a Helm chart instead of pointing at a manifest:
+
+```yaml
+spec:
+  addons:
+  - chart:
+      repository: https://charts.jetstack.io
+      name: cert-manager
+      version: v1.21.3
+      namespace: cert-manager
+      values: |
+        crds:
+          enabled: true
+        config:
+          gatewayAPI:
+            enabled: true
+```
+
+`kops update cluster` fetches the chart (`https://` repositories and `oci://` references are supported;
+`chart.sha256` optionally pins the packaged chart, and for `https://` repositories the archive is also
+checked against the digest in the repository index), renders it with `helm template` using a pinned Helm
+version, and from there treats the result exactly like a plain manifest: it is copied into the state
+store and applied after the control plane is rolled. `releaseName` defaults to the chart name,
+`namespace` to `kube-system`; a Namespace object is added unless `createNamespace: false`; CRDs are
+included unless `includeCRDs: false`. The addon keeps its identity across `version` changes, so bumping
+the version is an upgrade.
+
+Chart templates are third-party code, so kOps runs Helm in a sandbox with no network and read-only access
+to the chart, the values and an empty home directory; nothing else on the machine (kubeconfigs, cloud
+credentials, Helm repositories or plugins) is visible to it. For `https://` repositories kOps downloads the
+archive itself, so Helm is never given network access at all. For `oci://` references only Helm speaks the
+registry protocol, so `helm pull` runs in the sandbox with the network on and a writable temporary
+directory; Docker setups that share the home directory read-only (Lima's default) cannot run that step.
+The mechanism is chosen with `KOPS_SANDBOX`, or detected in this order:
+
+| `KOPS_SANDBOX` | Mechanism | Available when |
+|---|---|---|
+| `container` | Apple's `container` tool (one micro-VM per run) | macOS 26, `container` on `PATH` |
+| `docker` | Docker | `docker` on `PATH` |
+| `seatbelt` | macOS `sandbox-exec` with a generated profile | macOS |
+| `none` | No isolation (not recommended) | always |
+
+The `container` and `docker` mechanisms use a digest-pinned `alpine/helm` image; `seatbelt` and `none`
+download the matching Helm release into `~/.kops/tools/helm/` and verify it against its published
+checksum. If nothing is available kOps falls back to `none` with a warning.
+
 ### Addons indexes
 
 An entry can also point at a kOps `Addons` index. Use this when one entry in `spec.addons` should point

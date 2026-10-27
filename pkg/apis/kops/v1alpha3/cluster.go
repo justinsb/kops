@@ -326,6 +326,33 @@ type AddonSpec struct {
 	// SHA256 optionally pins the hex SHA-256 of the manifest. When set, `kops update cluster`
 	// fails if the fetched manifest does not match.
 	SHA256 string `json:"sha256,omitempty"`
+	// Chart renders a Helm chart instead of fetching a manifest. Exactly one of Manifest and Chart
+	// must be set.
+	Chart *AddonChartSpec `json:"chart,omitempty"`
+}
+
+// AddonChartSpec renders a Helm chart with `helm template` at `kops update cluster` time. The rendered
+// manifest is then handled exactly like a plain custom addon manifest: copied into the state store and
+// applied by kops-channels after the control plane is rolled.
+type AddonChartSpec struct {
+	// Repository is the chart repository: an https:// Helm repository URL or an oci:// reference.
+	Repository string `json:"repository"`
+	// Name is the chart name within the repository.
+	Name string `json:"name"`
+	// Version is the chart version to render.
+	Version string `json:"version"`
+	// SHA256 optionally pins the hex SHA-256 of the packaged chart (.tgz).
+	SHA256 string `json:"sha256,omitempty"`
+	// ReleaseName is the Helm release name used when rendering. Defaults to Name.
+	ReleaseName string `json:"releaseName,omitempty"`
+	// Namespace is the namespace the chart is rendered for. Defaults to kube-system.
+	Namespace string `json:"namespace,omitempty"`
+	// CreateNamespace adds a Namespace object for Namespace to the rendered manifest. Defaults to true.
+	CreateNamespace *bool `json:"createNamespace,omitempty"`
+	// IncludeCRDs renders the chart's CRDs as well (`helm template --include-crds`). Defaults to true.
+	IncludeCRDs *bool `json:"includeCRDs,omitempty"`
+	// Values is a YAML document of chart values.
+	Values string `json:"values,omitempty"`
 }
 
 // FileAssetSpec defines the structure for a file asset
