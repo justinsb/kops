@@ -323,6 +323,9 @@ type AWSPermission struct {
 type AddonSpec struct {
 	// Manifest is a path to the manifest that defines the addon
 	Manifest string `json:"manifest,omitempty"`
+	// SHA256 optionally pins the hex SHA-256 of the manifest. When set, `kops update cluster`
+	// fails if the fetched manifest does not match.
+	SHA256 string `json:"sha256,omitempty"`
 }
 
 // FileAssetSpec defines the structure for a file asset

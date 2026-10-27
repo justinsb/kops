@@ -1544,6 +1544,7 @@ func Convert_kops_AccessLogSpec_To_v1alpha2_AccessLogSpec(in *kops.AccessLogSpec
 
 func autoConvert_v1alpha2_AddonSpec_To_kops_AddonSpec(in *AddonSpec, out *kops.AddonSpec, s conversion.Scope) error {
 	out.Manifest = in.Manifest
+	out.SHA256 = in.SHA256
 	return nil
 }
 
@@ -1554,6 +1555,7 @@ func Convert_v1alpha2_AddonSpec_To_kops_AddonSpec(in *AddonSpec, out *kops.Addon
 
 func autoConvert_kops_AddonSpec_To_v1alpha2_AddonSpec(in *kops.AddonSpec, out *AddonSpec, s conversion.Scope) error {
 	out.Manifest = in.Manifest
+	out.SHA256 = in.SHA256
 	return nil
 }
 
